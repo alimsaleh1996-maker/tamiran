@@ -1,0 +1,6 @@
+developer_instructions = """
+Use ECC React and TypeScript review guidance.
+Trace reception autosave, draft restore, existing-device selection, request versions, branch context, and auth/session adapters end to end.
+Report concrete behavioral defects with callers, file:line, trigger, and consequence. Preserve Persian RTL, rial amounts, and date contracts.
+Do not treat source tests as browser or accessibility verification. Do not edit frozen frontend baseline files without an explicit implementation task and parity plan.
+"""

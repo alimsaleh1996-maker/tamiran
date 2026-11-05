@@ -1,0 +1,785 @@
+{
+  "scope": "PHP local synthetic fixture",
+  "errors": [],
+  "loginControls": [
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "id": "",
+      "placeholder": "09xxxxxxxxx",
+      "labels": [
+        "شماره موبایل"
+      ],
+      "ariaLabel": null,
+      "required": false,
+      "rect": {
+        "w": 360,
+        "h": 48
+      }
+    },
+    {
+      "tag": "INPUT",
+      "type": "password",
+      "id": "",
+      "placeholder": "",
+      "labels": [
+        "رمز عبور"
+      ],
+      "ariaLabel": null,
+      "required": false,
+      "rect": {
+        "w": 360,
+        "h": 48
+      }
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "id": "",
+      "placeholder": "عدد تصویر",
+      "labels": [],
+      "ariaLabel": null,
+      "required": false,
+      "rect": {
+        "w": 193,
+        "h": 48
+      }
+    }
+  ],
+  "loginImages": [
+    {
+      "alt": "تصویر عبارت امنیتی",
+      "src": "/api/captcha.php?v=1792785233592"
+    }
+  ],
+  "loginButtons": [
+    "",
+    "",
+    "ورود به سامانه"
+  ],
+  "loginOverflow375x812": false,
+  "loginOverflow768x1024": false,
+  "loginOverflow812x375": false,
+  "dashboardText": "تعمیران\nدفتر مسئولیت تعمیرگاه\nعملیات تعمیرگاه\nنبض تعمیرگاه\nپذیرش تعمیرات\nکارهای من\nمرکز عملیات تعمیرات\nکنترل کیفیت\nمالی پرونده\nتحویل تعمیرات\nرسیدها\nپیگیری مشتری\nقطعات و کنترل\nمدیریت سامانه\nتعمیران Pro\nآزمایشی — تعمیرگاه بررسی رابط\n7305 · شعبه آزمایشی\nنسخه 2.0.0-php.1\nآ—\nآزمایشی — مدیر رابط\nمدیر تعمیرگاه\nشعبه آزمایشی · تعمیران Pro · حالت تیمی\nنبض تعمیرگاه\nشعبه آزمایشی\nپذیرش جدید\nوضعیت زنده امروز\nآزمایشی — تعمیرگاه بررسی رابط\n\nهنوز اطلاعاتی ثبت نشده است؛ ابتدا نوع، برند و مدل دستگاه‌ها را در تنظیمات تعریف و سپس اولین پذیرش را ثبت کنید.\n\nپرونده‌های فعال\n۰\nهمه پرونده‌های باز\nمنتظر تخصیص\n۰\nنیازمند تعیین مسئول\nآماده تحویل\n۰\n۰ تحویل امروز\nتعهد داغی باز\n۰\nنیازمند تعیین تکلیف\nپیگیری‌های فراموش‌نشده\n\n0 پیگیری باز · 0 مورد از مهلت گذشته\n\nمشاهده پیگیری‌ها\nجدید\n۰\nدر حال پیگیری\n۰\nمهلت گذشته\n۰\nهنوز پیگیری ثبت نشده است\nپیگیری‌های مشتری پس از ثبت، تا زمان انجام کامل در این بخش باقی می‌مانند.\nجریان پرونده‌های فعال\n\nتصویر لحظه‌ای از ۰ پرونده تعمیر\n\nمنتظر تخصیص\n0 دستگاه\nنزد مسئول پرونده\n0 دستگاه\nمنتظر قطعه یا مشتری\n0 دستگاه\nآماده تحویل\n0 دستگاه\nمشاهده پرونده‌های مجاز\nبار کاری تکنسین‌ها\n\nپرونده فعال، تکمیل امروز و داغی باز\n\nهنوز تکنسینی ثبت نشده است\nکاربران فنی پس از ایجاد حساب در این بخش نمایش داده می‌شوند.\nجزئیات عملکرد تیم\nآخرین پرونده‌ها\n\nرویدادهای واقعی امروز، به‌ترتیب آخرین تغییر\n\nهمه پرونده‌ها\nرسید\tدستگاه و مشتری\tایراد اعلامی\tوضعیت\tآخرین تغییر\t\nهنوز اطلاعاتی ثبت نشده است\nبا ثبت اولین پذیرش، ",
+  "dashboardStyles": [
+    {
+      "text": "نبض تعمیرگاه",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgba(60, 196, 189, 0.18)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item active",
+          "bg": "rgba(60, 196, 189, 0.18)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "پذیرش تعمیرات",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "کارهای من",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "مرکز عملیات تعمیرات",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "کنترل کیفیت",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "مالی پرونده",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "تحویل تعمیرات",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "رسیدها",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "پیگیری مشتری",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group is-expanded",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "انبار قطعات",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "گردش‌ها",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "درخواست‌های قطعه",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "تعهدهای داغی",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    },
+    {
+      "text": "سفارش خرید",
+      "color": "rgba(242, 255, 254, 0.76)",
+      "bg": "rgba(0, 0, 0, 0)",
+      "size": "13px",
+      "weight": "400",
+      "ancestors": [
+        {
+          "tag": "BUTTON",
+          "cl": "nav-item ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group-items",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "DIV",
+          "cl": "nav-group ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "NAV",
+          "cl": "nav-area",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "none"
+        },
+        {
+          "tag": "ASIDE",
+          "cl": "sidebar ",
+          "bg": "rgba(0, 0, 0, 0)",
+          "image": "radial-gradient(circle at 85% 7%, rgba(60, 196, 189, 0.28), rgba(0, 0, 0, 0) 256px), linear-gradient(165deg, rgb(23, 72, 70) 0%, rgb(19, 62, 60) 56%, rgb(13, 48, 47) 100%)"
+        }
+      ]
+    }
+  ],
+  "receptionText": "تعمیران\nدفتر مسئولیت تعمیرگاه\nعملیات تعمیرگاه\nنبض تعمیرگاه\nپذیرش تعمیرات\nکارهای من\nمرکز عملیات تعمیرات\nکنترل کیفیت\nمالی پرونده\nتحویل تعمیرات\nرسیدها\nپیگیری مشتری\nقطعات و کنترل\nمدیریت سامانه\nتعمیران Pro\nآزمایشی — تعمیرگاه بررسی رابط\n7305 · شعبه آزمایشی\nنسخه 2.0.0-php.1\nآ—\nآزمایشی — مدیر رابط\nمدیر تعمیرگاه\nشعبه آزمایشی · تعمیران Pro · حالت تیمی\nپذیرش تعمیرات\nشعبه آزمایشی\nپذیرش جدید\nپذیرش · شعبه آزمایشی\nثبت پذیرش جدید\n\nپذیرش در سه مرحله ثبت می‌شود و پرونده فقط با تأیید نهایی ساخته خواهد شد.\n\nپیگیری رسید\n1\nمشتری\nموبایل و سوابق\n2\nمحصول\nمشخصات و لوازم\n3\nپذیرش\nوضعیت و شرح\nاطلاعات مشتری\nمرحله اول\nشماره موبایل *\nابتدا موبایل را وارد کنید؛ اطلاعات و محصولات قبلی خودکار نمایش داده می‌شوند.\nنام و نام خانوادگی *\nکد ملی\nاعتبار کد ملی ایران هنگام ثبت کنترل می‌شود.\nشماره تماس دوم\nآدرس مشتری\nافزودن یا ویرایش آدرس\nاستان، شهر، نشانی و کد پستی در یک پنجره جدا ثبت می‌شوند.\nخلاصه پذیرش · مرحله ۱ از ۳\nمحصول جدید\nنوع محصول انتخاب نشده\nمشتری\nثبت نشده\nپذیرش‌کننده\nآزمایشی — مدیر رابط\nلوازم همراه\nبدون لوازم\nوضعیت ظاهری\nثبت نشده\n\nشرح داخلی پذیرش و اطلاعات محرمانه روی نسخه چاپی یا پرتال مشتری نمایش داده نمی‌شوند.\n\nثبت مرحله و ادامه",
+  "receptionControls": [
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "id": "",
+      "placeholder": "09xxxxxxxxx",
+      "labels": [
+        "شماره موبایل *\nابتدا موبایل را وارد کنید؛ اطلاعات و محصولات قبلی خودکار نمایش داده می‌شوند."
+      ],
+      "ariaLabel": null,
+      "required": true,
+      "rect": {
+        "w": 252.21875,
+        "h": 46
+      }
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "id": "",
+      "placeholder": "ابتدا شماره موبایل را وارد کنید",
+      "labels": [
+        "نام و نام خانوادگی *"
+      ],
+      "ariaLabel": null,
+      "required": true,
+      "rect": {
+        "w": 252.21875,
+        "h": 46
+      }
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "id": "",
+      "placeholder": "اختیاری",
+      "labels": [
+        "کد ملی\nاعتبار کد ملی ایران هنگام ثبت کنترل می‌شود."
+      ],
+      "ariaLabel": null,
+      "required": false,
+      "rect": {
+        "w": 252.21875,
+        "h": 46
+      }
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "id": "",
+      "placeholder": "اختیاری · 09xxxxxxxxx",
+      "labels": [
+        "شماره تماس دوم"
+      ],
+      "ariaLabel": null,
+      "required": false,
+      "rect": {
+        "w": 252.21875,
+        "h": 46
+      }
+    }
+  ],
+  "receptionOverflow375x812": false,
+  "receptionOverflow768x1024": false,
+  "receptionOverflow812x375": false,
+  "closedMenuTab": [
+    {
+      "tag": "BUTTON",
+      "text": "پذیرش جدید",
+      "label": null,
+      "inSidebar": false,
+      "x": 15,
+      "y": 15,
+      "w": 92.90625,
+      "h": 42
+    },
+    {
+      "tag": "BUTTON",
+      "text": "پیگیری رسید",
+      "label": null,
+      "inSidebar": false,
+      "x": 37.203125,
+      "y": 222.375,
+      "w": 302.796875,
+      "h": 42
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": null,
+      "inSidebar": false,
+      "x": 28,
+      "y": 511.21875,
+      "w": 319,
+      "h": 46
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": null,
+      "inSidebar": false,
+      "x": 28,
+      "y": 723.15625,
+      "w": 319,
+      "h": 46
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": null,
+      "inSidebar": false,
+      "x": 28,
+      "y": 383.125,
+      "w": 319,
+      "h": 46
+    },
+    {
+      "tag": "BUTTON",
+      "text": "افزودن یا ویرایش آدرس",
+      "label": null,
+      "inSidebar": false,
+      "x": 28,
+      "y": 468.71875,
+      "w": 319,
+      "h": 36.5
+    },
+    {
+      "tag": "BUTTON",
+      "text": "ثبت مرحله و ادامه",
+      "label": null,
+      "inSidebar": false,
+      "x": 28,
+      "y": 705.296875,
+      "w": 319,
+      "h": 47
+    },
+    {
+      "tag": "BODY",
+      "text": "تعمیران\nدفتر مسئولیت تعمیرگاه\nعملیات تعمیرگاه\nنبض تعمیرگاه\nپذیرش تعمیر",
+      "label": null,
+      "inSidebar": false,
+      "x": 0,
+      "y": -678,
+      "w": 375,
+      "h": 1490.296875
+    }
+  ],
+  "openMenu": {
+    "expanded": null,
+    "role": null,
+    "focus": {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "باز کردن منو",
+      "inSidebar": false,
+      "x": 320,
+      "y": 16,
+      "w": 40,
+      "h": 40
+    },
+    "nextFocus": {
+      "tag": "BUTTON",
+      "text": "پذیرش جدید",
+      "label": null,
+      "inSidebar": false,
+      "x": 15,
+      "y": 15,
+      "w": 93,
+      "h": 42
+    },
+    "escapeCloses": false
+  }
+}

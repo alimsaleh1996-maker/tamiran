@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0d4d49">
+  <meta name="description" content="محیط آزمایش رابط و گردش فرایند تعمیران">
+  <title>آزمایشگاه تعمیران</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23142432'/%3E%3Cpath d='M18 20h28v9H35v17h-6V29H18z' fill='%232dd4bf'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">ت</div>
+        <div><strong>تعمیران</strong><span>آزمایشگاه تجربه کاربری</span></div>
+        <button class="icon-btn sidebar-close" id="closeMenu" aria-label="بستن منو">×</button>
+      </div>
+      <div class="lab-note"><span></span> محیط تست مستقل؛ بدون داده واقعی</div>
+      <nav id="nav" aria-label="منوی اصلی"></nav>
+      <div class="sidebar-foot">
+        <strong>تعمیرگاه آزمایشی صدراتل</strong>
+        <span>تعمیران Pro · شعبه مرکزی</span>
+        <small>نسخه آزمایش UX · ۱۴۰۵/۰۷/۰۷</small>
+      </div>
+    </aside>
+    <button class="backdrop" id="backdrop" aria-label="بستن منو"></button>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="topbar-title">
+          <button class="icon-btn menu-btn" id="openMenu" aria-label="باز کردن منو">☰</button>
+          <div><small id="breadcrumb">عملیات تعمیرگاه · شعبه مرکزی</small><h1 id="pageTitle">نبض تعمیرگاه</h1></div>
+        </div>
+        <div class="topbar-actions">
+          <label class="role-picker"><span>نمای نقش</span><select id="roleSelect" aria-label="انتخاب نقش"></select></label>
+          <button class="primary-btn" data-action="new-case">＋ پذیرش جدید</button>
+        </div>
+      </header>
+
+      <div class="mobile-lab-note"><span></span> محیط تست · اطلاعات ساختگی</div>
+      <aside role="status" dir="rtl" style="margin:16px 24px;padding:14px;border:1px solid #e4c26e;border-radius:12px;background:#fff8df;color:#594310;line-height:1.9">
+        این صفحه فقط دموی قبلی است، نه نرم‌افزار آماده پایلوت. انتقال نسخه واقعی به سایت‌ساز آغاز شده؛ فعلاً داده واقعی ثبت نکنید.
+        <a href="/migration-status.html" style="color:inherit;text-decoration:underline">وضعیت انتقال و تست‌ها</a>
+      </aside>
+      <section id="content" class="content" aria-live="polite"></section>
+    </main>
+  </div>
+
+  <button class="bug-fab" id="bugFab"><span>!</span> ثبت باگ</button>
+  <dialog id="bugDialog" class="dialog">
+    <form method="dialog" id="bugForm">
+      <div class="dialog-head"><div><small>ثبت محلی در همین مرورگر</small><h2>گزارش باگ</h2></div><button type="button" data-close-dialog class="icon-btn" aria-label="بستن">×</button></div>
+      <label>عنوان مشکل<input name="title" required maxlength="120" placeholder="مثلاً دکمه مرحله بعد واکنش ندارد"></label>
+      <div class="form-grid">
+        <label>بخش<select name="module"><option>پذیرش</option><option>تکنسین</option><option>کنترل کیفیت</option><option>مالی</option><option>تحویل</option><option>ظاهر و موبایل</option></select></label>
+        <label>شدت<select name="severity"><option value="P0">P0 · مسدودکننده</option><option value="P1">P1 · جدی</option><option value="P2" selected>P2 · متوسط</option><option value="P3">P3 · جزئی</option></select></label>
+      </div>
+      <label>شرح<textarea name="description" rows="4" placeholder="چه کاری انجام دادید و چه اتفاقی افتاد؟"></textarea></label>
+      <div class="dialog-actions"><button type="button" data-close-dialog class="ghost-btn">انصراف</button><button type="submit" value="default" class="primary-btn">ذخیره گزارش</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="caseDialog" class="dialog case-dialog">
+    <form method="dialog" id="caseForm">
+      <div class="dialog-head"><div><small>پرونده آزمایشی</small><h2>پذیرش جدید</h2></div><button type="button" data-close-dialog class="icon-btn" aria-label="بستن">×</button></div>
+      <div class="stepper"><span class="active">۱ مشتری</span><span>۲ دستگاه</span><span>۳ پذیرش</span></div>
+      <div class="form-grid">
+        <label>شماره موبایل<input name="mobile" inputmode="numeric" required placeholder="09xxxxxxxxx"></label>
+        <label>نام مشتری<input name="customer" required placeholder="نام و نام خانوادگی"></label>
+        <label>برند<input name="brand" required value="سامسونگ"></label>
+        <label>مدل دستگاه<input name="model" required placeholder="مثلاً A56"></label>
+      </div>
+      <label>ایراد اعلامی<textarea name="issue" required rows="3" placeholder="شرح کوتاه و دقیق مشکل"></textarea></label>
+      <div class="dialog-actions"><button type="button" data-close-dialog class="ghost-btn">انصراف</button><button type="submit" value="default" class="primary-btn">ثبت پرونده آزمایشی</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

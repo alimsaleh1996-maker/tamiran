@@ -1,0 +1,62 @@
+{
+  "passed": 14,
+  "failed": 0,
+  "results": [
+    {
+      "name": "Initialization returns metadata only",
+      "status": "PASS"
+    },
+    {
+      "name": "Initialization never exposes answer or transcript",
+      "status": "PASS"
+    },
+    {
+      "name": "Audio has no-store WAV headers",
+      "status": "PASS"
+    },
+    {
+      "name": "WAV decodes as audible mono PCM",
+      "status": "PASS"
+    },
+    {
+      "name": "Repeated audio does not rotate challenge",
+      "status": "PASS"
+    },
+    {
+      "name": "Image remains identical after audio request",
+      "status": "PASS"
+    },
+    {
+      "name": "Wrong challenge key is rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "Another session cannot fetch audio",
+      "status": "PASS"
+    },
+    {
+      "name": "Cross-site audio request is rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "Image answer authenticates after audio playback",
+      "status": "PASS"
+    },
+    {
+      "name": "Consumed audio is unavailable",
+      "status": "PASS"
+    },
+    {
+      "name": "A consumed challenge cannot log in twice",
+      "status": "PASS"
+    },
+    {
+      "name": "Refresh invalidates a still-unconsumed audio binding",
+      "status": "PASS"
+    },
+    {
+      "name": "Non-GET audio request is rejected",
+      "status": "PASS"
+    }
+  ]
+}

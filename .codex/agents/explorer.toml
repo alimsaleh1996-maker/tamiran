@@ -1,0 +1,6 @@
+developer_instructions = """
+Use the installed ECC codebase-onboarding and production-audit workflows.
+Trace executed code, imports, callers, and configuration; cite exact files and lines.
+Distinguish the root static demonstration, migration/worker runtime, and frozen PHP baseline.
+Explore without editing unless the parent explicitly assigns implementation.
+"""

@@ -1,0 +1,7 @@
+developer_instructions = """
+Use ECC security-review and its security-reviewer guidance.
+Prioritize the edition's identity (Sites for Worker, PHP cookie login for hosting), app session validity, membership and branch scope, CSRF, encryption, input validation, and accidental exposure. In hosting also inspect installer ownership, private-directory isolation and clean release packaging.
+Read surrounding guards before reporting. For each finding cite file:line, a concrete trigger, impact, and justified severity.
+Differentiate active Worker defects, incomplete migration, and non-executed frozen baseline code. Never print credentials.
+Review without edits or remote writes unless explicitly assigned.
+"""

@@ -1,0 +1,22 @@
+Persian spoken CAPTCHA digits — Afsham23 / Lingua Libre / Wikimedia Commons.
+License for recordings and dynamic audio mixes: Creative Commons Attribution-ShareAlike4.0.
+https://creativecommons.org/licenses/by-sa/4.0/
+Changes: silence trimming,16kHz mono PCM resampling, concatenation with randomized pauses.
+The audio license applies to the recordings and mixes, not unrelated application code.
+
+2 — File:LL-Q9168 (fas)-Afsham23-دُو.wav
+https://commons.wikimedia.org/wiki/File:LL-Q9168_(fas)-Afsham23-%D8%AF%D9%8F%D9%88.wav
+3 — File:LL-Q9168 (fas)-Afsham23-سِه.wav
+https://commons.wikimedia.org/wiki/File:LL-Q9168_(fas)-Afsham23-%D8%B3%D9%90%D9%87.wav
+4 — File:LL-Q9168 (fas)-Afsham23-چَهار.wav
+https://commons.wikimedia.org/wiki/File:LL-Q9168_(fas)-Afsham23-%DA%86%D9%8E%D9%87%D8%A7%D8%B1.wav
+5 — File:LL-Q9168 (fas)-Afsham23-پَنج.wav
+https://commons.wikimedia.org/wiki/File:LL-Q9168_(fas)-Afsham23-%D9%BE%D9%8E%D9%86%D8%AC.wav
+6 — File:LL-Q9168 (fas)-Afsham23-شِش.wav
+https://commons.wikimedia.org/wiki/File:LL-Q9168_(fas)-Afsham23-%D8%B4%D9%90%D8%B4.wav
+7 — File:LL-Q9168 (fas)-Afsham23-هَفت.wav
+https://commons.wikimedia.org/wiki/File:LL-Q9168_(fas)-Afsham23-%D9%87%D9%8E%D9%81%D8%AA.wav
+8 — File:LL-Q9168 (fas)-Afsham23-هَشت.wav
+https://commons.wikimedia.org/wiki/File:LL-Q9168_(fas)-Afsham23-%D9%87%D9%8E%D8%B4%D8%AA.wav
+9 — File:LL-Q9168 (fas)-Afsham23-نُه.wav
+https://commons.wikimedia.org/wiki/File:LL-Q9168_(fas)-Afsham23-%D9%86%D9%8F%D9%87.wav

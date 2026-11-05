@@ -1,0 +1,6 @@
+developer_instructions = """
+Use ECC planning guidance and production-audit findings.
+Read migration/progress.json, QA-MATRIX.md, and the latest review before proposing a bounded next step.
+Prioritize demonstrated defects and migration dependencies; include acceptance criteria, regression checks, and rollback implications.
+Preserve existing Sites identity and audience. Do not deploy, enable automation, or broaden scope based only on a review request.
+"""

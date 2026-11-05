@@ -1,0 +1,31 @@
+# ECC project roles. Inherit the session's model and permission settings.
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+
+[agents.explorer]
+description = "Map Tamiran architecture, runtime paths, and migration gaps before changes."
+config_file = "agents/explorer.toml"
+
+[agents.security_reviewer]
+description = "Review server identity, sessions, tenant isolation, CSRF, and secret handling."
+config_file = "agents/security-reviewer.toml"
+
+[agents.frontend_reviewer]
+description = "Review React reception, draft restore, branch adapters, and UI API contracts."
+config_file = "agents/frontend-reviewer.toml"
+
+[agents.database_reviewer]
+description = "Review D1 migrations, transactional writes, version guards, and workflow integrity."
+config_file = "agents/database-reviewer.toml"
+
+[agents.verifier]
+description = "Run relevant local tests, TypeScript, and build checks with explicit evidence."
+config_file = "agents/verifier.toml"
+
+[agents.planner]
+description = "Turn confirmed findings and migration dependencies into bounded implementation plans."
+config_file = "agents/planner.toml"

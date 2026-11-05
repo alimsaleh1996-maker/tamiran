@@ -1,0 +1,11 @@
+*.tsbuildinfo
+*.log
+.env*
+**/node_modules/
+**/.sites-runtime/
+**/.wrangler/
+**/__pycache__/
+*.py[cod]
+*.tar.gz
+*.zip
+/release-output/

@@ -1,0 +1,5 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/bootstrap.php';
+require_once tamiran_private_root().'/v2-core.php';
+tamiran_api(static function():array{$pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';if($method==='GET'){$statement=$pdo->prepare('SELECT public_id,event_code,title,body,entity_type,entity_public_id,priority,read_at,created_at FROM tamiran_notifications WHERE shop_id=:shop AND recipient_user_id=:user ORDER BY created_at DESC LIMIT 200');$statement->execute(['shop'=>$scope['shop_id'],'user'=>$scope['actor']['id']]);return['notifications'=>$statement->fetchAll()];}if($method!=='POST')throw new TamiranApiException('روش درخواست مجاز نیست.',405);tamiran_require_csrf();$input=tamiran_json_body();$public=v2_text($input['publicId']??'','اعلان',80);$pdo->prepare('UPDATE tamiran_notifications SET read_at=COALESCE(read_at,NOW()) WHERE public_id=:public AND shop_id=:shop AND recipient_user_id=:user')->execute(['public'=>$public,'shop'=>$scope['shop_id'],'user'=>$scope['actor']['id']]);return['read'=>true];});

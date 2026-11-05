@@ -1,0 +1,83 @@
+{
+  "source": "1f34fb419488bd7887f60171d433c4a0bf405a17",
+  "type": "Request/Response + SQLite adapter; NOT browser/hosted D1",
+  "results": [
+    {
+      "id": "UI-01-current-form-missing-terms-and-null-device",
+      "status": 400,
+      "caseWrite": "none"
+    },
+    {
+      "id": "UI-02-add-terms-null-device-still-invalid",
+      "status": 400,
+      "caseWrite": "none"
+    },
+    {
+      "id": "UI-03-new-device-omit-null-still-missing-terms",
+      "status": 400,
+      "caseWrite": "none"
+    },
+    {
+      "id": "UI-04-first-autosave",
+      "status": 200,
+      "caseWrite": "none"
+    },
+    {
+      "id": "UI-05-second-autosave-missing-version",
+      "status": 409,
+      "caseWrite": "none"
+    },
+    {
+      "id": "UI-06-discard-without-version",
+      "status": 409,
+      "caseWrite": "none"
+    },
+    {
+      "id": "UI-07-convert-draft-without-version",
+      "status": 400,
+      "caseWrite": "none"
+    },
+    {
+      "id": "UNPORTED-auth.php",
+      "status": 503
+    },
+    {
+      "id": "UNPORTED-capabilities.php",
+      "status": 503
+    },
+    {
+      "id": "UNPORTED-followups.php",
+      "status": 503
+    },
+    {
+      "id": "UNPORTED-workflow-v2.php",
+      "status": 503
+    },
+    {
+      "id": "UNPORTED-portal-v2.php",
+      "status": 503
+    },
+    {
+      "id": "UNPORTED-finance-v2.php",
+      "status": 503
+    },
+    {
+      "id": "UNPORTED-inventory-v2.php",
+      "status": 503
+    },
+    {
+      "id": "UNPORTED-quality-v2.php",
+      "status": 503
+    },
+    {
+      "id": "UNPORTED-delivery-v2.php",
+      "status": 503
+    },
+    {
+      "id": "CONTROL-valid-server-contract",
+      "status": 200,
+      "created": true,
+      "receipt": "T1010A-000002"
+    }
+  ]
+}

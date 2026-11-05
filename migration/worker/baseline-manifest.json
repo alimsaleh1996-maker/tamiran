@@ -1,0 +1,274 @@
+{
+  "format": 1,
+  "scope": "Frozen local source only; no staging access, live database, credentials or runtime data.",
+  "files": [
+    {
+      "path": "app/tamiran/access.tsx",
+      "sha256": "cdd4eb9d8a6165a8df7350821d7fad93746dac1527c76f84c663a402bcc1d527"
+    },
+    {
+      "path": "app/tamiran/admin-panel.tsx",
+      "sha256": "be9c4c3eefdb636b0a80cce5278f3305d26f8f97ec07242fd2ec4b3df65f1cac"
+    },
+    {
+      "path": "app/tamiran/capabilities.tsx",
+      "sha256": "dd9fe18f3a03359d2e1f2a805f4dc2aaffa4a777eca481ea21938269cc544108"
+    },
+    {
+      "path": "app/tamiran/catalog.ts",
+      "sha256": "e9dd5b7e62d9cad69b03ee8cd62bc5033785388501aa0a131f0defefeb45c757"
+    },
+    {
+      "path": "app/tamiran/customer-portal.tsx",
+      "sha256": "7ccb6b16d9a76967253395cde9be11af418318064121218559df7898fb0b7c5b"
+    },
+    {
+      "path": "app/tamiran/directadmin-api.ts",
+      "sha256": "79ace8684760511af08b100c87b4b125f937f083c2abea5662f7c18738beb1b8"
+    },
+    {
+      "path": "app/tamiran/followups-api.ts",
+      "sha256": "0de18f7c5d8f8439281484c75874ae2d2698d1f981ff5795a070dd8925c04645"
+    },
+    {
+      "path": "app/tamiran/followups.ts",
+      "sha256": "77119a9b89832ffea5f518b843dd553e5ff6b948be82cd162d8fbd5b49fdc9a0"
+    },
+    {
+      "path": "app/tamiran/modules.tsx",
+      "sha256": "f3c5e52e8897e4603ffb8859b250a18a825479c300c3fdd383683eee8a7a71ed"
+    },
+    {
+      "path": "app/tamiran/operations.ts",
+      "sha256": "b237bc408d37d2c52a5b41657e77d8092b395ba97f52521d38bfea738e865d81"
+    },
+    {
+      "path": "app/tamiran/page.tsx",
+      "sha256": "8b1556bc9232f99a1fc4347a2f1a9ccdd04d09ab8b1e41af141fe4866718ae99"
+    },
+    {
+      "path": "app/tamiran/persian-date-picker.tsx",
+      "sha256": "4f382a59af44c1d49b8e560d1fdf9044034ca95ff0349d84f4960a356710a08f"
+    },
+    {
+      "path": "app/tamiran/persian-date.ts",
+      "sha256": "3e28f9289a7ec64641ced80fbcda253b1de89cc29d5679ef872eb09351bfa84d"
+    },
+    {
+      "path": "app/tamiran/secure-qr.tsx",
+      "sha256": "fe378c88fd33afc3df4fee0c294b14607f92f9cafc9b86b2825a9f31f6b38952"
+    },
+    {
+      "path": "app/tamiran/technician-workbench.tsx",
+      "sha256": "a01ea9731fd8d3ca52f549a3d0afbe7ed57ab7154977a365df145698faa09601"
+    },
+    {
+      "path": "app/tamiran/v2-api.ts",
+      "sha256": "317ed076f1b7dacd5ad1506aece04c46d7907c75129ca3059e5953854ecbc0ee"
+    },
+    {
+      "path": "app/tamiran/v2-workspace.tsx",
+      "sha256": "d16381cc6ad1ac402df4a6dfdf6c1cb4a75a43a72aa06087861689ade3c37137"
+    },
+    {
+      "path": "app/tamiran/version.ts",
+      "sha256": "aeaf8eb8a8aab82b480e42de796f92f1f6f2d53d77db8a6f7f8135fcd53e038d"
+    },
+    {
+      "path": "app/tamiran/xlsx-reader.ts",
+      "sha256": "1ead038bdcec876bef5aa9798449bb8f2e57bc06f75ae5b34f855b8413969a25"
+    },
+    {
+      "path": "baseline/api/admin-users.php",
+      "sha256": "cbc877bcf29bd2737b00908cb1441d3c2ad4603c62efe01a280c7218b1a50e5d"
+    },
+    {
+      "path": "baseline/api/admin.php",
+      "sha256": "272ddd9baf73fc3be28abd0f9f43978a5706d92a7435006b4057d85732a14a1c"
+    },
+    {
+      "path": "baseline/api/auth.php",
+      "sha256": "3dfd3e92b8a97b78fb8e19bc8d08c491d3bbbea11a92fa4f026a4aa3f1f605ca"
+    },
+    {
+      "path": "baseline/api/backup-cron.php",
+      "sha256": "2723cea942ad40b5640d8cfdabdeb9e58590e6a0afa9d525b5333269eef16b03"
+    },
+    {
+      "path": "baseline/api/backup-download.php",
+      "sha256": "e9463d3e1f458f590a0c3a825397a54a17476fa94f71fc84180e4e31cb4bc9dc"
+    },
+    {
+      "path": "baseline/api/backups.php",
+      "sha256": "ce67b33cc7e72874e57a7fb06a2780b03cd283a5e9513591224c00108fa3ad39"
+    },
+    {
+      "path": "baseline/api/bootstrap.php",
+      "sha256": "31d989849cbb22cefe392dd4eb73d2d16705a85cc34591bfe24be2c1d0a8d91f"
+    },
+    {
+      "path": "baseline/api/capabilities.php",
+      "sha256": "734a16207c77a7676b1f3e2682d5a6d63d410c650088cecdecc9f20ba2227896"
+    },
+    {
+      "path": "baseline/api/captcha.php",
+      "sha256": "d98a955938d189389fbc1aed580d0810fe6c48144e34d753c25ac640304db875"
+    },
+    {
+      "path": "baseline/api/catalog.php",
+      "sha256": "62ce7665b7ec5a1ce6a5c8ccea1b5cc03c62a59c052a8968c2dd78746f09497a"
+    },
+    {
+      "path": "baseline/api/client-error.php",
+      "sha256": "b7ab9527831e127c00ec7ad2b99a1f20c24becf1cc6d623fc4eb134628ff31f1"
+    },
+    {
+      "path": "baseline/api/csrf.php",
+      "sha256": "43d3261531ba93b00147125480c52229a2a0ed6b223e6d2b3c76ee84d7feaede"
+    },
+    {
+      "path": "baseline/api/debug-status.php",
+      "sha256": "538b03652620fc3363ec44e325ca6968ca5843beb9ea8738fc4a46d6f1c145b8"
+    },
+    {
+      "path": "baseline/api/delivery-v2.php",
+      "sha256": "d5c7a802ec529575c0b7eb8b2e4d94f0473aa250f66643d0e033fbddef25b203"
+    },
+    {
+      "path": "baseline/api/files-v2.php",
+      "sha256": "203f1d6a4a04b25c82468a5320155ad58d0090e9559399bf1e628c37bfa8be6f"
+    },
+    {
+      "path": "baseline/api/finance-v2.php",
+      "sha256": "d8767ec9e34fd15064d7cdc322fb365fab77c561055d42d8a26bdc7629ab2156"
+    },
+    {
+      "path": "baseline/api/followups.php",
+      "sha256": "03937ecfd3c2ccfeb0c9436506d85def4c3b12f95a32c04fe4fd2e2954f1397a"
+    },
+    {
+      "path": "baseline/api/health.php",
+      "sha256": "34c413dfea1e7c2632f37e45727d665d7e6e6b8bbb223269a2c8ce7edf92888e"
+    },
+    {
+      "path": "baseline/api/inventory-control-v2.php",
+      "sha256": "6bd38b329344a03235b87f0e6e665f716994a9ab5a48b75dcbb27bede189fdd0"
+    },
+    {
+      "path": "baseline/api/inventory-v2.php",
+      "sha256": "c6daaac9e2b16cde4ce493d7bbb1093c4e84bf56f92e9afb91152a974b9e4459"
+    },
+    {
+      "path": "baseline/api/my-tasks-v2.php",
+      "sha256": "cdd11e5369271abde66fe5530e999caa8ecffb99fa35c8ff0c00769da27f3953"
+    },
+    {
+      "path": "baseline/api/notifications-v2.php",
+      "sha256": "7be49aef426fe08e5fb13921aa9bba8cd9ef50e2fd0b96477327277e51c62b14"
+    },
+    {
+      "path": "baseline/api/operations.php",
+      "sha256": "3870f48a7ea25be9f391ac207e7579399e2eba9c2184b6d0a5541a8a55ac7fb9"
+    },
+    {
+      "path": "baseline/api/portal-v2.php",
+      "sha256": "e040a1cd88827db7aacebf7b44abae6157d0ce71b8cdbc0a82d9749c247b760f"
+    },
+    {
+      "path": "baseline/api/price-catalog.php",
+      "sha256": "19420e63a8d3ea442085281069e82a47b0ca3b9c1617d8c3bdbd3bf599ee063d"
+    },
+    {
+      "path": "baseline/api/procurement-v2.php",
+      "sha256": "0f407052039def921ccc9950e6b1339338354c657563d8f063b80041cce318c0"
+    },
+    {
+      "path": "baseline/api/product-change.php",
+      "sha256": "b15724c6d233046e2e9f486216097939c34a5dddec3e6f6fe5b0cb0fdb266ae4"
+    },
+    {
+      "path": "baseline/api/purchase-orders.php",
+      "sha256": "68e31f24a9fd065b78b70e10ba6d4af34199bfa451b96c70011d7e3197c34f45"
+    },
+    {
+      "path": "baseline/api/quality-v2.php",
+      "sha256": "643bc7ae97fbfcc8cc71cff1237fc7a0bf0a7ea0b63ef41e9feb12e25d515eaf"
+    },
+    {
+      "path": "baseline/api/retention-worker.php",
+      "sha256": "d9f57ecca334473c3ec92b11ae4fc34da7f3d650843e9736a9dd445753a90775"
+    },
+    {
+      "path": "baseline/api/sales-v2.php",
+      "sha256": "11290261ddc5adc8732d1aa0fc358318fb9903c35a21708e10168c71e4bc4790"
+    },
+    {
+      "path": "baseline/api/sales.php",
+      "sha256": "bea12019bb6a61a7c5cd5c93f22d35a4aed9240f6a05e94df1b8b8a4946055ac"
+    },
+    {
+      "path": "baseline/api/settings.php",
+      "sha256": "06ab31c1e5b76313999fdb75b835f6126ab27588f17227d9b917ada182e0768a"
+    },
+    {
+      "path": "baseline/api/setup.php",
+      "sha256": "0a6fd9a5d2d97f8184ec1051548fb6a07c8ae38e5b3536fc496448d7678dc4d1"
+    },
+    {
+      "path": "baseline/api/sms-v2.php",
+      "sha256": "8a2e03fea4379ecc26753aa6665282c39458c0095c2a390aa438146bc1cf4094"
+    },
+    {
+      "path": "baseline/api/sms-worker.php",
+      "sha256": "de484cbfe53ba6f991fac65cdc14f9031c09f2ab745796020655e5e525b61ff1"
+    },
+    {
+      "path": "baseline/api/tickets.php",
+      "sha256": "a362f442ed9a9305998a6f1ae1018be0d49dab51faf776d079c942aadf858b77"
+    },
+    {
+      "path": "baseline/api/workflow-v2.php",
+      "sha256": "c5e0d1522321c549a79407cc687a1b5d7b4a73cb92e8b2a7a016b234ed2acde8"
+    },
+    {
+      "path": "baseline/database/schema.sql",
+      "sha256": "3140e9fb1097ea25b5aa50440fa5dca5a0f158e9e2d4daaf38b615c8c401d6be"
+    },
+    {
+      "path": "baseline/private/capability-service.php",
+      "sha256": "c6fe8df8688099d90061e0f30af84ed39006e81578a4d914b3fab0dfde9b34e1"
+    },
+    {
+      "path": "baseline/private/product-service.php",
+      "sha256": "c2cb44567580826eb2e06e07fed498bb65cd96169946d1a0cd87050c2a71f96a"
+    },
+    {
+      "path": "baseline/private/v2-core.php",
+      "sha256": "850c6417a705da1cce5b0ce1877658690b0a7435bdba8d13d20050d0da3aa9d3"
+    },
+    {
+      "path": "public/assets/app-D2PBnnyi.css",
+      "sha256": "a66814c552e25e5bcd28aeb4ce4bd6a4b71333da33879a711eb1506c479b24be"
+    },
+    {
+      "path": "public/assets/beta7-ui.css",
+      "sha256": "94a8986490837a85ce5048e1b1484e47b22f3b859f5fa65d9718cba37fa0220c"
+    },
+    {
+      "path": "public/assets/index-B_SWlkkz.css",
+      "sha256": "ca20a5590bac4624092cb01f4b1061290c58f25138b301ec46db643dee32a282"
+    },
+    {
+      "path": "public/assets/vazirmatn-arabic-wght-normal-Cafbb7Zc.woff2",
+      "sha256": "84a382e46c30fb4f73d0e3800c16d0af15888e2731e57fa5f93e2c29a2c6a957"
+    },
+    {
+      "path": "public/assets/vazirmatn-latin-ext-wght-normal-tDTa1Fj6.woff2",
+      "sha256": "21529facfd236f6be527e4353623bdb889c96a7ebb7db1e148e28406be0ea004"
+    },
+    {
+      "path": "public/assets/vazirmatn-latin-wght-normal-BFexNX-K.woff2",
+      "sha256": "d29c041cd4294af893cf3c01dfab6d47202c667ab55d702f68782599918c651d"
+    }
+  ]
+}

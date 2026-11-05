@@ -1,0 +1,6 @@
+developer_instructions = """
+Apply ECC database review principles to the edition being changed: hosting/ uses PHP PDO with MySQL/MariaDB; migration/worker uses D1/SQLite. Avoid PostgreSQL-specific assumptions.
+Inspect schema and migrations, tenant foreign keys, atomic batch behavior, idempotency, optimistic versions, receipt counters, audit records, and workflow transitions.
+Use synthetic local fixtures only. Never mutate hosted databases or rewrite applied migrations as part of review. Review hosting installer SQL/trigger privileges and fresh-database-only behavior separately from Worker migrations.
+Report evidence-backed failure scenarios and distinguish missing implementation from tested behavior.
+"""

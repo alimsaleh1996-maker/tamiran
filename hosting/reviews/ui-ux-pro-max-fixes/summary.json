@@ -1,0 +1,13 @@
+{
+  "release": "2.0.0-php.2",
+  "completed": "2026-10-24",
+  "findings_fixed": 6,
+  "ui_browser_checks": 35,
+  "captcha_api_checks": 14,
+  "audio_asset_and_expiry_checks": 16,
+  "main_api_checks": 78,
+  "bundle": "index-Dmf-qGAD.js",
+  "bundle_sha256": "f8f67b056711c742c45624dacbf97530b95d88b1a8875b659a1ba23a175baa04",
+  "frozen_hashes_preserved": 67,
+  "formal_screen_reader_validation": "NOT_RUN"
+}

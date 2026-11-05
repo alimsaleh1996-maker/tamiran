@@ -1,0 +1,33 @@
+{
+  "edition": "PHP hosting",
+  "version": "2.0.0-php.1",
+  "bundle": "index-Cqfh-3_Z.js",
+  "bundle_sha256": "e73e54dac00fd6bca53c7ef60a5689f4a61ef11e158a197b944cd1af4d85c69d",
+  "findings": 6,
+  "runtime": "PHP8.2 + MariaDB10.11 loopback + Chromium",
+  "viewports": [
+    [
+      1440,
+      1000
+    ],
+    [
+      375,
+      812
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      812,
+      375
+    ]
+  ],
+  "javascript_page_errors": 0,
+  "source_changed": false,
+  "limits": [
+    "Primary entry, dashboard, reception, address dialog and mobile navigation sampled",
+    "No real screen-reader session, print, all20menu E2E or hosted deployment audited",
+    "Contrast scan excludes gradients, transparency chains without opaque base and disabled controls"
+  ]
+}

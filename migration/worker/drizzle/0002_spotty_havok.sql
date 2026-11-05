@@ -1,0 +1,2 @@
+DROP INDEX `repair_customer_devices_identifier_idx`;--> statement-breakpoint
+CREATE UNIQUE INDEX `repair_customer_devices_identifier_unique` ON `repair_customer_devices` (`shop_id`,`normalized_identifier`) WHERE "normalized_identifier" IS NOT NULL AND "normalized_identifier" <> '';

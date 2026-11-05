@@ -1,0 +1,173 @@
+/* Tamiran 2.0 beta.7 — compact navigation and reception workspace */
+@media (min-width: 1181px) {
+  .sidebar {
+    width: 252px;
+    padding: 18px 14px 14px;
+    overflow: hidden;
+  }
+
+  .workspace {
+    margin-right: 252px;
+  }
+
+  .nav-area {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #ffffff2b transparent;
+    padding: 12px 0;
+  }
+
+  .page-content:has(.reception-page) {
+    width: min(1460px, 100%);
+    max-width: 1460px;
+    margin-inline: auto;
+    padding: 22px clamp(18px, 2.2vw, 34px) 42px;
+  }
+}
+
+.nav-group + .nav-group {
+  margin-top: 8px;
+}
+
+.nav-group-label {
+  width: 100%;
+  min-height: 34px;
+  color: #dffbf8a8;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  text-align: right;
+}
+
+.nav-group-label:hover {
+  color: #fff;
+  background: #ffffff0d;
+}
+
+.nav-group-label svg {
+  transition: transform .18s ease;
+}
+
+.nav-group.is-expanded .nav-group-label svg {
+  transform: rotate(180deg);
+}
+
+.nav-group-items {
+  display: none;
+}
+
+.nav-group.is-expanded .nav-group-items {
+  display: block;
+  animation: beta7-nav-open .16s ease both;
+}
+
+@keyframes beta7-nav-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nav-item {
+  min-height: 41px;
+  margin: 1px 0;
+  padding: 8px 11px;
+}
+
+.sidebar-workspace-meta {
+  margin-top: 8px;
+}
+
+.reception-page .module-header {
+  min-height: 92px;
+  margin-bottom: 14px;
+  padding: 17px 21px;
+}
+
+.reception-page .module-header p {
+  font-size: 12px;
+}
+
+.reception-page .form-progress {
+  max-width: 660px;
+  margin-bottom: 14px;
+  padding: 10px 16px;
+}
+
+.reception-layout {
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 14px;
+}
+
+.reception-page .form-stack {
+  min-width: 0;
+  gap: 12px;
+}
+
+.reception-page .form-card,
+.reception-page .reception-summary {
+  padding: 18px;
+  border-radius: 20px;
+}
+
+.reception-page .reception-step-card {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+}
+
+.reception-page .reception-step-card:focus-within {
+  z-index: 8;
+}
+
+.reception-page .field-block > span {
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.reception-page .field-helper,
+.reception-page .appearance-help {
+  font-size: 10.5px;
+  line-height: 1.75;
+}
+
+.reception-page .catalog-search-results {
+  z-index: 90;
+  max-height: 240px;
+  box-shadow: 0 20px 48px #123e3a35;
+}
+
+.reception-page .summary-ribbon {
+  width: calc(100% + 36px);
+  margin: -18px -18px 16px;
+  padding: 10px 18px;
+}
+
+.reception-summary {
+  top: 96px;
+}
+
+@media (max-width: 1180px) {
+  .nav-group-items { display: none; }
+  .nav-group.is-expanded .nav-group-items { display: block; }
+  .reception-layout { grid-template-columns: 1fr; }
+  .reception-summary { position: static; }
+}
+
+@media (max-width: 720px) {
+  .reception-page .module-header { min-height: auto; }
+  .reception-page .form-card,
+  .reception-page .reception-summary { padding: 14px; }
+  .reception-page .summary-ribbon {
+    width: calc(100% + 28px);
+    margin: -14px -14px 14px;
+    padding-inline: 14px;
+  }
+}

@@ -1,0 +1,1178 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "7aaea640-5713-45b5-9d0d-dcdaae938e0b",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "repair_branches": {
+      "name": "repair_branches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "shop_id": {
+          "name": "shop_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "branch_code": {
+          "name": "branch_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'Asia/Tehran'"
+        },
+        "business_hours_json": {
+          "name": "business_hours_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "repair_branches_shop_code_unique": {
+          "name": "repair_branches_shop_code_unique",
+          "columns": [
+            "shop_id",
+            "branch_code"
+          ],
+          "isUnique": true
+        },
+        "repair_branches_scope_id_unique": {
+          "name": "repair_branches_scope_id_unique",
+          "columns": [
+            "shop_id",
+            "id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "repair_branches_shop_fk": {
+          "name": "repair_branches_shop_fk",
+          "tableFrom": "repair_branches",
+          "tableTo": "repair_shops",
+          "columnsFrom": [
+            "shop_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "repair_branches_id_integer": {
+          "name": "repair_branches_id_integer",
+          "value": "\"id\" IS NULL OR (typeof(\"id\") = 'integer' AND \"id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "repair_branches_shop_id_integer": {
+          "name": "repair_branches_shop_id_integer",
+          "value": "\"shop_id\" IS NULL OR (typeof(\"shop_id\") = 'integer' AND \"shop_id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "repair_branches_branch_code_length": {
+          "name": "repair_branches_branch_code_length",
+          "value": "\"branch_code\" IS NULL OR length(\"branch_code\") <= 64"
+        },
+        "repair_branches_name_length": {
+          "name": "repair_branches_name_length",
+          "value": "\"name\" IS NULL OR length(\"name\") <= 180"
+        },
+        "repair_branches_is_default_integer": {
+          "name": "repair_branches_is_default_integer",
+          "value": "\"is_default\" IS NULL OR (typeof(\"is_default\") = 'integer' AND \"is_default\" BETWEEN 0 AND 1)"
+        },
+        "repair_branches_is_active_integer": {
+          "name": "repair_branches_is_active_integer",
+          "value": "\"is_active\" IS NULL OR (typeof(\"is_active\") = 'integer' AND \"is_active\" BETWEEN 0 AND 1)"
+        },
+        "repair_branches_timezone_length": {
+          "name": "repair_branches_timezone_length",
+          "value": "\"timezone\" IS NULL OR length(\"timezone\") <= 64"
+        },
+        "repair_branches_business_hours_json_json": {
+          "name": "repair_branches_business_hours_json_json",
+          "value": "json_valid(\"business_hours_json\")"
+        },
+        "repair_branches_address_length": {
+          "name": "repair_branches_address_length",
+          "value": "\"address\" IS NULL OR length(\"address\") <= 1000"
+        },
+        "repair_branches_phone_length": {
+          "name": "repair_branches_phone_length",
+          "value": "\"phone\" IS NULL OR length(\"phone\") <= 20"
+        }
+      }
+    },
+    "repair_customers": {
+      "name": "repair_customers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "shop_id": {
+          "name": "shop_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mobile": {
+          "name": "mobile",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "secondary_mobile": {
+          "name": "secondary_mobile",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mobile_verified_at": {
+          "name": "mobile_verified_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "national_code": {
+          "name": "national_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "province": {
+          "name": "province",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "postal_code": {
+          "name": "postal_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "repair_customers_public_unique": {
+          "name": "repair_customers_public_unique",
+          "columns": [
+            "public_id"
+          ],
+          "isUnique": true
+        },
+        "repair_customers_shop_mobile_unique": {
+          "name": "repair_customers_shop_mobile_unique",
+          "columns": [
+            "shop_id",
+            "mobile"
+          ],
+          "isUnique": true
+        },
+        "repair_customers_scope_id_unique": {
+          "name": "repair_customers_scope_id_unique",
+          "columns": [
+            "shop_id",
+            "id"
+          ],
+          "isUnique": true
+        },
+        "repair_customers_shop_name_idx": {
+          "name": "repair_customers_shop_name_idx",
+          "columns": [
+            "shop_id",
+            "full_name"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "repair_customers_shop_fk": {
+          "name": "repair_customers_shop_fk",
+          "tableFrom": "repair_customers",
+          "tableTo": "repair_shops",
+          "columnsFrom": [
+            "shop_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "repair_customers_id_integer": {
+          "name": "repair_customers_id_integer",
+          "value": "\"id\" IS NULL OR (typeof(\"id\") = 'integer' AND \"id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "repair_customers_public_id_length": {
+          "name": "repair_customers_public_id_length",
+          "value": "\"public_id\" IS NULL OR length(\"public_id\") <= 26"
+        },
+        "repair_customers_shop_id_integer": {
+          "name": "repair_customers_shop_id_integer",
+          "value": "\"shop_id\" IS NULL OR (typeof(\"shop_id\") = 'integer' AND \"shop_id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "repair_customers_full_name_length": {
+          "name": "repair_customers_full_name_length",
+          "value": "\"full_name\" IS NULL OR length(\"full_name\") <= 180"
+        },
+        "repair_customers_mobile_length": {
+          "name": "repair_customers_mobile_length",
+          "value": "\"mobile\" IS NULL OR length(\"mobile\") <= 20"
+        },
+        "repair_customers_secondary_mobile_length": {
+          "name": "repair_customers_secondary_mobile_length",
+          "value": "\"secondary_mobile\" IS NULL OR length(\"secondary_mobile\") <= 20"
+        },
+        "repair_customers_national_code_length": {
+          "name": "repair_customers_national_code_length",
+          "value": "\"national_code\" IS NULL OR length(\"national_code\") <= 10"
+        },
+        "repair_customers_province_length": {
+          "name": "repair_customers_province_length",
+          "value": "\"province\" IS NULL OR length(\"province\") <= 100"
+        },
+        "repair_customers_city_length": {
+          "name": "repair_customers_city_length",
+          "value": "\"city\" IS NULL OR length(\"city\") <= 100"
+        },
+        "repair_customers_address_length": {
+          "name": "repair_customers_address_length",
+          "value": "\"address\" IS NULL OR length(\"address\") <= 1000"
+        },
+        "repair_customers_postal_code_length": {
+          "name": "repair_customers_postal_code_length",
+          "value": "\"postal_code\" IS NULL OR length(\"postal_code\") <= 10"
+        }
+      }
+    },
+    "repair_shops": {
+      "name": "repair_shops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "shop_code": {
+          "name": "shop_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "public_shop_code": {
+          "name": "public_shop_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "receipt_counter": {
+          "name": "receipt_counter",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "repair_type": {
+          "name": "repair_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "repair_type_locked": {
+          "name": "repair_type_locked",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "size_profile": {
+          "name": "size_profile",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'small'"
+        },
+        "plan_code": {
+          "name": "plan_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'light'"
+        },
+        "operation_mode": {
+          "name": "operation_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'multi_user'"
+        },
+        "product_profile": {
+          "name": "product_profile",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pro'"
+        },
+        "inventory_mode": {
+          "name": "inventory_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'off'"
+        },
+        "qc_mode": {
+          "name": "qc_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'off'"
+        },
+        "inventory_cost_method": {
+          "name": "inventory_cost_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'weighted_average'"
+        },
+        "allow_self_qc": {
+          "name": "allow_self_qc",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "allow_delivery_with_balance": {
+          "name": "allow_delivery_with_balance",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "workflow_settings_json": {
+          "name": "workflow_settings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tax_settings_json": {
+          "name": "tax_settings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "feature_flags_json": {
+          "name": "feature_flags_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "modules_json": {
+          "name": "modules_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "national_code_required": {
+          "name": "national_code_required",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "lifecycle_status": {
+          "name": "lifecycle_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'active'"
+        },
+        "license_started_at": {
+          "name": "license_started_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "license_expires_at": {
+          "name": "license_expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "max_users": {
+          "name": "max_users",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 3
+        },
+        "max_branches": {
+          "name": "max_branches",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "repair_shops_public_id_unique": {
+          "name": "repair_shops_public_id_unique",
+          "columns": [
+            "public_id"
+          ],
+          "isUnique": true
+        },
+        "repair_shops_code_unique": {
+          "name": "repair_shops_code_unique",
+          "columns": [
+            "shop_code"
+          ],
+          "isUnique": true
+        },
+        "repair_shops_public_code_unique": {
+          "name": "repair_shops_public_code_unique",
+          "columns": [
+            "public_shop_code"
+          ],
+          "isUnique": true
+        },
+        "repair_shops_license_idx": {
+          "name": "repair_shops_license_idx",
+          "columns": [
+            "lifecycle_status",
+            "license_expires_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "repair_shops_id_integer": {
+          "name": "repair_shops_id_integer",
+          "value": "\"id\" IS NULL OR (typeof(\"id\") = 'integer' AND \"id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "repair_shops_public_id_length": {
+          "name": "repair_shops_public_id_length",
+          "value": "\"public_id\" IS NULL OR length(\"public_id\") <= 26"
+        },
+        "repair_shops_shop_code_length": {
+          "name": "repair_shops_shop_code_length",
+          "value": "\"shop_code\" IS NULL OR length(\"shop_code\") <= 64"
+        },
+        "repair_shops_public_shop_code_length": {
+          "name": "repair_shops_public_shop_code_length",
+          "value": "\"public_shop_code\" IS NULL OR length(\"public_shop_code\") <= 6"
+        },
+        "repair_shops_receipt_counter_integer": {
+          "name": "repair_shops_receipt_counter_integer",
+          "value": "\"receipt_counter\" IS NULL OR (typeof(\"receipt_counter\") = 'integer' AND \"receipt_counter\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "repair_shops_name_length": {
+          "name": "repair_shops_name_length",
+          "value": "\"name\" IS NULL OR length(\"name\") <= 180"
+        },
+        "repair_shops_repair_type_length": {
+          "name": "repair_shops_repair_type_length",
+          "value": "\"repair_type\" IS NULL OR length(\"repair_type\") <= 64"
+        },
+        "repair_shops_repair_type_locked_integer": {
+          "name": "repair_shops_repair_type_locked_integer",
+          "value": "\"repair_type_locked\" IS NULL OR (typeof(\"repair_type_locked\") = 'integer' AND \"repair_type_locked\" BETWEEN 0 AND 1)"
+        },
+        "repair_shops_size_profile_enum": {
+          "name": "repair_shops_size_profile_enum",
+          "value": "\"size_profile\" IN ('personal','small','medium','large')"
+        },
+        "repair_shops_plan_code_length": {
+          "name": "repair_shops_plan_code_length",
+          "value": "\"plan_code\" IS NULL OR length(\"plan_code\") <= 64"
+        },
+        "repair_shops_operation_mode_enum": {
+          "name": "repair_shops_operation_mode_enum",
+          "value": "\"operation_mode\" IN ('single_user','multi_user')"
+        },
+        "repair_shops_product_profile_enum": {
+          "name": "repair_shops_product_profile_enum",
+          "value": "\"product_profile\" IN ('solo','pro')"
+        },
+        "repair_shops_inventory_mode_enum": {
+          "name": "repair_shops_inventory_mode_enum",
+          "value": "\"inventory_mode\" IN ('off','simple','pro')"
+        },
+        "repair_shops_qc_mode_enum": {
+          "name": "repair_shops_qc_mode_enum",
+          "value": "\"qc_mode\" IN ('off','simple','independent')"
+        },
+        "repair_shops_inventory_cost_method_enum": {
+          "name": "repair_shops_inventory_cost_method_enum",
+          "value": "\"inventory_cost_method\" IN ('weighted_average','fifo','last_purchase')"
+        },
+        "repair_shops_allow_self_qc_integer": {
+          "name": "repair_shops_allow_self_qc_integer",
+          "value": "\"allow_self_qc\" IS NULL OR (typeof(\"allow_self_qc\") = 'integer' AND \"allow_self_qc\" BETWEEN 0 AND 1)"
+        },
+        "repair_shops_allow_delivery_with_balance_integer": {
+          "name": "repair_shops_allow_delivery_with_balance_integer",
+          "value": "\"allow_delivery_with_balance\" IS NULL OR (typeof(\"allow_delivery_with_balance\") = 'integer' AND \"allow_delivery_with_balance\" BETWEEN 0 AND 1)"
+        },
+        "repair_shops_workflow_settings_json_json": {
+          "name": "repair_shops_workflow_settings_json_json",
+          "value": "json_valid(\"workflow_settings_json\")"
+        },
+        "repair_shops_tax_settings_json_json": {
+          "name": "repair_shops_tax_settings_json_json",
+          "value": "json_valid(\"tax_settings_json\")"
+        },
+        "repair_shops_feature_flags_json_json": {
+          "name": "repair_shops_feature_flags_json_json",
+          "value": "json_valid(\"feature_flags_json\")"
+        },
+        "repair_shops_modules_json_json": {
+          "name": "repair_shops_modules_json_json",
+          "value": "json_valid(\"modules_json\")"
+        },
+        "repair_shops_national_code_required_integer": {
+          "name": "repair_shops_national_code_required_integer",
+          "value": "\"national_code_required\" IS NULL OR (typeof(\"national_code_required\") = 'integer' AND \"national_code_required\" BETWEEN 0 AND 1)"
+        },
+        "repair_shops_lifecycle_status_enum": {
+          "name": "repair_shops_lifecycle_status_enum",
+          "value": "\"lifecycle_status\" IN ('active','suspended','expired','read_only')"
+        },
+        "repair_shops_max_users_integer": {
+          "name": "repair_shops_max_users_integer",
+          "value": "\"max_users\" IS NULL OR (typeof(\"max_users\") = 'integer' AND \"max_users\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "repair_shops_max_branches_integer": {
+          "name": "repair_shops_max_branches_integer",
+          "value": "\"max_branches\" IS NULL OR (typeof(\"max_branches\") = 'integer' AND \"max_branches\" BETWEEN 0 AND 9007199254740991)"
+        }
+      }
+    },
+    "tamiran_user_branches": {
+      "name": "tamiran_user_branches",
+      "columns": {
+        "shop_id": {
+          "name": "shop_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "branch_role_code": {
+          "name": "branch_role_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "permissions_json": {
+          "name": "permissions_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        }
+      },
+      "indexes": {
+        "tamiran_user_branches_scope_idx": {
+          "name": "tamiran_user_branches_scope_idx",
+          "columns": [
+            "shop_id",
+            "branch_id",
+            "is_active"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tamiran_user_branches_shop_fk": {
+          "name": "tamiran_user_branches_shop_fk",
+          "tableFrom": "tamiran_user_branches",
+          "tableTo": "repair_shops",
+          "columnsFrom": [
+            "shop_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "tamiran_user_branches_user_scope_fk": {
+          "name": "tamiran_user_branches_user_scope_fk",
+          "tableFrom": "tamiran_user_branches",
+          "tableTo": "tamiran_users",
+          "columnsFrom": [
+            "shop_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "shop_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tamiran_user_branches_branch_scope_fk": {
+          "name": "tamiran_user_branches_branch_scope_fk",
+          "tableFrom": "tamiran_user_branches",
+          "tableTo": "repair_branches",
+          "columnsFrom": [
+            "shop_id",
+            "branch_id"
+          ],
+          "columnsTo": [
+            "shop_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tamiran_user_branches_user_fk": {
+          "name": "tamiran_user_branches_user_fk",
+          "tableFrom": "tamiran_user_branches",
+          "tableTo": "tamiran_users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tamiran_user_branches_branch_fk": {
+          "name": "tamiran_user_branches_branch_fk",
+          "tableFrom": "tamiran_user_branches",
+          "tableTo": "repair_branches",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "tamiran_user_branches_user_id_branch_id_pk": {
+          "columns": [
+            "user_id",
+            "branch_id"
+          ],
+          "name": "tamiran_user_branches_user_id_branch_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tamiran_user_branches_shop_id_integer": {
+          "name": "tamiran_user_branches_shop_id_integer",
+          "value": "\"shop_id\" IS NULL OR (typeof(\"shop_id\") = 'integer' AND \"shop_id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "tamiran_user_branches_user_id_integer": {
+          "name": "tamiran_user_branches_user_id_integer",
+          "value": "\"user_id\" IS NULL OR (typeof(\"user_id\") = 'integer' AND \"user_id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "tamiran_user_branches_branch_id_integer": {
+          "name": "tamiran_user_branches_branch_id_integer",
+          "value": "\"branch_id\" IS NULL OR (typeof(\"branch_id\") = 'integer' AND \"branch_id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "tamiran_user_branches_branch_role_code_enum": {
+          "name": "tamiran_user_branches_branch_role_code_enum",
+          "value": "\"branch_role_code\" IN ('repair_manager','reception','technician','quality_control','warehouse_keeper','finance_cashier')"
+        },
+        "tamiran_user_branches_permissions_json_json": {
+          "name": "tamiran_user_branches_permissions_json_json",
+          "value": "json_valid(\"permissions_json\")"
+        },
+        "tamiran_user_branches_is_active_integer": {
+          "name": "tamiran_user_branches_is_active_integer",
+          "value": "\"is_active\" IS NULL OR (typeof(\"is_active\") = 'integer' AND \"is_active\" BETWEEN 0 AND 1)"
+        }
+      }
+    },
+    "tamiran_users": {
+      "name": "tamiran_users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "shop_id": {
+          "name": "shop_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role_code": {
+          "name": "role_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "active_session_hash": {
+          "name": "active_session_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "must_change_password": {
+          "name": "must_change_password",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "deactivated_at": {
+          "name": "deactivated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deactivation_reason": {
+          "name": "deactivation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "last_login_at": {
+          "name": "last_login_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "account_user_id": {
+          "name": "account_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "tamiran_users_scope_username_unique": {
+          "name": "tamiran_users_scope_username_unique",
+          "columns": [
+            "shop_id",
+            "username"
+          ],
+          "isUnique": true
+        },
+        "tamiran_users_scope_id_unique": {
+          "name": "tamiran_users_scope_id_unique",
+          "columns": [
+            "shop_id",
+            "id"
+          ],
+          "isUnique": true
+        },
+        "tamiran_users_role_idx": {
+          "name": "tamiran_users_role_idx",
+          "columns": [
+            "role_code"
+          ],
+          "isUnique": false
+        },
+        "tamiran_users_shop_active_idx": {
+          "name": "tamiran_users_shop_active_idx",
+          "columns": [
+            "shop_id",
+            "is_active"
+          ],
+          "isUnique": false
+        },
+        "tamiran_users_phone_idx": {
+          "name": "tamiran_users_phone_idx",
+          "columns": [
+            "phone"
+          ],
+          "isUnique": false
+        },
+        "tamiran_users_account_scope_unique": {
+          "name": "tamiran_users_account_scope_unique",
+          "columns": [
+            "shop_id",
+            "account_user_id"
+          ],
+          "isUnique": true
+        },
+        "tamiran_users_central_username_unique": {
+          "name": "tamiran_users_central_username_unique",
+          "columns": [
+            "username"
+          ],
+          "isUnique": true,
+          "where": "\"shop_id\" IS NULL"
+        },
+        "tamiran_users_central_account_unique": {
+          "name": "tamiran_users_central_account_unique",
+          "columns": [
+            "account_user_id"
+          ],
+          "isUnique": true,
+          "where": "\"shop_id\" IS NULL"
+        }
+      },
+      "foreignKeys": {
+        "tamiran_users_shop_fk": {
+          "name": "tamiran_users_shop_fk",
+          "tableFrom": "tamiran_users",
+          "tableTo": "repair_shops",
+          "columnsFrom": [
+            "shop_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tamiran_users_id_integer": {
+          "name": "tamiran_users_id_integer",
+          "value": "\"id\" IS NULL OR (typeof(\"id\") = 'integer' AND \"id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "tamiran_users_shop_id_integer": {
+          "name": "tamiran_users_shop_id_integer",
+          "value": "\"shop_id\" IS NULL OR (typeof(\"shop_id\") = 'integer' AND \"shop_id\" BETWEEN 0 AND 9007199254740991)"
+        },
+        "tamiran_users_username_length": {
+          "name": "tamiran_users_username_length",
+          "value": "\"username\" IS NULL OR length(\"username\") <= 120"
+        },
+        "tamiran_users_display_name_length": {
+          "name": "tamiran_users_display_name_length",
+          "value": "\"display_name\" IS NULL OR length(\"display_name\") <= 180"
+        },
+        "tamiran_users_phone_length": {
+          "name": "tamiran_users_phone_length",
+          "value": "\"phone\" IS NULL OR length(\"phone\") <= 20"
+        },
+        "tamiran_users_email_length": {
+          "name": "tamiran_users_email_length",
+          "value": "\"email\" IS NULL OR length(\"email\") <= 190"
+        },
+        "tamiran_users_password_hash_length": {
+          "name": "tamiran_users_password_hash_length",
+          "value": "\"password_hash\" IS NULL OR length(\"password_hash\") <= 255"
+        },
+        "tamiran_users_role_code_enum": {
+          "name": "tamiran_users_role_code_enum",
+          "value": "\"role_code\" IN ('central_admin','repair_manager','reception','technician','quality_control','warehouse_keeper','finance_cashier')"
+        },
+        "tamiran_users_active_session_hash_length": {
+          "name": "tamiran_users_active_session_hash_length",
+          "value": "\"active_session_hash\" IS NULL OR length(\"active_session_hash\") <= 64"
+        },
+        "tamiran_users_must_change_password_integer": {
+          "name": "tamiran_users_must_change_password_integer",
+          "value": "\"must_change_password\" IS NULL OR (typeof(\"must_change_password\") = 'integer' AND \"must_change_password\" BETWEEN 0 AND 1)"
+        },
+        "tamiran_users_is_active_integer": {
+          "name": "tamiran_users_is_active_integer",
+          "value": "\"is_active\" IS NULL OR (typeof(\"is_active\") = 'integer' AND \"is_active\" BETWEEN 0 AND 1)"
+        },
+        "tamiran_users_deactivation_reason_length": {
+          "name": "tamiran_users_deactivation_reason_length",
+          "value": "\"deactivation_reason\" IS NULL OR length(\"deactivation_reason\") <= 500"
+        },
+        "tamiran_users_role_scope": {
+          "name": "tamiran_users_role_scope",
+          "value": "(\"role_code\" = 'central_admin' AND \"shop_id\" IS NULL) OR (\"role_code\" <> 'central_admin' AND \"shop_id\" IS NOT NULL)"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

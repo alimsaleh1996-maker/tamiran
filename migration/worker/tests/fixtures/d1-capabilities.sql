@@ -1,0 +1,31 @@
+-- LOCAL TEST ONLY. Fixture family TEST-TAMIRAN-1010Q; no real account, payment or contact data.
+INSERT INTO tamiran_modules(module_key,name,description,product_scope,is_core,is_sellable,status) VALUES
+('repair','مدیریت تعمیرات','پذیرش، پرونده و گردش اصلی تعمیر','both',1,0,'active'),
+('inventory','انبار قطعات','موجودی، رزرو، درخواست و گردش قطعات','both',0,1,'active'),
+('finance','مالی پرونده','هزینه‌ها، دریافت‌ها و مانده هر پرونده','both',0,1,'active'),
+('customer_portal','پرتال مشتری','پیگیری امن وضعیت تعمیر برای مشتری','both',0,1,'active'),
+('sms','پیامک رویدادها','اعلان مرحله‌های مهم پرونده به مشتری','both',0,1,'active'),
+('warranty','گارانتی شرکتی','تشخیص پوشش براساس سریال و سابقه گارانتی','both',0,1,'active'),
+('multi_branch','چندشعبه‌ای','مدیریت شعب و گزارش تلفیقی','pro',0,1,'active'),
+('analytics','گزارش‌های حرفه‌ای','تحلیل SLA، بهره‌وری و روند عملیات','pro',0,1,'active'),
+('accounting_integration','اتصال حسابداری','خروجی و یکپارچگی مالی کنترل‌شده','pro',0,1,'active'),
+('sla','SLA حرفه‌ای','اولویت‌بندی، هشدار و پایش زمان تعهد','pro',0,1,'active'),
+('api','API سازمانی','دسترسی برنامه‌نویسی‌شده و ممیزی‌شده','pro',0,1,'active');
+INSERT INTO tamiran_shop_modules(repair_shop_id,module_key,state,source,started_at,expires_at,config_json,updated_by_user_id) VALUES
+(1,'repair','active','TEST-TAMIRAN-1010Q','2026-10-10 00:00:00',NULL,'{}',2),
+(1,'inventory','active','TEST-TAMIRAN-1010Q','2026-10-10 00:00:00',NULL,'{"testMarker":"TEST-TAMIRAN-1010Q-PRIVATE"}',2),
+(1,'finance','trial','TEST-TAMIRAN-1010Q','2026-10-10 00:00:00','2026-10-12 12:00:00','{}',2),
+(1,'customer_portal','active','TEST-TAMIRAN-1010Q','2026-10-10 00:00:00',NULL,'{}',2),
+(1,'sms','locked','TEST-TAMIRAN-1010Q',NULL,NULL,'{}',2),
+(1,'warranty','trial','TEST-TAMIRAN-1010Q','2026-10-01 00:00:00','2026-10-09 00:00:00','{}',2),
+(1,'multi_branch','suspended','TEST-TAMIRAN-1010Q','2026-10-01 00:00:00',NULL,'{}',2),
+(1,'analytics','locked','TEST-TAMIRAN-1010Q',NULL,NULL,'{}',2),
+(1,'accounting_integration','active','TEST-TAMIRAN-1010Q','2026-10-10 00:00:00',NULL,'{}',2),
+(1,'sla','locked','TEST-TAMIRAN-1010Q',NULL,NULL,'{}',2),
+(1,'api','locked','TEST-TAMIRAN-1010Q',NULL,NULL,'{}',2),
+(2,'repair','active','TEST-TAMIRAN-1010Q','2026-10-10 00:00:00',NULL,'{}',8),
+(2,'inventory','locked','TEST-TAMIRAN-1010Q',NULL,NULL,'{}',8),
+(2,'finance','active','TEST-TAMIRAN-1010Q','2026-10-10 00:00:00',NULL,'{}',8),
+(2,'customer_portal','locked','TEST-TAMIRAN-1010Q',NULL,NULL,'{}',8),
+(2,'sms','locked','TEST-TAMIRAN-1010Q',NULL,NULL,'{}',8),
+(2,'warranty','locked','TEST-TAMIRAN-1010Q',NULL,NULL,'{}',8);

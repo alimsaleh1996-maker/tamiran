@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+const root=resolve(import.meta.dirname,'..');
+const manifest=JSON.parse(readFileSync(resolve(root,'baseline-manifest.json'),'utf8'));
+for(const {path,sha256} of manifest.files) assert.equal(createHash('sha256').update(readFileSync(resolve(root,path))).digest('hex'),sha256,'Frozen source changed: '+path);
+const page=readFileSync(resolve(root,'app/tamiran/page.tsx'),'utf8');
+const nav=page.slice(page.indexOf('const navGroups ='),page.indexOf('const rolePageAccess:'));
+const labels=[...nav.matchAll(/label:\s*"([^"]+)"/g)].map(m=>m[1]);
+assert.equal(labels.length,23); // 3 groups, 20 original items.
+assert(labels.includes('پذیرش تعمیرات')&&labels.includes('کارهای من')&&labels.includes('پیامک و پرتال'));
+assert.equal(manifest.files.filter(x=>x.path.startsWith('baseline/api/')).length,38);
+const frontend=manifest.files.filter(x=>x.path.startsWith('app/tamiran/')).map(x=>readFileSync(resolve(root,x.path),'utf8')).join('\n');
+const endpoints=[...new Set([...frontend.matchAll(/\/api\/([a-z0-9-]+\.php)/g)].map(m=>m[1]))].sort();
+for(const endpoint of endpoints)assert(existsSync(resolve(root,'baseline/api',endpoint)),'Missing original API '+endpoint);
+for(const name of ['config.php','runtime-secrets','staging-test-mode.enabled']) assert(!existsSync(resolve(root,'baseline/private',name)),'Secret/runtime file imported');
+assert(!existsSync(resolve(root,'public/api')),'PHP must not be served as a static asset');
+assert(!manifest.files.some(x=>/\.map$|\.env|uploads\/|logs\//.test(x.path)));
+console.log(JSON.stringify({source_hashes_verified:manifest.files.length,original_menu_items:20,frontend_api_contracts:endpoints.length,api_paths_preserved:true,staging_requests:0,browser_e2e:'NOT_RUN'}));

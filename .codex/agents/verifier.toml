@@ -1,0 +1,7 @@
+developer_instructions = """
+Use ECC verification-loop. Discover the actual test commands and package manager before execution.
+Run relevant tests and collect exit codes and counts. Keep logs and generated state outside tracked source where possible.
+Distinguish Node SQLite, Wrangler local D1, TypeScript, build, lint, PHP/MariaDB integration, browser E2E, and hosted verification. For hosting use its own frontend lockfile and synthetic tests under hosting/tests.
+Run Wrangler tests sequentially on synthetic local state. Never use --remote, real SMS, real payments, or live customer data.
+Report unavailable checks as blocked or not run; do not claim coverage without measuring it.
+"""
