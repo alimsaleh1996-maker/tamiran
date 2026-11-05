@@ -44,7 +44,7 @@ Latest ECC review: `migration/reviews/2026-10-21-ecc-review.md`.
 
 - `graphify-out/graph.json`, `graph.html` and `GRAPH_REPORT.md` contain the static architecture map. Start with `graphify-out/README-FA.md` for scope, commands and limitations. Use scoped graph queries for architecture questions and verify consequential findings in source.
 - PHP hosting, the Worker migration and frozen PHP are separate runtime editions. Same-named functions do not prove calls between them. Twenty-two cross-edition heuristic call candidates were excluded and preserved in `EXCLUDED_RELATIONS.json`; do not restore them merely because the symbol names match.
-- `GRAPH_HEALTH.json` records 65 unresolved raw endpoint references and 12 self-loops. Typed parallel relationships are retained in the exported multigraph. These diagnostics do not establish runtime bugs or security findings.
+- `GRAPH_HEALTH.json` records 110 unresolved raw endpoint references and 12 self-loops after the workflow AST refresh. Typed parallel relationships are retained in the exported multigraph. These diagnostics do not establish runtime bugs or security findings. See `WORKFLOW_REFRESH.json` for the current AST scope and pending semantic documents.
 - The editable frontend sources are indexed; its generated `public_html/assets/index-*.js` bundle is excluded by `.graphifyignore`. Local graph caches, interpreter paths and intermediate extraction stay ignored.
 - After source changes, refresh the graph with the installed `$graphify` skill, maintaining the edition boundary and reporting the current source revision and coverage. Do not install automatic hooks or deploy the site just to update this map.
 

@@ -1,0 +1,28 @@
+{
+  "source_commit": "d637e77156b27302637b7c8c91c5ded2ccea4a65",
+  "kind": "incremental AST only",
+  "reextracted_code_files": [
+    "scripts/tamiran_flow.py",
+    "tests/ruflo/test_flow.py"
+  ],
+  "code_sha256": {
+    "scripts/tamiran_flow.py": "c4b7b153c9d05bf61b4f9b86ee4094c95db16ab837003320d18f70826aa0a9b8",
+    "tests/ruflo/test_flow.py": "4a1b5d9ae4683f5be0538958bead3ba3bc07b1d75e37a3a513c16d834afa5d00"
+  },
+  "added_ast_nodes": 86,
+  "added_ast_edges": 282,
+  "retained_existing_nodes": 3863,
+  "retained_existing_typed_links": 9905,
+  "semantic_layer": "Retained from original build; changed/new workflow documents and JSON are not claimed semantically re-extracted",
+  "pending_semantic_or_configuration_files": [
+    "AGENTS.md",
+    "README.md",
+    "docs/ruflo/WORKFLOW-REVIEW-FA.md",
+    "docs/ruflo/WORKFLOW-FA.md",
+    "docs/ruflo/WORKFLOW-VERIFICATION.json",
+    "docs/ruflo/workflow-review.json",
+    "workflows/tamiran.json",
+    "workflows/result.schema.json"
+  ],
+  "external_model_calls": 0
+}

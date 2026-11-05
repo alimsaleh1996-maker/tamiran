@@ -1,7 +1,7 @@
 {
-  "detected_files": 423,
-  "code_files": 356,
-  "document_files": 44,
+  "detected_files": 432,
+  "code_files": 358,
+  "document_files": 47,
   "image_files": 15,
   "audio_files": 8,
   "audio_transcribed": 0,
@@ -9,24 +9,24 @@
   "semantic_chunks": 18,
   "semantic_nodes": 310,
   "semantic_edges": 394,
-  "raw_nodes": 3816,
-  "raw_edges": 9927,
-  "analysis_nodes": 3863,
-  "analysis_unique_connections": 9716,
-  "communities": 194,
-  "source_commit": "10f8d65213d522285f9e5ffb803c1f901b2a150c",
+  "raw_nodes": 3902,
+  "raw_edges": 10209,
+  "analysis_nodes": 3962,
+  "analysis_unique_connections": 9996,
+  "communities": 205,
+  "source_commit": "d637e77156b27302637b7c8c91c5ded2ccea4a65",
   "token_usage_status": "unavailable for host agents; external API calls not made",
   "excluded_generated_bundle": "hosting/public_html/assets/index-Dmf-qGAD.js",
   "sensitive_file_skipped": "migration/worker/.npmrc",
   "health": {
     "missing_endpoint_edges": 0,
-    "dangling_endpoint_edges": 65,
+    "dangling_endpoint_edges": 110,
     "self_loop_edges": 12,
-    "directed_same_endpoint_collapsed_edges": 163,
-    "undirected_same_endpoint_collapsed_edges": 167
+    "directed_same_endpoint_collapsed_edges": 165,
+    "undirected_same_endpoint_collapsed_edges": 169
   },
   "excluded_cross_edition_call_candidates": 22,
-  "serialized_relationships": 9905,
+  "serialized_relationships": 10187,
   "parallel_relationships_preserved": true,
   "community_labels_curated": true,
   "failed_ast_files": 0,
@@ -37,5 +37,42 @@
     "sha384": "Ux6phic9PEHJ38YtrijhkzyJ8yQlH8i/+buBR8s3mAZOJrP1gwyvAcIYl3GWtpX1",
     "embedded": true,
     "network_required_for_viewing": false
+  },
+  "initial_source_commit": "10f8d65213d522285f9e5ffb803c1f901b2a150c",
+  "initial_build_counts": {
+    "detected_files": 423,
+    "code_files": 356,
+    "document_files": 44,
+    "raw_nodes": 3816,
+    "raw_edges": 9927,
+    "semantic_files_read_completely": 59
+  },
+  "workflow_refresh": {
+    "source_commit": "d637e77156b27302637b7c8c91c5ded2ccea4a65",
+    "kind": "incremental AST only",
+    "reextracted_code_files": [
+      "scripts/tamiran_flow.py",
+      "tests/ruflo/test_flow.py"
+    ],
+    "code_sha256": {
+      "scripts/tamiran_flow.py": "c4b7b153c9d05bf61b4f9b86ee4094c95db16ab837003320d18f70826aa0a9b8",
+      "tests/ruflo/test_flow.py": "4a1b5d9ae4683f5be0538958bead3ba3bc07b1d75e37a3a513c16d834afa5d00"
+    },
+    "added_ast_nodes": 86,
+    "added_ast_edges": 282,
+    "retained_existing_nodes": 3863,
+    "retained_existing_typed_links": 9905,
+    "semantic_layer": "Retained from original build; changed/new workflow documents and JSON are not claimed semantically re-extracted",
+    "pending_semantic_or_configuration_files": [
+      "AGENTS.md",
+      "README.md",
+      "docs/ruflo/WORKFLOW-REVIEW-FA.md",
+      "docs/ruflo/WORKFLOW-FA.md",
+      "docs/ruflo/WORKFLOW-VERIFICATION.json",
+      "docs/ruflo/workflow-review.json",
+      "workflows/tamiran.json",
+      "workflows/result.schema.json"
+    ],
+    "external_model_calls": 0
   }
 }
