@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "name": "tamiran-development",
+  "stages": [
+    {"id": "research", "role": "explorer", "instruction": "Inspect the relevant source and Graphify map. Identify contracts, edition boundaries, affected files and evidence. Do not change source files."},
+    {"id": "design", "role": "planner", "instruction": "Use the research result to define the smallest implementation plan, acceptance criteria, risks and necessary checks. Do not change source files."},
+    {"id": "implement", "role": "implementer", "instruction": "Implement the agreed task within the selected profile. Preserve Persian RTL, server authorization, transactional writes and frozen baseline. Do not commit, push or deploy."},
+    {"id": "test", "role": "verifier", "instruction": "Review the implementation and test requirements. The workflow runner executes its configured checks after this phase. Do not claim unexecuted tests passed. Do not change source files."},
+    {"id": "review", "role": "reviewer", "instruction": "Review the diff, prior results and actual check evidence. Return outcome blocked if a correctness issue or necessary missing verification remains. Do not change source files, commit, push or deploy."}
+  ],
+  "profiles": {
+    "tooling": {
+      "description": "Workflow tooling and documentation; application behavior is outside this verification scope.",
+      "allowed_paths": ["scripts/", "workflows/", "tests/ruflo/", "docs/", "README.md", "AGENTS.md", ".gitignore", ".graphifyignore", "graphify-out/"],
+      "requires": ["python3", "node"],
+      "checks": [
+        {"name": "workflow-tests", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests/ruflo", "-p", "test_*.py", "-v"]},
+        {"name": "site-foundation", "cwd": ".", "argv": ["node", "--test", "tests/site-foundation.test.mjs"]},
+        {"name": "frozen-reference", "cwd": ".", "argv": ["node", "migration/worker/tests/source-preservation.test.mjs"]}
+      ]
+    },
+    "frontend-static": {
+      "description": "Frontend type/build checks. Interaction or accessibility work additionally needs browser evidence and review may block until supplied.",
+      "allowed_paths": ["hosting/frontend/", "hosting/public_html/assets/", "hosting/public_html/index.php", "hosting/public_html/favicon.svg", "hosting/reviews/", "hosting/tests/", "docs/", "README.md", "graphify-out/"],
+      "requires": ["node", "npm"],
+      "requires_paths": ["hosting/frontend/node_modules/typescript/bin/tsc", "hosting/frontend/node_modules/vite/bin/vite.js"],
+      "checks": [
+        {"name": "typescript", "cwd": "hosting/frontend", "argv": ["npm", "run", "typecheck"]},
+        {"name": "build", "cwd": "hosting/frontend", "argv": ["npm", "run", "build"]},
+        {"name": "frozen-reference", "cwd": ".", "argv": ["node", "migration/worker/tests/source-preservation.test.mjs"]}
+      ]
+    },
+    "backend-local": {
+      "description": "PHP syntax plus real API regression tests against an already prepared synthetic loopback PHP/MariaDB installation. Not a hosted deployment test.",
+      "allowed_paths": ["hosting/", "docs/", "README.md", "graphify-out/"],
+      "requires": ["php", "python3", "node"],
+      "requires_env": ["TAMIRAN_SMOKE_ADMIN_PASSWORD"],
+      "checks": [
+        {"name": "php-syntax", "cwd": ".", "argv": ["python3", "scripts/tamiran_flow.py", "php-lint"]},
+        {"name": "api-regression", "cwd": ".", "argv": ["python3", "hosting/tests/smoke.py", "--url", "{test_url}", "--admin-mobile", "09120000000", "--report", ".ruflo/tamiran/api-smoke.json"]},
+        {"name": "frozen-reference", "cwd": ".", "argv": ["node", "migration/worker/tests/source-preservation.test.mjs"]}
+      ]
+    }
+  }
+}

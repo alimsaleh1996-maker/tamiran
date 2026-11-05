@@ -10,6 +10,7 @@
 - [نتایج و محدودیت‌های آزمون](hosting/VERIFICATION-FA.md)
 - [راهنمای کار و انتشار در GitHub](GITHUB-FA.md)
 - [نقشهٔ ارتباطات پروژه و راهنمای Graphify](graphify-out/README-FA.md)
+- [اجرای مسیر توسعه با Ruflo و Codex](docs/ruflo/WORKFLOW-FA.md)
 
 هاست به PHP 8.2+ و MySQL 8 یا MariaDB 10.6+ نیاز دارد. Node فقط برای ساخت مجدد رابط لازم است؛ فایل‌های آمادهٔ مرورگر در سورس موجودند. پوشه‌های `hosting/public_html` و `hosting/private` باید در هاست کنار هم باشند.
 

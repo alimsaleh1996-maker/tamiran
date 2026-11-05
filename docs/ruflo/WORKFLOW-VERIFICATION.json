@@ -1,0 +1,35 @@
+{
+  "verified_at": "2026-11-05",
+  "scope": "Ruflo/Codex workflow controller and its documentation; application runtime unchanged",
+  "versions": {"ruflo": "3.71.4", "codex": "0.163.0"},
+  "checks": {
+    "python_compile": {"status": "passed", "command": "python3 -m compileall -q scripts/tamiran_flow.py tests/ruflo"},
+    "workflow_tests": {
+      "status": "passed", "passed": 31, "failed": 0, "skipped": 0,
+      "command": "TAMIRAN_RUFLO_INTEGRATION=1 python3 -m unittest discover -s tests/ruflo -p 'test_*.py' -v",
+      "real_ruflo_integration": "Five task IDs persisted across MCP server restart; all five real task_status results confirmed completed after host evidence and a real subprocess check",
+      "codex_execution_test": "Explicitly fake local CLI tests arguments, structured outputs, ordered stages, timeout, failure, read-only mutation and retry; no live model was executed"
+    },
+    "coverage": {
+      "status": "measured", "controller_line_percent": 83,
+      "tool": "Python standard-library trace --count --summary --missing",
+      "scope": "scripts/tamiran_flow.py only; not branch or application coverage"
+    },
+    "site_foundation": {"status": "passed", "command": "node --test tests/site-foundation.test.mjs"},
+    "frozen_reference": {
+      "status": "passed", "command": "node migration/worker/tests/source-preservation.test.mjs",
+      "source_hashes_verified": 67, "original_menu_items": 20, "frontend_api_contracts": 27
+    },
+    "python_type_check": {"status": "not_configured", "reason": "No project Python type-check configuration; no TypeScript source changed"},
+    "python_linter": {"status": "not_configured", "reason": "No project Python lint configuration; syntax compilation and diff whitespace were checked"},
+    "security_review": {"status": "passed", "scope": "Changed workflow source and tests reviewed for shell interpolation, leaked credentials, path escape and runtime artifacts; not a full product security audit"},
+    "diff_whitespace": {"status": "passed", "command": "git diff --cached --check"}
+  },
+  "profile_readiness_at_verification": {
+    "tooling": "ready",
+    "frontend-static": "missing checkout-local TypeScript/Vite dependencies",
+    "backend-local": "missing PHP CLI and synthetic admin password environment variable"
+  },
+  "not_executed": ["Live Codex model end-to-end run", "Frontend application build/browser suite", "PHP/API/database suite", "Staging or hosted deployment", "SMS or payment requests"],
+  "runtime_state": "Ignored .ruflo/ and .claude-flow/ directories; no runtime task state or credentials included"
+}

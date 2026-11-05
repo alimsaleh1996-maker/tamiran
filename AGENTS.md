@@ -47,3 +47,11 @@ Latest ECC review: `migration/reviews/2026-10-21-ecc-review.md`.
 - `GRAPH_HEALTH.json` records 65 unresolved raw endpoint references and 12 self-loops. Typed parallel relationships are retained in the exported multigraph. These diagnostics do not establish runtime bugs or security findings.
 - The editable frontend sources are indexed; its generated `public_html/assets/index-*.js` bundle is excluded by `.graphifyignore`. Local graph caches, interpreter paths and intermediate extraction stay ignored.
 - After source changes, refresh the graph with the installed `$graphify` skill, maintaining the edition boundary and reporting the current source revision and coverage. Do not install automatic hooks or deploy the site just to update this map.
+
+## Ruflo development workflow
+
+- The five-stage workflow is defined in `workflows/tamiran.json`; its operator guide is `docs/ruflo/WORKFLOW-FA.md`. Use `python3 scripts/tamiran_flow.py plan` and `doctor` to inspect the path and prerequisites.
+- In an existing Codex session, use the host-directed `start`, `next`, `check`, and `record` commands. The `run` command starts separate sequential Codex CLI sessions; use it when automated execution is requested, never recursively from a workflow phase.
+- Ruflo task tools persist coordination; actual work belongs to Codex and actual checks belong to the controller. Do not report a task as complete without its valid stage output and required check evidence. Never use wait-only placeholder stages as proof that development happened.
+- The default `tooling` profile does not authorize application-code edits. Select `frontend-static` or `backend-local` for the appropriate scope and report unexecuted browser/HTTP/hosted checks honestly. A blocked review or failed check is not completion.
+- Generated `.ruflo/` and `.claude-flow/` state stays ignored. The runner inherits model and permission settings, preserves the frozen reference, stops on failures, and does not commit, push, deploy or enable scheduled jobs. The parent session retains the user's standing GitHub publishing authorization after verification.
