@@ -10,6 +10,7 @@
 - [extraction.json](extraction.json): استخراج پیش از ساده‌سازی گراف؛ نامزدهای بین دو نسخه که حذف شدند جداگانه در [EXCLUDED_RELATIONS.json](EXCLUDED_RELATIONS.json) هستند.
 - [GRAPH_HEALTH.json](GRAPH_HEALTH.json): تشخیص سلامت ساختاری و محدودیت‌های استخراج.
 - [BUILD_INFO.json](BUILD_INFO.json) و [BROWSER_VERIFICATION.json](BROWSER_VERIFICATION.json): دامنهٔ پردازش و یازده بررسی موفق مرورگر روی خود نقشهٔ تعاملی.
+- [بررسی روابط TamiranApiException با سورس](reviews/tamiran-api-exception-FA.md): تأیید هر ۳۲۳ رابطهٔ استنباطی و ثبت محدودیت پوششِ محل‌های ساخت خارج از توابع.
 
 ## دامنه و محدودیت‌ها
 
