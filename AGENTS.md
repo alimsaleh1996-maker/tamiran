@@ -2,9 +2,10 @@
 
 ## GitHub destination selected by the user — 2026-11-05
 
-- The user requested a repository in their own GitHub account and publication of future Tamiran code changes there. The chosen destination is `alimsaleh1996-maker/tamiran`, with private visibility and branch `main`.
-- The clean GitHub checkout is prepared at `/workspace/repos/tamiran`. Prefer that checkout for future Tamiran development once the remote repository is available. This supersedes historical migration notes requiring all development to remain exclusively in the Sites repository.
-- Current connection can identify the GitHub account, but repository creation returned `403 Resource not accessible by integration`. Repository creation and the initial push are pending; do not claim that the code has been uploaded until a remote readback confirms it.
+- The user requested publication of Tamiran code changes to their GitHub account and then supplied `https://github.com/alimsaleh1996-maker/tamiran.git`. This is the canonical source destination, on branch `main`.
+- The user-created repository was verified as public and empty on 2026-11-05, with push permission. Preserve its existing visibility unless the user explicitly requests a change.
+- The GitHub checkout is `/workspace/repos/tamiran`; prefer it for future Tamiran development. This supersedes historical migration notes requiring all development to remain exclusively in the Sites repository.
+- Repository creation initially failed with 403, then the user created the repository and authorized uploading to it. Verify the remote branch SHA after each push before reporting successful publication.
 - For subsequent authorized changes, run relevant checks, commit the reviewed source and push to this GitHub destination. Report the commit URL. Respect concurrent remote work; use fast-forward updates, never a force push.
 - Keep the existing Sites `origin`, project ID and audience unchanged. Publishing source to GitHub does not authorize deployment to the live Site or the user's PHP host, a visibility change, or scheduled jobs.
 - Do not publish generated config, installation keys, runtime secrets, logs, uploads, backups, local databases, dependency directories, or historical source archives. The GitHub import starts with a clean snapshot rather than the Sites Git history.
