@@ -1,0 +1,41 @@
+{
+  "detected_files": 423,
+  "code_files": 356,
+  "document_files": 44,
+  "image_files": 15,
+  "audio_files": 8,
+  "audio_transcribed": 0,
+  "semantic_files_read_completely": 59,
+  "semantic_chunks": 18,
+  "semantic_nodes": 310,
+  "semantic_edges": 394,
+  "raw_nodes": 3816,
+  "raw_edges": 9927,
+  "analysis_nodes": 3863,
+  "analysis_unique_connections": 9716,
+  "communities": 194,
+  "source_commit": "10f8d65213d522285f9e5ffb803c1f901b2a150c",
+  "token_usage_status": "unavailable for host agents; external API calls not made",
+  "excluded_generated_bundle": "hosting/public_html/assets/index-Dmf-qGAD.js",
+  "sensitive_file_skipped": "migration/worker/.npmrc",
+  "health": {
+    "missing_endpoint_edges": 0,
+    "dangling_endpoint_edges": 65,
+    "self_loop_edges": 12,
+    "directed_same_endpoint_collapsed_edges": 163,
+    "undirected_same_endpoint_collapsed_edges": 167
+  },
+  "excluded_cross_edition_call_candidates": 22,
+  "serialized_relationships": 9905,
+  "parallel_relationships_preserved": true,
+  "community_labels_curated": true,
+  "failed_ast_files": 0,
+  "code_files_without_modeled_symbols": 19,
+  "html_library": {
+    "name": "vis-network",
+    "version": "9.1.6",
+    "sha384": "Ux6phic9PEHJ38YtrijhkzyJ8yQlH8i/+buBR8s3mAZOJrP1gwyvAcIYl3GWtpX1",
+    "embedded": true,
+    "network_required_for_viewing": false
+  }
+}

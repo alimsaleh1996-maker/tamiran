@@ -1,0 +1,41 @@
+[graphify] MultiDiGraph edge-collapse diagnostic
+input: <in-memory>
+input_stage: provided JSON (normal graph.json is post-build)
+effective_directed: <direct-call>
+nodes: 3814
+unverified_code_nodes: 0
+raw_edges: 9905
+valid_candidate_edges: 9544
+missing_endpoint_edges: 0
+dangling_endpoint_edges: 65
+external_reference_edges: 296
+self_loop_edges: 12
+exact_duplicate_edges: 20
+directed_unique_endpoint_pairs: 9381
+directed_same_endpoint_collapsed_edges: 163
+undirected_unique_endpoint_pairs: 9377
+undirected_same_endpoint_collapsed_edges: 167
+same_endpoint_group_count: 161
+relation_variant_groups: 137
+source_file_variant_groups: 0
+source_location_variant_groups: 6
+context_variant_groups: 0
+post_build_graph_type: Graph
+post_build_edges: 9716
+producer_suppression_sites: 12
+producer_suppression_examples:
+  - L1859 seen_ids arity=unknown
+  - L2554 seen_ids arity=unknown
+  - L2556 seen_doc_refs arity=unknown
+  - L3223 seen_ids arity=unknown
+  - L3370 seen_ids arity=unknown
+  - L4784 seen_keys arity=unknown
+  - L4970 seen_keys arity=unknown
+  - L8790 seen_ids arity=unknown
+examples:
+  - hosting_private_database_schema_repair_cases -> hosting_private_database_schema_tamiran_users edges=3 relations=['references'] locations=['L406'] contexts=['']
+  - migration_worker_baseline_database_schema_repair_cases -> migration_worker_baseline_database_schema_tamiran_users edges=3 relations=['references'] locations=['L406'] contexts=['']
+  - hosting_frontend_src_app_tamiran_admin_panel_centraladminpanel -> hosting_frontend_src_app_tamiran_admin_panel_adminsectionfromlocation edges=2 relations=['calls', 'indirect_call'] locations=['L439', 'L493'] contexts=['argument', 'call']
+  - hosting_private_backup_engine_tamiran_backup_metadata -> hosting_private_backup_engine_php_pdo edges=2 relations=['references', 'references_constant'] locations=['L42', 'L57'] contexts=['', 'parameter_type']
+  - hosting_private_backup_engine_tamiran_backup_capture -> hosting_private_backup_engine_php_pdo edges=2 relations=['references', 'references_constant'] locations=['L126', 'L140'] contexts=['', 'parameter_type']
+note: normal graph.json is post-build; raw producer loss must be measured earlier.

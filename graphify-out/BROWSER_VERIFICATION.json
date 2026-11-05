@@ -1,0 +1,20 @@
+{
+  "passed": 11,
+  "failed": 0,
+  "checks": [
+    "Offline HTML creates a vis Network",
+    "All graph nodes loaded",
+    "All typed relationships loaded",
+    "194 labeled communities rendered",
+    "Search returns actor-authorization nodes",
+    "Selecting a search result shows source information",
+    "Community filter can hide every node",
+    "Community filter restores nodes",
+    "Theme control changes rendering",
+    "No runtime JavaScript errors",
+    "No network request required"
+  ],
+  "page_errors": [],
+  "remote_requests": [],
+  "scope": "Offline generated Graphify artifact; no application runtime or database tests"
+}

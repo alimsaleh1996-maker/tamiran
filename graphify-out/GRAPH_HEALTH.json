@@ -1,0 +1,200 @@
+{
+  "node_count": 3814,
+  "unverified_node_count": 0,
+  "raw_edge_count": 9905,
+  "non_object_edges": 0,
+  "missing_endpoint_edges": 0,
+  "dangling_endpoint_edges": 65,
+  "external_reference_edges": 296,
+  "self_loop_edges": 12,
+  "valid_candidate_edges": 9544,
+  "exact_duplicate_edges": 20,
+  "directed_unique_endpoint_pairs": 9381,
+  "directed_same_endpoint_collapsed_edges": 163,
+  "undirected_unique_endpoint_pairs": 9377,
+  "undirected_same_endpoint_collapsed_edges": 167,
+  "same_endpoint_group_count": 161,
+  "relation_variant_groups": 137,
+  "source_file_variant_groups": 0,
+  "source_location_variant_groups": 6,
+  "context_variant_groups": 0,
+  "post_build_graph_type": "Graph",
+  "post_build_node_count": 3863,
+  "post_build_edge_count": 9716,
+  "post_build_error": "",
+  "producer_suppression": {
+    "path": "/home/agent/.local/share/uv/tools/graphifyy/lib/python3.12/site-packages/graphify/extract.py",
+    "total_sites": 12,
+    "sites": [
+      {
+        "line": 1859,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 2554,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 2556,
+        "name": "seen_doc_refs",
+        "tuple_arity": 0,
+        "sample": "seen_doc_refs: set[str] = set()"
+      },
+      {
+        "line": 3223,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 3370,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n.get(\"id\") for n in nodes}"
+      },
+      {
+        "line": 4784,
+        "name": "seen_keys",
+        "tuple_arity": 0,
+        "sample": "seen_keys: set[tuple] = set()"
+      },
+      {
+        "line": 4970,
+        "name": "seen_keys",
+        "tuple_arity": 0,
+        "sample": "seen_keys: set[tuple] = set()"
+      },
+      {
+        "line": 8790,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 8898,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 8977,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 9502,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 9503,
+        "name": "seen_edges",
+        "tuple_arity": 4,
+        "sample": "seen_edges: set[tuple[str, str, str, str | None]] = set()"
+      }
+    ],
+    "error": ""
+  },
+  "examples": [
+    {
+      "source": "hosting_private_database_schema_repair_cases",
+      "target": "hosting_private_database_schema_tamiran_users",
+      "edge_count": 3,
+      "relations": [
+        "references"
+      ],
+      "source_files": [
+        "hosting/private/database/schema.sql"
+      ],
+      "source_locations": [
+        "L406"
+      ],
+      "contexts": [
+        ""
+      ]
+    },
+    {
+      "source": "migration_worker_baseline_database_schema_repair_cases",
+      "target": "migration_worker_baseline_database_schema_tamiran_users",
+      "edge_count": 3,
+      "relations": [
+        "references"
+      ],
+      "source_files": [
+        "migration/worker/baseline/database/schema.sql"
+      ],
+      "source_locations": [
+        "L406"
+      ],
+      "contexts": [
+        ""
+      ]
+    },
+    {
+      "source": "hosting_frontend_src_app_tamiran_admin_panel_centraladminpanel",
+      "target": "hosting_frontend_src_app_tamiran_admin_panel_adminsectionfromlocation",
+      "edge_count": 2,
+      "relations": [
+        "calls",
+        "indirect_call"
+      ],
+      "source_files": [
+        "hosting/frontend/src/app/tamiran/admin-panel.tsx"
+      ],
+      "source_locations": [
+        "L439",
+        "L493"
+      ],
+      "contexts": [
+        "argument",
+        "call"
+      ]
+    },
+    {
+      "source": "hosting_private_backup_engine_tamiran_backup_metadata",
+      "target": "hosting_private_backup_engine_php_pdo",
+      "edge_count": 2,
+      "relations": [
+        "references",
+        "references_constant"
+      ],
+      "source_files": [
+        "hosting/private/backup-engine.php"
+      ],
+      "source_locations": [
+        "L42",
+        "L57"
+      ],
+      "contexts": [
+        "",
+        "parameter_type"
+      ]
+    },
+    {
+      "source": "hosting_private_backup_engine_tamiran_backup_capture",
+      "target": "hosting_private_backup_engine_php_pdo",
+      "edge_count": 2,
+      "relations": [
+        "references",
+        "references_constant"
+      ],
+      "source_files": [
+        "hosting/private/backup-engine.php"
+      ],
+      "source_locations": [
+        "L126",
+        "L140"
+      ],
+      "contexts": [
+        "",
+        "parameter_type"
+      ]
+    }
+  ]
+}

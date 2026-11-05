@@ -1,0 +1,14 @@
+{
+  "graph_nodes": 3863,
+  "typed_relationships": 9905,
+  "communities": 194,
+  "all_endpoints_exist": true,
+  "parallel_relationships_preserved": true,
+  "cross_edition_heuristic_calls_excluded": 22,
+  "source_coordinate_paths_relative": true,
+  "source_application_files_unchanged": true,
+  "browser_checks": 11,
+  "frozen_hashes_preserved": 67,
+  "token_usage": "unavailable",
+  "scope": "Graph and documentation verification only; not application or hosted E2E"
+}
