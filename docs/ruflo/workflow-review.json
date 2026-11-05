@@ -1,0 +1,219 @@
+{
+  "ruflo_version": "3.71.4",
+  "project_initialized": false,
+  "project_workflows_found": 0,
+  "mcp_registered_in_local_codex": true,
+  "checks": [
+    {
+      "check": "templates",
+      "exit_code": 0,
+      "response": null
+    },
+    {
+      "check": "dry-development",
+      "exit_code": 0,
+      "response": {
+        "workflowId": "workflow-1793904797286-ae236i",
+        "template": "development",
+        "status": "validated",
+        "stages": [
+          {
+            "name": "Execute",
+            "status": "validated",
+            "agents": []
+          }
+        ],
+        "metrics": {
+          "totalStages": 1,
+          "completedStages": 0,
+          "agentsSpawned": 0,
+          "estimatedDuration": "unknown"
+        }
+      }
+    },
+    {
+      "check": "dry-feature",
+      "exit_code": 1,
+      "response": null
+    },
+    {
+      "check": "validate-json",
+      "exit_code": 0,
+      "response": {
+        "valid": true,
+        "file": "fixtures/three-stages.json",
+        "errors": [],
+        "warnings": [],
+        "stats": {
+          "stages": 3,
+          "agents": 0,
+          "estimatedDuration": "~90s"
+        }
+      }
+    },
+    {
+      "check": "validate-invalid",
+      "exit_code": 1,
+      "response": {
+        "valid": false,
+        "file": "fixtures/invalid.json",
+        "errors": [
+          {
+            "line": 0,
+            "message": "Workflow has no `steps` / `stages` / `tasks` array",
+            "severity": "error"
+          }
+        ],
+        "warnings": [],
+        "stats": {
+          "stages": 0,
+          "agents": 0,
+          "estimatedDuration": "unknown"
+        }
+      }
+    },
+    {
+      "check": "validate-yaml",
+      "exit_code": 1,
+      "response": {
+        "valid": false,
+        "file": "fixtures/three-stages.yaml",
+        "errors": [
+          {
+            "line": 0,
+            "message": "Workflow has no `steps` / `stages` / `tasks` array",
+            "severity": "error"
+          }
+        ],
+        "warnings": [
+          {
+            "line": 0,
+            "message": "YAML workflow files are not schema-validated yet — only JSON is fully checked (#1916 follow-up)"
+          }
+        ],
+        "stats": {
+          "stages": 0,
+          "agents": 0,
+          "estimatedDuration": "unknown"
+        }
+      }
+    },
+    {
+      "check": "dry-file",
+      "exit_code": 0,
+      "response": {
+        "workflowId": "workflow-1793904799111-nouerq",
+        "template": "custom",
+        "status": "validated",
+        "stages": [
+          {
+            "name": "Execute",
+            "status": "validated",
+            "agents": []
+          }
+        ],
+        "metrics": {
+          "totalStages": 1,
+          "completedStages": 0,
+          "agentsSpawned": 0,
+          "estimatedDuration": "unknown"
+        }
+      }
+    }
+  ],
+  "mcp_feature_preview": {
+    "workflowId": "workflow-1793904906716-aqjqt5",
+    "template": "feature",
+    "status": "validated",
+    "stages": [
+      {
+        "name": "Research",
+        "status": "validated",
+        "agents": []
+      },
+      {
+        "name": "Design",
+        "status": "validated",
+        "agents": []
+      },
+      {
+        "name": "Implement",
+        "status": "validated",
+        "agents": []
+      },
+      {
+        "name": "Test",
+        "status": "validated",
+        "agents": []
+      },
+      {
+        "name": "Review",
+        "status": "validated",
+        "agents": []
+      }
+    ],
+    "metrics": {
+      "totalStages": 5,
+      "completedStages": 0,
+      "agentsSpawned": 0,
+      "estimatedDuration": "unknown"
+    }
+  },
+  "real_agents_spawned": 0,
+  "workflow_execution_performed": false,
+  "project_working_tree_before_report": "clean",
+  "validated_json_stages": 3,
+  "file_run_preview_stages": 1,
+  "limitations": [
+    "CLI template names differ from MCP runtime template names",
+    "workflow_run currently does not consume input file stages",
+    "YAML schema validation is not implemented",
+    "workflow_run creates ready work; actual execution requires workflow_execute and an agent binding"
+  ],
+  "source_commit": "275e672eda4b4666f2ffee36c9a6cdf7b6b190b7",
+  "test_fixture": {
+    "name": "TEST-TAMIRAN-structure-only",
+    "steps": [
+      {
+        "stepId": "inspect",
+        "name": "inspect",
+        "type": "wait",
+        "config": {
+          "duration": 0
+        }
+      },
+      {
+        "stepId": "review",
+        "name": "review",
+        "type": "wait",
+        "config": {
+          "duration": 0
+        }
+      },
+      {
+        "stepId": "report",
+        "name": "report",
+        "type": "wait",
+        "config": {
+          "duration": 0
+        }
+      }
+    ]
+  },
+  "observed_cli_template_values": [
+    "development",
+    "research",
+    "testing",
+    "security-audit",
+    "code-review",
+    "refactoring",
+    "sparc",
+    "custom"
+  ],
+  "direct_mcp_runtime_template_values": [
+    "feature",
+    "bugfix",
+    "refactor",
+    "security"
+  ]
+}
