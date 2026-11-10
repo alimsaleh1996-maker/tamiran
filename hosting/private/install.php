@@ -4,14 +4,11 @@ declare(strict_types=1);
 /** Installation errors contain safe operator messages only, never PDO messages. */
 final class TamiranInstallException extends RuntimeException {}
 
-/** Test the same atomic, no-overwrite publication mechanism before any DDL. */
+/** Check exclusive creation and same-directory rename before any database writes. */
 function tamiran_install_check_config_publication(string $privateDir): void
 {
-    if (!function_exists('link')) {
-        throw new TamiranInstallException('هاست تابع link را غیرفعال کرده است؛ نصب پیش از ساخت جدول متوقف شد. برای فعال‌سازی لینک سخت در پوشه private با پشتیبانی هاست تماس بگیرید.');
-    }
     $source = $privateDir . '/.install-publish-check-' . bin2hex(random_bytes(12));
-    $target = $source . '.link';
+    $target = $source . '.target';
     $oldUmask = umask(0077);
     $handle = @fopen($source, 'xb');
     umask($oldUmask);
@@ -20,14 +17,41 @@ function tamiran_install_check_config_publication(string $privateDir): void
         if (!chmod($source, 0600) || fwrite($handle, 'test') !== 4 || !fflush($handle)) {
             throw new TamiranInstallException('نوشتن فایل امن در پوشه private ممکن نیست؛ نصب پیش از ساخت جدول متوقف شد.');
         }
-        if (!@link($source, $target)) {
-            throw new TamiranInstallException('ایجاد لینک سخت در پوشه private ممکن نیست؛ نصب پیش از ساخت جدول متوقف شد. تنظیمات فایل‌سیستم و محدودیت link هاست را بررسی کنید.');
+        fclose($handle); $handle = null;
+        if (!@rename($source, $target) || @file_get_contents($target) !== 'test') {
+            throw new TamiranInstallException('انتقال امن فایل در پوشه private ممکن نیست؛ نصب پیش از ساخت جدول متوقف شد.');
         }
     } finally {
-        fclose($handle);
+        if (is_resource($handle)) fclose($handle);
         @unlink($target);
         @unlink($source);
     }
+}
+
+/** Publish a complete file while holding the installer mutex; never replace an existing config. */
+function tamiran_install_publish_config(string $temporary, string $privateDir): void
+{
+    $target = $privateDir . '/config.php';
+    if (function_exists('link') && @link($temporary, $target)) return;
+    // Reserve the name exclusively. The fail-closed placeholder prevents an
+    // interrupted installation from exposing a partially written PHP config.
+    $oldUmask = umask(0077);
+    $handle = @fopen($target, 'xb');
+    umask($oldUmask);
+    if (!$handle) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+    $identity = fstat($handle);
+    $placeholder = "<?php http_response_code(503); exit;\n";
+    try {
+        if (!chmod($target, 0600) || fwrite($handle, $placeholder) !== strlen($placeholder) || !fflush($handle)) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+        if (function_exists('fsync') && !fsync($handle)) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+        $current = @lstat($target);
+        if (!is_array($identity) || !is_array($current) || $identity['dev'] !== $current['dev'] || $identity['ino'] !== $current['ino']) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+        if (!@rename($temporary, $target)) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+    } catch (Throwable $error) {
+        $current = @lstat($target);
+        if (is_array($identity) && is_array($current) && $identity['dev'] === $current['dev'] && $identity['ino'] === $current['ino']) @unlink($target);
+        throw $error;
+    } finally { fclose($handle); }
 }
 
 /** Do not expose raw SQL errors, credentials, SQL text or filesystem paths. */
@@ -250,9 +274,9 @@ function tamiran_install(array $input, string $privateDir): array
             if (!chmod($temporary, 0600) || fwrite($handle, $body) !== strlen($body) || !fflush($handle)) throw new RuntimeException('CONFIG_WRITE_FAILED');
             if (function_exists('fsync') && !fsync($handle)) throw new RuntimeException('CONFIG_SYNC_FAILED');
         } finally { fclose($handle); }
-        // Same-directory hard link publishes a complete file atomically and never overwrites.
+        // Installer mutex and exclusive reservation prevent concurrent installer overwrites.
         $stage = 'publish';
-        if (!@link($temporary, $privateDir . '/config.php')) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+        tamiran_install_publish_config($temporary, $privateDir);
         @unlink($temporary);
         $temporary = null;
         $oldUmask = umask(0077);

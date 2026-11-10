@@ -61,6 +61,20 @@ try {
     install_check(!tamiran_install_is_complete($temporary), 'fresh directory is not installed');
     tamiran_install_check_config_publication($temporary);
     install_check(!glob($temporary . '/.install-publish-check-*'), 'atomic publication preflight cleans up its files');
+    file_put_contents($temporary . '/.config-test.tmp', "<?php return ['installed'=>true];\n");
+    chmod($temporary . '/.config-test.tmp', 0600);
+    tamiran_install_publish_config($temporary . '/.config-test.tmp', $temporary);
+    install_check((require $temporary . '/config.php')['installed'] === true, 'complete config published without requiring link');
+    install_check((fileperms($temporary . '/config.php') & 0777) === 0600, 'published config retains private permissions');
+    if (!is_file($temporary . '/.config-test.tmp')) file_put_contents($temporary . '/.config-test.tmp', '<?php return [];');
+    try {
+        tamiran_install_publish_config($temporary . '/.config-test.tmp', $temporary);
+        throw new RuntimeException('Existing config was overwritten');
+    } catch (RuntimeException $error) {
+        install_check($error->getMessage() === 'CONFIG_PUBLISH_FAILED' && (require $temporary . '/config.php')['installed'] === true, 'publication refuses to replace existing config');
+    }
+    unlink($temporary . '/config.php');
+    unlink($temporary . '/.config-test.tmp');
     tamiran_install_ensure_key($temporary);
     $installKey = trim(file_get_contents($temporary . '/install.key'));
     install_check(preg_match('/^[a-f0-9]{64}$/D', $installKey) === 1, 'filesystem install key has 256 bits');
