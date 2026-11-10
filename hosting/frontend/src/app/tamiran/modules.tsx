@@ -6765,6 +6765,7 @@ function ServiceFormSettings({
                   </td>
                   <td>
                     <select
+                      aria-label={`وضعیت فیلد ${field}`}
                       value={policy.mode}
                       onChange={(event) =>
                         patchPolicy(field, { mode: event.target.value })
@@ -7028,6 +7029,7 @@ function ReceiptSettings({
         </div>
         <div className="inline-add-row">
           <input
+            aria-label="وضعیت ظاهری جدید"
             value={newAppearance}
             onChange={(event) => setNewAppearance(event.target.value)}
             placeholder="وضعیت جدید؛ مانند شکستگی قاب"
@@ -7068,6 +7070,7 @@ function ReceiptSettings({
               <label className="clause-toggle">
                 <input
                   type="checkbox"
+                  aria-label={`فعال‌سازی شرط ${index + 1}`}
                   checked={clause.enabled}
                   onChange={(event) =>
                     setClauses((current) =>
@@ -7083,6 +7086,7 @@ function ReceiptSettings({
               </label>
               <b>{index + 1}</b>
               <textarea
+                aria-label={`متن شرط ${index + 1}`}
                 value={clause.text}
                 onChange={(event) =>
                   setClauses((current) =>
@@ -7130,6 +7134,7 @@ function ReceiptSettings({
         </div>
         <div className="add-clause">
           <textarea
+            aria-label="شرط جدید تعمیرگاه"
             rows={2}
             value={newClause}
             onChange={(event) => setNewClause(event.target.value)}
