@@ -1,5 +1,7 @@
 # تعمیران — انتقال کنترل‌شده به Sites
 
+راهنمای زیر سابقهٔ مهاجرت Worker را توضیح می‌دهد؛ نسخهٔ قابل نصب جاری در [hosting](../hosting/README.md) است. گزارش‌های گام‌ها در [docs/history/worker](../docs/history/worker/README.md) و بررسی‌های Worker در [docs/reports/worker](../docs/reports/worker/README.md) دسته‌بندی شده‌اند. مقصد توسعه و انتشار سورس طبق AGENTS.md، مخزن GitHub انتخاب‌شدهٔ مالک است.
+
 شروع: ۲۴:۰۰ UTC در ۹ اکتبر / بامداد ۱۸ مهر ۱۴۰۵. هدف کاربر: جمعه ۲۴ مهر (۱۶ اکتبر).
 
 ## Scope Lock

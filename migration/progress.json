@@ -11,43 +11,43 @@
     },
     {
       "id": "d1-core-schema-phase1",
-      "evidence": "migration/runs/20261010A-d1-identity.md; 5 tables and all 77 legacy columns preserved plus nullable server identity binding; official Drizzle migration; 22 SQLite schema tests passed; official local D1 apply succeeded; synthetic seed/read-only storage readback passed. Not hosted/API/E2E."
+      "evidence": "docs/history/worker/20261010A-d1-identity.md; 5 tables and all 77 legacy columns preserved plus nullable server identity binding; official Drizzle migration; 22 SQLite schema tests passed; official local D1 apply succeeded; synthetic seed/read-only storage readback passed. Not hosted/API/E2E."
     },
     {
       "id": "d1-core-schema-phase2",
-      "evidence": "migration/runs/20261010B-d1-case-core.md; 10 catalog/device/receipt/case/workflow/evidence tables and all 136 frozen columns preserved; migration 0000 unchanged; 18 new case-core tests plus 22 phase1 tests passed; both migrations and synthetic case graph applied/read back through Wrangler local D1; cross-shop write rejected and unchanged. Not hosted/API/E2E."
+      "evidence": "docs/history/worker/20261010B-d1-case-core.md; 10 catalog/device/receipt/case/workflow/evidence tables and all 136 frozen columns preserved; migration 0000 unchanged; 18 new case-core tests plus 22 phase1 tests passed; both migrations and synthetic case graph applied/read back through Wrangler local D1; cross-shop write rejected and unchanged. Not hosted/API/E2E."
     },
     {
       "id": "d1-server-scope-and-reception-batch-phase3",
-      "evidence": "migration/runs/20261010C-server-scope-reception-batch.md; server identity resolves account binding to active DB membership and branch role; existing-customer/device reception allocates receipt and writes case/workflow/stage event/case event/audit in one atomic batch. 8/8 repository tests plus 40 schema tests and 55 baseline checks passed; local Wrangler D1 smoke/readback passed. No application endpoint, hosted DB or browser E2E yet."
+      "evidence": "docs/history/worker/20261010C-server-scope-reception-batch.md; server identity resolves account binding to active DB membership and branch role; existing-customer/device reception allocates receipt and writes case/workflow/stage event/case event/audit in one atomic batch. 8/8 repository tests plus 40 schema tests and 55 baseline checks passed; local Wrangler D1 smoke/readback passed. No application endpoint, hosted DB or browser E2E yet."
     },
     {
       "id": "d1-customer-device-atomic-phase4",
-      "evidence": "migration/runs/20261010D-customer-device-batch.md; new/existing customer upsert and new-device creation now share the atomic reception batch, with baseline mobile/national-code/postal/model validation and database-level normalized-serial uniqueness. 5/5 new transaction tests plus 48 prior database/repository tests and 55 baseline checks passed; three migrations applied to fresh local Wrangler D1 and readback passed. No network route, hosted DB or browser E2E yet."
+      "evidence": "docs/history/worker/20261010D-customer-device-batch.md; new/existing customer upsert and new-device creation now share the atomic reception batch, with baseline mobile/national-code/postal/model validation and database-level normalized-serial uniqueness. 5/5 new transaction tests plus 48 prior database/repository tests and 55 baseline checks passed; three migrations applied to fresh local Wrangler D1 and readback passed. No network route, hosted DB or browser E2E yet."
     },
     {
       "id": "d1-existing-device-settings-phase5",
-      "evidence": "migration/runs/20261010E-existing-device-settings.md; existing-device model/color/serial update shares atomic customer/case batch; settings-driven address, national code, color and appearance validation; explicit data-handling consent persisted. Device lock_version guards stale writes and canonical request fingerprint guards all bounded input on replay. 13 new tests plus 53 prior database/repository tests and 55 baseline checks passed. TypeScript, targeted lint and Worker build passed. Local D1 verification recorded in run report. No hosted DB/API/browser E2E."
+      "evidence": "docs/history/worker/20261010E-existing-device-settings.md; existing-device model/color/serial update shares atomic customer/case batch; settings-driven address, national code, color and appearance validation; explicit data-handling consent persisted. Device lock_version guards stale writes and canonical request fingerprint guards all bounded input on replay. 13 new tests plus 53 prior database/repository tests and 55 baseline checks passed. TypeScript, targeted lint and Worker build passed. Local D1 verification recorded in run report. No hosted DB/API/browser E2E."
     },
     {
       "id": "d1-receipt-acceptance-portal-phase6",
-      "evidence": "migration/runs/20261010F-receipt-terms-portal.md; three tables (19 total) ported with frozen columns, tenant FKs and immutable receipt evidence/content. Accepted displayed terms ID/hash and acceptance evidence plus 400-day hashed portal token commit in reception batch. WebCrypto AES-GCM/random token generation/recovery; expiry/revocation checks. 15 new repository/schema/crypto tests + one official Wrangler local D1 storage/denial test passed; 66 prior DB/repository and 55 baseline checks passed. TypeScript, targeted lint, Worker build and source preservation passed. No hosted DB/API/E2E."
+      "evidence": "docs/history/worker/20261010F-receipt-terms-portal.md; three tables (19 total) ported with frozen columns, tenant FKs and immutable receipt evidence/content. Accepted displayed terms ID/hash and acceptance evidence plus 400-day hashed portal token commit in reception batch. WebCrypto AES-GCM/random token generation/recovery; expiry/revocation checks. 15 new repository/schema/crypto tests + one official Wrangler local D1 storage/denial test passed; 66 prior DB/repository and 55 baseline checks passed. TypeScript, targeted lint, Worker build and source preservation passed. No hosted DB/API/E2E."
     },
     {
       "id": "d1-reception-options-auth-http-phase7",
-      "evidence": "migration/runs/20261010G-reception-options-api.md; scoped initial assignment with legacy singleton priority, Solo normalization, preapproved rials, canonical diagnostic policy, UTC promise and AES-GCM temporary secret + seven-day expiry persisted atomically. Authoritative Sites identity create_case handler with strict same-origin JSON, server IDs/tokens and scoped real response/read-only retry. 26 new tests (14 options +12 HTTP handler) and 81 prior DB/repository/crypto tests plus 55 baseline checks passed; TypeScript, targeted lint and Worker build passed. Handler tests use Request/Response + SQLite adapter, not hosted/network/browser E2E. Root remains static checkpoint/demo; runtime key not configured. Official local Wrangler D1 receipt/token storage/constraint test passed after build (1/1); root Site foundation passed."
+      "evidence": "docs/history/worker/20261010G-reception-options-api.md; scoped initial assignment with legacy singleton priority, Solo normalization, preapproved rials, canonical diagnostic policy, UTC promise and AES-GCM temporary secret + seven-day expiry persisted atomically. Authoritative Sites identity create_case handler with strict same-origin JSON, server IDs/tokens and scoped real response/read-only retry. 26 new tests (14 options +12 HTTP handler) and 81 prior DB/repository/crypto tests plus 55 baseline checks passed; TypeScript, targeted lint and Worker build passed. Handler tests use Request/Response + SQLite adapter, not hosted/network/browser E2E. Root remains static checkpoint/demo; runtime key not configured. Official local Wrangler D1 receipt/token storage/constraint test passed after build (1/1); root Site foundation passed."
     },
     {
       "id": "d1-customer-history-auth-read-phase8",
-      "evidence": "migration/runs/20261010H-customer-lookup.md; authenticated read-only customerMobile GET contract ported with shop-wide history matching frozen PHP, DB branch membership and manager/reception role checks, Persian/Arabic digit normalization, explicit field projection and device expectedDeviceVersion. 10 new Request/Response + SQLite adapter tests passed; 107 prior DB/repository/crypto/HTTP tests and 55 baseline checks passed. TypeScript, targeted lint, Worker build and root Site foundation passed. No schema migration, hosted API/DB or browser E2E."
+      "evidence": "docs/history/worker/20261010H-customer-lookup.md; authenticated read-only customerMobile GET contract ported with shop-wide history matching frozen PHP, DB branch membership and manager/reception role checks, Persian/Arabic digit normalization, explicit field projection and device expectedDeviceVersion. 10 new Request/Response + SQLite adapter tests passed; 107 prior DB/repository/crypto/HTTP tests and 55 baseline checks passed. TypeScript, targeted lint, Worker build and root Site foundation passed. No schema migration, hosted API/DB or browser E2E."
     },
     {
       "id": "d1-reception-drafts-settings-contract-phase9",
-      "evidence": "migration/runs/20261010L-drafts-settings.md; two frozen tables ported with encrypted JSON envelope, tenant FKs and immutable owner/branch/key. Authenticated settings/catalog GET + active displayed terms version ID; owner-only draft save/list/discard with AES-GCM scoped to shop/branch/user/draft, bounded payload, retention expiry and version/atomic audit guard. 17 new repository/Request-Response tests and 117 prior related tests +55 baseline checks passed. One new official Wrangler local D1 migration/storage/denial test passed. TypeScript, targeted lint, Worker build and root foundation passed. Root remains static; draft-to-case conversion, UI adapter, hosted API/DB and E2E not-run."
+      "evidence": "docs/history/worker/20261010L-drafts-settings.md; two frozen tables ported with encrypted JSON envelope, tenant FKs and immutable owner/branch/key. Authenticated settings/catalog GET + active displayed terms version ID; owner-only draft save/list/discard with AES-GCM scoped to shop/branch/user/draft, bounded payload, retention expiry and version/atomic audit guard. 17 new repository/Request-Response tests and 117 prior related tests +55 baseline checks passed. One new official Wrangler local D1 migration/storage/denial test passed. TypeScript, targeted lint, Worker build and root foundation passed. Root remains static; draft-to-case conversion, UI adapter, hosted API/DB and E2E not-run."
     },
     {
       "id": "reception-draft-atomic-conversion",
-      "evidence": "20261010M: atomic draft-to-case conversion guards owner/branch/key/version/expiry and encrypted snapshot within reception batch. Retry is read-only; changed draft/version conflicts. Five new tests +134 prior inline tests and 55 baseline checks passed (141 Node entries including 2 wrappers). Official fresh local D1 storage test 1/1, TypeScript, build, bounded lint and foundation passed. Seven migrations unchanged; hosted API/UI/E2E NOT_RUN. See migration/runs/20261010M-draft-submit.md."
+      "evidence": "20261010M: atomic draft-to-case conversion guards owner/branch/key/version/expiry and encrypted snapshot within reception batch. Retry is read-only; changed draft/version conflicts. Five new tests +134 prior inline tests and 55 baseline checks passed (141 Node entries including 2 wrappers). Official fresh local D1 storage test 1/1, TypeScript, build, bounded lint and foundation passed. Seven migrations unchanged; hosted API/UI/E2E NOT_RUN. See docs/history/worker/20261010M-draft-submit.md."
     },
     {
       "id": "reception-csrf-http",
@@ -182,7 +182,7 @@
   "latest_review": {
     "id": "20261010P",
     "source_commit": "1f34fb419488bd7887f60171d433c4a0bf405a17",
-    "report": "migration/runs/20261010P-detailed-audit.md",
+    "report": "docs/history/worker/20261010P-detailed-audit.md",
     "status": "reviewed_integration_blockers_open",
     "findings": [
       "actor_auth_missing",
@@ -215,7 +215,7 @@
   "latest_execution": {
     "id": "20261011Z",
     "source_base_commit": "32f266a25143b8ee14a5646d7c83a56b1df023a0",
-    "report": "migration/runs/20261011Z-auth-session.md",
+    "report": "docs/history/worker/20261011Z-auth-session.md",
     "status": "passed_local_not_hosted",
     "verification": {
       "node_entries_passed": 217,

@@ -18,3 +18,5 @@ The PHP edition has its own files here. The frozen reference in `migration/worke
 To rebuild the browser interface, use `npm ci --ignore-scripts`, `npm run typecheck` and `npm run build` from `frontend/`. To package, run `python scripts/package.py --output /absolute/output/directory` from this directory after completing verification. Packaging refuses missing runtime files and excludes generated credentials, local logs, uploads, backups, dependencies and test state.
 
 The initial installer only accepts an empty dedicated database and does not upgrade existing installations. Do not overwrite an existing `private/config.php`, encryption key or runtime-secret directory during upgrades.
+
+Historical interface reviews and screenshots are grouped under [docs/reports/hosting](../docs/reports/hosting/README.md). Developer navigation starts at [docs/README.md](../docs/README.md).

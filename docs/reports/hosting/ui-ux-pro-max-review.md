@@ -19,7 +19,7 @@
 
 ## ۱. P1 — خطای بارگذاری به «صفر پرونده» تبدیل می‌شود
 
-**شاهد کد:** [page.tsx:339](../frontend/src/app/tamiran/page.tsx#L339). شکست core تنها toast می‌سازد و بازمی‌گردد؛ `operations` مقدار اولیهٔ خالی را نگه می‌دارد و loading پایان می‌یابد.
+**شاهد کد:** [page.tsx:339](../../../hosting/frontend/src/app/tamiran/page.tsx#L339). شکست core تنها toast می‌سازد و بازمی‌گردد؛ `operations` مقدار اولیهٔ خالی را نگه می‌دارد و loading پایان می‌یابد.
 
 **بازآفرینی:** یک پروندهٔ واقعی از API آزمایشی ساخته شد. داشبورد ابتدا «پرونده‌های فعال: ۱» و «منتظر تخصیص: ۱» نشان داد. پس از قطع درخواست خواندن عملیات و reload، هر دو به **۰** تبدیل شدند و پیام «هنوز اطلاعاتی ثبت نشده است» ظاهر شد؛ تنها هشدار، toast پایین صفحه بود. دکمهٔ «تلاش مجدد» وجود نداشت.
 
@@ -33,7 +33,7 @@
 
 ## ۲. P1 — انتخاب محصول با کیبورد کامل نمی‌شود
 
-**شاهد کد:** [modules.tsx:2846](../frontend/src/app/tamiran/modules.tsx#L2846). combobox با blur پس از ۱۲۰ میلی‌ثانیه بسته می‌شود؛ handler کلیدهای جهت/Enter و `aria-activedescendant` ندارد. گزینه‌ها با کلیک انتخاب می‌شوند.
+**شاهد کد:** [modules.tsx:2846](../../../hosting/frontend/src/app/tamiran/modules.tsx#L2846). combobox با blur پس از ۱۲۰ میلی‌ثانیه بسته می‌شود؛ handler کلیدهای جهت/Enter و `aria-activedescendant` ندارد. گزینه‌ها با کلیک انتخاب می‌شوند.
 
 **بازآفرینی:** در مرحلهٔ دوم پذیرش، جست‌وجوی «مدل بررسی» نتیجهٔ محصول را نمایش داد. `ArrowDown` فوکوس را روی input نگه داشت و active descendant همچنان null بود. با `Tab`، فهرست بسته شد و فوکوس به `BODY` افتاد؛ انتخاب با کلیک همان محصول موفق شد.
 
@@ -47,7 +47,7 @@
 
 ## ۳. P1 — ورود جایگزین غیرتصویری برای CAPTCHA ندارد
 
-**شاهد کد:** [access.tsx:440](../frontend/src/app/tamiran/access.tsx#L440). تنها تصویر، refresh و ورودی پاسخ موجود است؛ مسیر صوتی یا جایگزین قابل استفاده برای کاربر نابینا در این فرم وجود ندارد. alt تصویر هدف را توضیح می‌دهد، ولی روش حل جایگزین فراهم نمی‌کند.
+**شاهد کد:** [access.tsx:440](../../../hosting/frontend/src/app/tamiran/access.tsx#L440). تنها تصویر، refresh و ورودی پاسخ موجود است؛ مسیر صوتی یا جایگزین قابل استفاده برای کاربر نابینا در این فرم وجود ندارد. alt تصویر هدف را توضیح می‌دهد، ولی روش حل جایگزین فراهم نمی‌کند.
 
 ورودی پاسخ نیز در DOM هیچ label وابسته یا `aria-label` ندارد. `<label>` بیرونی ابتدا به دکمهٔ refresh می‌رسد؛ متن قابل‌مشاهدهٔ «عبارت امنیتی» به input پاسخ متصل نیست.
 
@@ -61,7 +61,7 @@
 
 ## ۴. P2 — پنجره‌ها و کشوی موبایل فوکوس را مدیریت نمی‌کنند
 
-**شاهد کد:** [Modal در modules.tsx:8634](../frontend/src/app/tamiran/modules.tsx#L8634) و [کشوی موبایل در page.tsx:1024](../frontend/src/app/tamiran/page.tsx#L1024).
+**شاهد کد:** [Modal در modules.tsx:8634](../../../hosting/frontend/src/app/tamiran/modules.tsx#L8634) و [کشوی موبایل در page.tsx:1024](../../../hosting/frontend/src/app/tamiran/page.tsx#L1024).
 
 **بازآفرینی پنجره:** با بازکردن «آدرس مشتری»، فوکوس روی دکمهٔ بیرون پنجره ماند. Tab بعدی به «ثبت مرحله و ادامه» در صفحهٔ پشت پنجره رفت. Escape پنجره را نبست، با اینکه `aria-modal="true"` اعلام شده است.
 
@@ -75,7 +75,7 @@
 
 ## ۵. P2 — کنتراست متن‌های راهنما و بعضی کنترل‌ها کافی نیست
 
-**شاهد استایل:** [app-D2PBnnyi.css](../frontend/public/assets/app-D2PBnnyi.css)، قواعد `.stat-body small`، `.panel-heading p`، `.form-progress-item small` و `.field-helper`؛ اندازه‌های راهنما نیز در [beta7-ui.css](../frontend/public/assets/beta7-ui.css) بازتعریف می‌شوند.
+**شاهد استایل:** [app-D2PBnnyi.css](../../../hosting/frontend/public/assets/app-D2PBnnyi.css)، قواعد `.stat-body small`، `.panel-heading p`، `.form-progress-item small` و `.field-helper`؛ اندازه‌های راهنما نیز در [beta7-ui.css](../../../hosting/frontend/public/assets/beta7-ui.css) بازتعریف می‌شوند.
 
 اندازه‌گیری از رنگ محاسبه‌شدهٔ مرورگر و پس‌زمینهٔ مات همان عنصر انجام شد؛ متن روی gradient یا زنجیرهٔ نامطمئن و کنترل غیرفعال وارد این شمارش نشد.
 
@@ -96,7 +96,7 @@
 
 ## ۶. P2 — اولین Back مرورگر، صفحه را به خانه برنمی‌گرداند
 
-**شاهد کد:** [page.tsx:392](../frontend/src/app/tamiran/page.tsx#L392). handler تاریخچه فقط وقتی `pageFromLocation()` مقدار معتبر داشته باشد صفحه را عوض می‌کند؛ بازگشت به URL اولیهٔ بدون `view` نادیده گرفته می‌شود.
+**شاهد کد:** [page.tsx:392](../../../hosting/frontend/src/app/tamiran/page.tsx#L392). handler تاریخچه فقط وقتی `pageFromLocation()` مقدار معتبر داشته باشد صفحه را عوض می‌کند؛ بازگشت به URL اولیهٔ بدون `view` نادیده گرفته می‌شود.
 
 **بازآفرینی:** ورود به `/` → انتخاب پذیرش → `/?view=reception` → Back. URL دوباره `/` شد ولی عنوان و محتوا همچنان «پذیرش تعمیرات» ماندند.
 

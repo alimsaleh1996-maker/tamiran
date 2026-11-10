@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-10",
+  "scope": "Documentation organization and the offline Graphify viewer",
+  "organization": {
+    "historical_evidence_files_relocated": 46,
+    "files_with_unchanged_content": 43,
+    "markdown_files_with_relative_links_retargeted": 3,
+    "runtime_and_reference_files_verified_unchanged": 404,
+    "relocations_manifest": "relocations.json"
+  },
+  "checks": {
+    "project_map_unit_tests": {
+      "passed": 5,
+      "failed": 0
+    },
+    "workflow_tests_including_real_isolated_ruflo": {
+      "passed": 31,
+      "failed": 0,
+      "scope": "Isolated fixture, not the canonical checkout policy ledger"
+    },
+    "offline_scoped_viewer_browser": {
+      "passed": 21,
+      "failed": 0,
+      "details": "../../graphify-out/VIEWER_VERIFICATION.json"
+    },
+    "site_foundation": "passed",
+    "frozen_reference": {
+      "hashes_verified": 67,
+      "original_menus": 20,
+      "api_contracts": 27
+    },
+    "python_compile": "passed",
+    "javascript_syntax": "passed",
+    "documentation_links": "passed for moved documents and current navigation",
+    "diff_whitespace": "passed"
+  },
+  "ruflo_coordination": {
+    "status": "blocked",
+    "start_error": "policy-anchor-log-missing",
+    "official_full_verification_error": "policy-ledger-truncated",
+    "tasks_created_or_completed_for_this_change": 0,
+    "workflow_profile_added": "organization",
+    "recovery": "Restore original .claude-flow/policy ledger files from a trustworthy backup; do not delete trust mirrors or fabricate/re-sign historical receipts",
+    "work_performed_by": "Current Codex host session; test execution and Graphify inspection are real"
+  },
+  "not_executed": [
+    "Live automated Ruflo/Codex model workflow",
+    "Application PHP/SQL runtime tests",
+    "Application frontend build",
+    "Hosted deployment",
+    "SMS or payment requests"
+  ],
+  "coverage_note": "No claim of full product test coverage; application runtime content was preserved byte for byte",
+  "initial_checks_date": "2026-11-05"
+}

@@ -38,9 +38,12 @@ Use the installed ECC workflows when relevant: `security-review`, `production-au
 - Report source tests, local storage checks, browser E2E, and hosted verification separately. Never infer readiness from passing unit tests alone.
 - Hosting edition: rebuild browser assets from `hosting/frontend` with its own pinned npm lockfile; run `npm run typecheck` and `npm run build`. PHP tests are in `hosting/tests`; HTTP integration tests refuse remote hosts and use synthetic isolated SQL data. Keep runtime `private/config.php`, logs, keys, uploads and backups out of Git and release source. The packaging script intentionally creates a new private installation key per ZIP.
 
-Latest ECC review: `migration/reviews/2026-10-21-ecc-review.md`.
+Latest ECC review: `docs/reports/worker/2026-10-21-ecc-review.md`.
 
 ## Graphify project map
+
+- Developer navigation starts at `docs/README.md` and `docs/project/STRUCTURE-FA.md`. Historical PHP reviews/assets live under `docs/reports/hosting/`; Worker reviews under `docs/reports/worker/`; migration run reports under `docs/history/worker/`. `docs/project/relocations.json` records old/new paths and checksums. Keep runtime layout and the frozen baseline fixed.
+- `graph.html` is the scoped offline viewer; `graph-full.html` is the complete network visualization. Rebuild the scoped viewer with `python3 scripts/build_project_map.py` after graph updates. Do not replace the complete JSON with a visually simplified graph or silently restore cross-edition heuristic calls.
 
 - `graphify-out/graph.json`, `graph.html` and `GRAPH_REPORT.md` contain the static architecture map. Start with `graphify-out/README-FA.md` for scope, commands and limitations. Use scoped graph queries for architecture questions and verify consequential findings in source.
 - PHP hosting, the Worker migration and frozen PHP are separate runtime editions. Same-named functions do not prove calls between them. Twenty-two cross-edition heuristic call candidates were excluded and preserved in `EXCLUDED_RELATIONS.json`; do not restore them merely because the symbol names match.
@@ -54,4 +57,5 @@ Latest ECC review: `migration/reviews/2026-10-21-ecc-review.md`.
 - In an existing Codex session, use the host-directed `start`, `next`, `check`, and `record` commands. The `run` command starts separate sequential Codex CLI sessions; use it when automated execution is requested, never recursively from a workflow phase.
 - Ruflo task tools persist coordination; actual work belongs to Codex and actual checks belong to the controller. Do not report a task as complete without its valid stage output and required check evidence. Never use wait-only placeholder stages as proof that development happened.
 - The default `tooling` profile does not authorize application-code edits. Select `frontend-static` or `backend-local` for the appropriate scope and report unexecuted browser/HTTP/hosted checks honestly. A blocked review or failed check is not completion.
+- The `organization` profile covers documentation relocation and the scoped graph viewer; it includes checksums and offline browser checks. The existing checkout's Ruflo policy ledger reported `policy-anchor-log-missing` / `policy-ledger-truncated` during organization. Restore original ledger files from a trustworthy backup before claiming its task coordination works; do not reset trust state or fabricate completion.
 - Generated `.ruflo/` and `.claude-flow/` state stays ignored. The runner inherits model and permission settings, preserves the frozen reference, stops on failures, and does not commit, push, deploy or enable scheduled jobs. The parent session retains the user's standing GitHub publishing authorization after verification.

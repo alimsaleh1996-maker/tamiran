@@ -1,0 +1,283 @@
+{
+  "version": 1,
+  "source_commit": "1700daae3c2f2f928a7a31d11b2825d1bbdca8b8",
+  "scope": "Historical documentation and review assets only; runtime entry points and frozen reference unchanged",
+  "files": [
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes.md",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes.md",
+      "original_sha256": "ecbdec669af8903e0131dbbc778f720efda134678f5f8b2b1b89ba740cb2223c",
+      "relocated_sha256": "8b9d172c87bdea5ee7ea21405bcd237b6246cb999bdf041fdf25eb348b91fe97"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/api-smoke.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/api-smoke.json",
+      "original_sha256": "7c883d440d59703f421a47cfa49a9e8b2f41e76a15cd166650a20d0d41c7380f",
+      "relocated_sha256": "7c883d440d59703f421a47cfa49a9e8b2f41e76a15cd166650a20d0d41c7380f"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/captcha-results.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/captcha-results.json",
+      "original_sha256": "43f7c394b6cf40bc661f10bc951ca164fe4522ffefc5717560ba26298123797f",
+      "relocated_sha256": "43f7c394b6cf40bc661f10bc951ca164fe4522ffefc5717560ba26298123797f"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/captcha-unit.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/captcha-unit.json",
+      "original_sha256": "2d431b9e6260c3bbbed22c385fcc8ac04f1be96da4e71dbd603e28e82cac0c57",
+      "relocated_sha256": "2d431b9e6260c3bbbed22c385fcc8ac04f1be96da4e71dbd603e28e82cac0c57"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/dashboard-readable.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/dashboard-readable.png",
+      "original_sha256": "a22f8dc68ac97fdc574c0a3fcef78d03fbc8d392edacc4110eac4a6e70623b73",
+      "relocated_sha256": "a22f8dc68ac97fdc574c0a3fcef78d03fbc8d392edacc4110eac4a6e70623b73"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/initial-load-error.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/initial-load-error.png",
+      "original_sha256": "9fb9067092d0516feac177576589c5a5704b70b45e0bda57c29078ce3e0d29a7",
+      "relocated_sha256": "9fb9067092d0516feac177576589c5a5704b70b45e0bda57c29078ce3e0d29a7"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/login-audio-mobile.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/login-audio-mobile.png",
+      "original_sha256": "25a84e767a9481c002476113188e5fb1f34678d03a980bbfac76c3354e96d26c",
+      "relocated_sha256": "25a84e767a9481c002476113188e5fb1f34678d03a980bbfac76c3354e96d26c"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/package-results.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/package-results.json",
+      "original_sha256": "3d82e65c46fee5658783a716f3ae0a139d5c7751607ecbf575dd3b1e46062141",
+      "relocated_sha256": "3d82e65c46fee5658783a716f3ae0a139d5c7751607ecbf575dd3b1e46062141"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/reception-mobile.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/reception-mobile.png",
+      "original_sha256": "6f1c7f4a3a21e5e6bf87d1142ddd70701cf92983b659b7027ac5310885fdfbf1",
+      "relocated_sha256": "6f1c7f4a3a21e5e6bf87d1142ddd70701cf92983b659b7027ac5310885fdfbf1"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/summary.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/summary.json",
+      "original_sha256": "7844f5a27f4625064e2dae6396cffcf6e57dfed92f951a49abd3ea2fd6b3f8e9",
+      "relocated_sha256": "7844f5a27f4625064e2dae6396cffcf6e57dfed92f951a49abd3ea2fd6b3f8e9"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-fixes/ui-browser-results.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max-fixes/ui-browser-results.json",
+      "original_sha256": "c81ff823e3d9caf6434ffff86fb2949cf45a6301845cf91a6b8cf3c238b35066",
+      "relocated_sha256": "c81ff823e3d9caf6434ffff86fb2949cf45a6301845cf91a6b8cf3c238b35066"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max-review.md",
+      "to": "docs/reports/hosting/ui-ux-pro-max-review.md",
+      "original_sha256": "871e96445e338b09680ed0daa0126d6ab5a8e5e8f8243bdc809413713c570050",
+      "relocated_sha256": "8fc169d9e24471fd6a79cc50615dfe14e68bd5a19c92b8797f7b691dab6c9224"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/address-modal-keyboard.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max/address-modal-keyboard.png",
+      "original_sha256": "8850b6bcd52f1bb5a1fcf5c2aded27c74d10f4f9b55cf233f65de500505f4106",
+      "relocated_sha256": "8850b6bcd52f1bb5a1fcf5c2aded27c74d10f4f9b55cf233f65de500505f4106"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/dashboard-desktop.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max/dashboard-desktop.png",
+      "original_sha256": "63c85db56f93543da7a1df5a58dea91e14babf6eb1c73a82873f49213fa87e1b",
+      "relocated_sha256": "63c85db56f93543da7a1df5a58dea91e14babf6eb1c73a82873f49213fa87e1b"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/dashboard-failed-api.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max/dashboard-failed-api.png",
+      "original_sha256": "164634eae8042f1b4bd8f1fb0d4a7b76e84e1b8287df2edc3d463c8777628a04",
+      "relocated_sha256": "164634eae8042f1b4bd8f1fb0d4a7b76e84e1b8287df2edc3d463c8777628a04"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/drawer-mobile-after-escape.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max/drawer-mobile-after-escape.png",
+      "original_sha256": "21cc712b85a05c256ad402a135dba9571b5f02577de600b5fe08a130d9ae5c21",
+      "relocated_sha256": "21cc712b85a05c256ad402a135dba9571b5f02577de600b5fe08a130d9ae5c21"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/failure-evidence.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max/failure-evidence.json",
+      "original_sha256": "688aff852eecb33ffd1fc4bbdb29d3e00001e6ecb3725005ffdd89acb6ae2f63",
+      "relocated_sha256": "688aff852eecb33ffd1fc4bbdb29d3e00001e6ecb3725005ffdd89acb6ae2f63"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/initial-evidence.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max/initial-evidence.json",
+      "original_sha256": "9284965b99c551c0aee21fc0497ebd7ddf3be235d669920d1fa0b7fafb7818ac",
+      "relocated_sha256": "9284965b99c551c0aee21fc0497ebd7ddf3be235d669920d1fa0b7fafb7818ac"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/interaction-evidence.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max/interaction-evidence.json",
+      "original_sha256": "a7c94eba5d610ee255f2a87a6a7312f2ae03365e8539d6fabcbf86bf51b362cd",
+      "relocated_sha256": "a7c94eba5d610ee255f2a87a6a7312f2ae03365e8539d6fabcbf86bf51b362cd"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/reception-mobile.png",
+      "to": "docs/reports/hosting/ui-ux-pro-max/reception-mobile.png",
+      "original_sha256": "19deebb00834d5da6f75f4ba0b7c397152fffd9ee12a23e6fc333518d4acf401",
+      "relocated_sha256": "19deebb00834d5da6f75f4ba0b7c397152fffd9ee12a23e6fc333518d4acf401"
+    },
+    {
+      "from": "hosting/reviews/ui-ux-pro-max/review-summary.json",
+      "to": "docs/reports/hosting/ui-ux-pro-max/review-summary.json",
+      "original_sha256": "e225ee8266c67879d6d377e528f7effc5a61767e9555ad2271f51429598a88ad",
+      "relocated_sha256": "e225ee8266c67879d6d377e528f7effc5a61767e9555ad2271f51429598a88ad"
+    },
+    {
+      "from": "migration/reviews/2026-10-21-ecc-review.md",
+      "to": "docs/reports/worker/2026-10-21-ecc-review.md",
+      "original_sha256": "b4e7770f79753b2d2788b65273ee2f290d76d059b704bdd72b5aa50e8c430c1b",
+      "relocated_sha256": "463705ecede216583a0874f8192f17d92d22f9a3fb71c76af63c0837cacb395a"
+    },
+    {
+      "from": "migration/runs/20261010A-d1-identity.md",
+      "to": "docs/history/worker/20261010A-d1-identity.md",
+      "original_sha256": "411de19a8f799455e23d503f74905d7083474abf26f822dcf31cec1ce04389c3",
+      "relocated_sha256": "411de19a8f799455e23d503f74905d7083474abf26f822dcf31cec1ce04389c3"
+    },
+    {
+      "from": "migration/runs/20261010B-d1-case-core.md",
+      "to": "docs/history/worker/20261010B-d1-case-core.md",
+      "original_sha256": "1647560029bc76c01aeccbae5b9392a19fc058958baf48a200358a2abf058a37",
+      "relocated_sha256": "1647560029bc76c01aeccbae5b9392a19fc058958baf48a200358a2abf058a37"
+    },
+    {
+      "from": "migration/runs/20261010C-server-scope-reception-batch.md",
+      "to": "docs/history/worker/20261010C-server-scope-reception-batch.md",
+      "original_sha256": "cc4f2bdb1ed7cedcffdae5d32bd25483a46706b2c962495f734ddbef2b38e302",
+      "relocated_sha256": "cc4f2bdb1ed7cedcffdae5d32bd25483a46706b2c962495f734ddbef2b38e302"
+    },
+    {
+      "from": "migration/runs/20261010D-customer-device-batch.md",
+      "to": "docs/history/worker/20261010D-customer-device-batch.md",
+      "original_sha256": "3b51fa2959b58fd78f270791d47271866f1bf6fe9ddf7651a3b5392ec28b6235",
+      "relocated_sha256": "3b51fa2959b58fd78f270791d47271866f1bf6fe9ddf7651a3b5392ec28b6235"
+    },
+    {
+      "from": "migration/runs/20261010E-existing-device-settings.md",
+      "to": "docs/history/worker/20261010E-existing-device-settings.md",
+      "original_sha256": "83ca6db50fae1d76df849c092ab017be592a6d6716457445400d0ba6a0399d7e",
+      "relocated_sha256": "83ca6db50fae1d76df849c092ab017be592a6d6716457445400d0ba6a0399d7e"
+    },
+    {
+      "from": "migration/runs/20261010F-receipt-terms-portal.md",
+      "to": "docs/history/worker/20261010F-receipt-terms-portal.md",
+      "original_sha256": "dbffe88ca7d0fda42580512eac0cc120fa856f9805c508554213fdf315a29a24",
+      "relocated_sha256": "dbffe88ca7d0fda42580512eac0cc120fa856f9805c508554213fdf315a29a24"
+    },
+    {
+      "from": "migration/runs/20261010G-reception-options-api.md",
+      "to": "docs/history/worker/20261010G-reception-options-api.md",
+      "original_sha256": "0777f6d98e4cd6e750a15f5b68f5b002755182c42ea9d8e51babd53266028d08",
+      "relocated_sha256": "0777f6d98e4cd6e750a15f5b68f5b002755182c42ea9d8e51babd53266028d08"
+    },
+    {
+      "from": "migration/runs/20261010H-customer-lookup.md",
+      "to": "docs/history/worker/20261010H-customer-lookup.md",
+      "original_sha256": "ecaa78bb99d0e2ef06fb668af5fa717aff71247534caa5f5a3556abc7101a129",
+      "relocated_sha256": "ecaa78bb99d0e2ef06fb668af5fa717aff71247534caa5f5a3556abc7101a129"
+    },
+    {
+      "from": "migration/runs/20261010L-drafts-settings.md",
+      "to": "docs/history/worker/20261010L-drafts-settings.md",
+      "original_sha256": "8c501b11df6d0213fa3242bf54c1990e1e8184adde58732968a71169a2bbc34a",
+      "relocated_sha256": "8c501b11df6d0213fa3242bf54c1990e1e8184adde58732968a71169a2bbc34a"
+    },
+    {
+      "from": "migration/runs/20261010M-draft-submit.md",
+      "to": "docs/history/worker/20261010M-draft-submit.md",
+      "original_sha256": "dc87bc73b71aab5f508bb5a9342b7cb108663b6030066256e0a1673418132ec6",
+      "relocated_sha256": "dc87bc73b71aab5f508bb5a9342b7cb108663b6030066256e0a1673418132ec6"
+    },
+    {
+      "from": "migration/runs/20261010N-reception-csrf.md",
+      "to": "docs/history/worker/20261010N-reception-csrf.md",
+      "original_sha256": "172441a1aadb04fb3cbc2113c970dbf34a2731dca7b6ad9d6b903df25f88527f",
+      "relocated_sha256": "172441a1aadb04fb3cbc2113c970dbf34a2731dca7b6ad9d6b903df25f88527f"
+    },
+    {
+      "from": "migration/runs/20261010O-operations-read.md",
+      "to": "docs/history/worker/20261010O-operations-read.md",
+      "original_sha256": "6fe5c8c632ee7a2b47c7bdbe8f2e5c925b28c4ed8e8afa635ddb25b2d3abc587",
+      "relocated_sha256": "6fe5c8c632ee7a2b47c7bdbe8f2e5c925b28c4ed8e8afa635ddb25b2d3abc587"
+    },
+    {
+      "from": "migration/runs/20261010P-contract-probes.json",
+      "to": "docs/history/worker/20261010P-contract-probes.json",
+      "original_sha256": "60e4d007d8316997b0f30f6ad8f9a56a2b5650ade28fa929e831dd74861349d5",
+      "relocated_sha256": "60e4d007d8316997b0f30f6ad8f9a56a2b5650ade28fa929e831dd74861349d5"
+    },
+    {
+      "from": "migration/runs/20261010P-detailed-audit.md",
+      "to": "docs/history/worker/20261010P-detailed-audit.md",
+      "original_sha256": "72729aedcede3eaf43e92ce91a6be27c20dc7926545b8735e5272ce0ba3b6dd4",
+      "relocated_sha256": "72729aedcede3eaf43e92ce91a6be27c20dc7926545b8735e5272ce0ba3b6dd4"
+    },
+    {
+      "from": "migration/runs/20261010Q-capabilities-read.md",
+      "to": "docs/history/worker/20261010Q-capabilities-read.md",
+      "original_sha256": "ecc8fdbaa1c024317cec7220cd05e2e333a25462eb0bd010b0847f971331882d",
+      "relocated_sha256": "ecc8fdbaa1c024317cec7220cd05e2e333a25462eb0bd010b0847f971331882d"
+    },
+    {
+      "from": "migration/runs/20261010R-actor-context.md",
+      "to": "docs/history/worker/20261010R-actor-context.md",
+      "original_sha256": "3a2afa4f77bc173b18f7384ecf43d630affcd79c1240c25e75e0f2ccabebf4be",
+      "relocated_sha256": "3a2afa4f77bc173b18f7384ecf43d630affcd79c1240c25e75e0f2ccabebf4be"
+    },
+    {
+      "from": "migration/runs/20261011S-ui-branch-adapter.md",
+      "to": "docs/history/worker/20261011S-ui-branch-adapter.md",
+      "original_sha256": "88752ba91ce45c44ab818dcd5c74cbb71c91bf7b2c86498df5967fa9643a077e",
+      "relocated_sha256": "88752ba91ce45c44ab818dcd5c74cbb71c91bf7b2c86498df5967fa9643a077e"
+    },
+    {
+      "from": "migration/runs/20261011T-bootstrap-isolation.md",
+      "to": "docs/history/worker/20261011T-bootstrap-isolation.md",
+      "original_sha256": "1ed14586e59bcc4000c859fa3bb2ca02cf278f169492ecaf85388a912fbf95bd",
+      "relocated_sha256": "1ed14586e59bcc4000c859fa3bb2ca02cf278f169492ecaf85388a912fbf95bd"
+    },
+    {
+      "from": "migration/runs/20261011U-receipt-terms-ui.md",
+      "to": "docs/history/worker/20261011U-receipt-terms-ui.md",
+      "original_sha256": "931aa6f28a4d4d0b37c81589eb6cbe2ad66b710ccd817c9bfb9b2bfbe91912e1",
+      "relocated_sha256": "931aa6f28a4d4d0b37c81589eb6cbe2ad66b710ccd817c9bfb9b2bfbe91912e1"
+    },
+    {
+      "from": "migration/runs/20261011V-new-device-contract.md",
+      "to": "docs/history/worker/20261011V-new-device-contract.md",
+      "original_sha256": "beeaaf12f2d7f078b47a10a305487787a3accf5a6f2b2732c029911968316deb",
+      "relocated_sha256": "beeaaf12f2d7f078b47a10a305487787a3accf5a6f2b2732c029911968316deb"
+    },
+    {
+      "from": "migration/runs/20261011W-versioned-submit-ui.md",
+      "to": "docs/history/worker/20261011W-versioned-submit-ui.md",
+      "original_sha256": "44ea72d2ef65ef9280c2030126cac62f8958e1e826601859787b38e20b96d6c1",
+      "relocated_sha256": "44ea72d2ef65ef9280c2030126cac62f8958e1e826601859787b38e20b96d6c1"
+    },
+    {
+      "from": "migration/runs/20261011X-draft-mutation-ui.md",
+      "to": "docs/history/worker/20261011X-draft-mutation-ui.md",
+      "original_sha256": "1a62d67634104b2efe7291bf10b0b4db975ac6d8f600f7918a6344f400f5b428",
+      "relocated_sha256": "1a62d67634104b2efe7291bf10b0b4db975ac6d8f600f7918a6344f400f5b428"
+    },
+    {
+      "from": "migration/runs/20261011Y-case-mutation-version-ui.md",
+      "to": "docs/history/worker/20261011Y-case-mutation-version-ui.md",
+      "original_sha256": "38369b64b145bc2ead297eeeca4844f1a90d08bab94577df8cd41ad243689907",
+      "relocated_sha256": "38369b64b145bc2ead297eeeca4844f1a90d08bab94577df8cd41ad243689907"
+    },
+    {
+      "from": "migration/runs/20261011Z-auth-session.md",
+      "to": "docs/history/worker/20261011Z-auth-session.md",
+      "original_sha256": "46d54a63746fd83a1f639a14c09b42f1fbeb0538c3455cad969990306be09865",
+      "relocated_sha256": "46d54a63746fd83a1f639a14c09b42f1fbeb0538c3455cad969990306be09865"
+    }
+  ]
+}

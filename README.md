@@ -4,6 +4,8 @@
 
 نسخهٔ جاری قابل نصب: **2.0.0-php.2**. کد اصلی نسخهٔ PHP/MySQL در [hosting](hosting/README.md) قرار دارد و شامل رابط React/TypeScript قابل ویرایش، خروجی آمادهٔ `public_html`، APIهای PHP، SQL و نصب‌کننده است.
 
+برای پیدا کردن سریع بخش‌ها، از [فهرست مستندات](docs/README.md) و [ساختار پروژه](docs/project/STRUCTURE-FA.md) شروع کنید. گزارش‌ها و تصاویر تاریخی در `docs/reports` و `docs/history` دسته‌بندی شده‌اند.
+
 - [راهنمای نصب روی هاست](hosting/INSTALL-FA.md)
 - [به‌روزرسانی از php.1](hosting/UPGRADE-FA.md)
 - [اصلاحات رابط کاربری](hosting/UI-FIXES-FA.md)

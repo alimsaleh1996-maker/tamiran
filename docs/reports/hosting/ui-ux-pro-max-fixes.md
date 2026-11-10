@@ -17,10 +17,10 @@
 
 فایل‌های اصلی تغییرکرده:
 
-- [page.tsx](../frontend/src/app/tamiran/page.tsx): وضعیت داده، retry، تاریخچه و کشوی موبایل.
-- [modules.tsx](../frontend/src/app/tamiran/modules.tsx) و [use-modal-focus.ts](../frontend/src/app/shared/use-modal-focus.ts): combobox و مدیریت مشترک فوکوس؛ پنجرهٔ مدیر و date picker نیز از همین رفتار استفاده می‌کنند.
-- [access.tsx](../frontend/src/app/tamiran/access.tsx)، [captcha.php](../public_html/api/captcha.php) و [captcha-audio.php](../private/captcha-audio.php): label و صوت فارسی وابسته به نشست.
-- [accessibility.css](../frontend/public/assets/accessibility.css): توکن کنتراست، راهنماها و فوکوس.
+- [page.tsx](../../../hosting/frontend/src/app/tamiran/page.tsx): وضعیت داده، retry، تاریخچه و کشوی موبایل.
+- [modules.tsx](../../../hosting/frontend/src/app/tamiran/modules.tsx) و [use-modal-focus.ts](../../../hosting/frontend/src/app/shared/use-modal-focus.ts): combobox و مدیریت مشترک فوکوس؛ پنجرهٔ مدیر و date picker نیز از همین رفتار استفاده می‌کنند.
+- [access.tsx](../../../hosting/frontend/src/app/tamiran/access.tsx)، [captcha.php](../../../hosting/public_html/api/captcha.php) و [captcha-audio.php](../../../hosting/private/captcha-audio.php): label و صوت فارسی وابسته به نشست.
+- [accessibility.css](../../../hosting/frontend/public/assets/accessibility.css): توکن کنتراست، راهنماها و فوکوس.
 
 تصاویر: [ورود صوتی در موبایل](ui-ux-pro-max-fixes/login-audio-mobile.png)، [داشبورد خواناتر](ui-ux-pro-max-fixes/dashboard-readable.png)، [خطا با retry و بدون صفر جعلی](ui-ux-pro-max-fixes/initial-load-error.png)، [پذیرش موبایل](ui-ux-pro-max-fixes/reception-mobile.png).
 

@@ -34,7 +34,7 @@
 | هویت سروری/نشست، مشتری/دستگاه/پذیرش، قبض یکتا/retry، تراکنش اتمیک workflow | API/DB عملیاتی | not-run | مرحله‌های بعد d1-core و reception |
 | مرورگر/موبایل/چاپ | E2E و مشاهده | blocked | control-browser در دسترس نیست |
 
-جزئیات، expected/actual و fingerprint ورودی‌ها: `runs/20261010A-d1-identity.md`. پنج جدول و ۷۷ ستون مرجع حفظ شده‌اند؛ کار d1-core کامل نشده است.
+جزئیات، expected/actual و fingerprint ورودی‌ها: `../docs/history/worker/20261010A-d1-identity.md`. پنج جدول و ۷۷ ستون مرجع حفظ شده‌اند؛ کار d1-core کامل نشده است.
 
 ## اجرای 20261010B — پرونده، قبض و شواهد دیتابیس
 
@@ -50,7 +50,7 @@
 | API پذیرش، double-click شبکه، هویت server-side | application/API E2E | not-run | مرحله بعد d1-core/reception |
 | مرورگر/موبایل/چاپ | E2E و مشاهده | blocked | control-browser در دسترس نیست |
 
-جزئیات و اثر عملیاتی در `runs/20261010B-d1-case-core.md`. مجموع فعلی: ۱۵ جدول منتقل‌شده، ۴۰ تست دیتابیس و ۵۵ تست پایه پاس؛ آمادگی پایلوت تأیید نشده است.
+جزئیات و اثر عملیاتی در `../docs/history/worker/20261010B-d1-case-core.md`. مجموع فعلی: ۱۵ جدول منتقل‌شده، ۴۰ تست دیتابیس و ۵۵ تست پایه پاس؛ آمادگی پایلوت تأیید نشده است.
 
 ## اجرای 20261010C — هویت سروری و batch اتمیک پذیرش محدود
 
@@ -67,7 +67,7 @@
 | ساخت/به‌روزرسانی مشتری و دستگاه، validation کامل، route احرازشده | API/DB عملیاتی | not-run | نقطه ادامه بعدی |
 | مرورگر/موبایل/چاپ | E2E و مشاهده | blocked | control-browser در دسترس نیست |
 
-جزئیات و fingerprintها در `runs/20261010C-server-scope-reception-batch.md`. این مرحله آمادگی پایلوت یا تکمیل پذیرش را اثبات نمی‌کند.
+جزئیات و fingerprintها در `../docs/history/worker/20261010C-server-scope-reception-batch.md`. این مرحله آمادگی پایلوت یا تکمیل پذیرش را اثبات نمی‌کند.
 
 ## اجرای 20261010D — customer upsert و دستگاه جدید در batch پذیرش
 
@@ -86,7 +86,7 @@
 | existing-device update، route احرازشده، session/CSRF و role E2E | API/عملیاتی | not-run | نقطه ادامه بعدی |
 | مرورگر/موبایل/چاپ | E2E و مشاهده | blocked | control-browser در دسترس نیست |
 
-جزئیات expected/actual و fingerprintها در `runs/20261010D-customer-device-batch.md`. این مرحله فقط هسته داده پذیرش را جلو می‌برد و تکمیل پذیرش یا آمادگی پایلوت را اثبات نمی‌کند.
+جزئیات expected/actual و fingerprintها در `../docs/history/worker/20261010D-customer-device-batch.md`. این مرحله فقط هسته داده پذیرش را جلو می‌برد و تکمیل پذیرش یا آمادگی پایلوت را اثبات نمی‌کند.
 
 ## اجرای 20261010H — سابقه مشتری و دستگاه
 
@@ -99,7 +99,7 @@
 | TypeScript، lint محدود، Worker build و root foundation | ساخت/حفظ سورس | passed | lint کامل UI قبلی و browser limits برقرار |
 | اتصال فرم، hosted GET/DB، نشست و تمام نقش‌ها | عملیاتی | not-run | قراردادهای تنظیمات و drafts در ادامه |
 
-شواهد و expected/actual: `runs/20261010H-customer-lookup.md`. schema و شش migration تغییر نکردند؛ پایلوت هنوز تأیید نیست.
+شواهد و expected/actual: `../docs/history/worker/20261010H-customer-lookup.md`. schema و شش migration تغییر نکردند؛ پایلوت هنوز تأیید نیست.
 
 ## اجرای 20261010L — پیش‌نویس و تنظیمات پذیرش
 
@@ -112,15 +112,15 @@
 | 117 prior +17 new inline tests و 55 baseline checks؛ TS/lint bounded/build/foundation | رگرسیون | passed | E2E/چاپ/موبایل نیست |
 | draft-to-case و adapter version/terms/device | تراکنش پذیرش + UI | not-run | تبدیل draft هنوز 503؛ نقطه ادامه |
 
-جزئیات علت، expected/actual و محدودیت در `runs/20261010L-drafts-settings.md`. ۲۱ جدول؛ شش migration قبلی بدون تغییر. آمادگی پایلوت تأیید نشده است.
+جزئیات علت، expected/actual و محدودیت در `../docs/history/worker/20261010L-drafts-settings.md`. ۲۱ جدول؛ شش migration قبلی بدون تغییر. آمادگی پایلوت تأیید نشده است.
 
 ## اجرای 20261010M — تبدیل اتمیک پیش‌نویس
 
-SUBMIT-01…05 passed: مالک/شعبه/کلید/نسخه/TTL، ثبت و retry بدون تغییر، fingerprint و جلوگیری از استفاده مجدد، شکست submit با rollback کل graph/receipt، تغییر هم‌زمان edit/discard و HTTP dispatcher. ۱۳۹ سناریو inline + ۲ wrapper = ۱۴۱ Node entries؛ ۵۵ baseline checks در wrapper. D1-LOCAL-L با هفت migration قبلی روی DB محلی تازه، 1/1 passed؛ شبکه/E2E نیست. گزارش `runs/20261010M-draft-submit.md`.
+SUBMIT-01…05 passed: مالک/شعبه/کلید/نسخه/TTL، ثبت و retry بدون تغییر، fingerprint و جلوگیری از استفاده مجدد، شکست submit با rollback کل graph/receipt، تغییر هم‌زمان edit/discard و HTTP dispatcher. ۱۳۹ سناریو inline + ۲ wrapper = ۱۴۱ Node entries؛ ۵۵ baseline checks در wrapper. D1-LOCAL-L با هفت migration قبلی روی DB محلی تازه، 1/1 passed؛ شبکه/E2E نیست. گزارش `../docs/history/worker/20261010M-draft-submit.md`.
 
 ## اجرای 20261010N — CSRF پذیرش
 
-CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، tamper/foreign key، account/user/shop/branch isolation، forged/anonymous/forbidden GET، نبود کلید پایدار، missing/invalid token denial on all writes، valid CRUD/create/replay و revoked membership. ۱۴۸ سناریو inline + ۲ wrapper = ۱۵۰ Node entries، ۵۵ baseline checks. TS/build/lint/foundation passed؛ هفت migration و UI ثابت؛ hosted/شبکه/E2E not-run. گزارش `runs/20261010N-reception-csrf.md`.
+CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، tamper/foreign key، account/user/shop/branch isolation، forged/anonymous/forbidden GET، نبود کلید پایدار، missing/invalid token denial on all writes، valid CRUD/create/replay و revoked membership. ۱۴۸ سناریو inline + ۲ wrapper = ۱۵۰ Node entries، ۵۵ baseline checks. TS/build/lint/foundation passed؛ هفت migration و UI ثابت؛ hosted/شبکه/E2E not-run. گزارش `../docs/history/worker/20261010N-reception-csrf.md`.
 
 ## اجرای 20261010O — خواندن عملیات و فهرست پرونده
 
@@ -136,7 +136,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | هفت migration تازه‌اعمال‌شده + identity/terms/token/draft storage/denial | Wrangler D1 محلی | passed | hosted DB/API not-run |
 | capability/module، UI branch/CSRF/draft/terms/device/case version | API/UI | not-run | نقطه ادامه |
 
-جزئیات expected/actual و blast radius در `runs/20261010O-operations-read.md`. schema، هفت migration، ۲۰ منو و فایل‌های frozen رابط تغییر نکردند؛ آمادگی پایلوت تأیید نشده است.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261010O-operations-read.md`. schema، هفت migration، ۲۰ منو و فایل‌های frozen رابط تغییر نکردند؛ آمادگی پایلوت تأیید نشده است.
 
 ## اجرای 20261010Q — کاتالوگ قابلیت و entitlement
 
@@ -152,7 +152,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | POST event/request_activation | تراکنش/audit/idempotency | not-run؛ 503 fail-closed | گام جداگانه بعدی |
 | actor/context، UI adapter، hosted API/DB، مرورگر | عملیاتی | not-run / blocked | نقطه ادامه actor و شعبه |
 
-جزئیات expected/actual و blast radius در `runs/20261010Q-capabilities-read.md`. مجموع schema اکنون ۲۳ جدول و هشت migration است؛ تکمیل یا آمادگی پایلوت تأیید نشده است.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261010Q-capabilities-read.md`. مجموع schema اکنون ۲۳ جدول و هشت migration است؛ تکمیل یا آمادگی پایلوت تأیید نشده است.
 
 ## اجرای 20261010R — actor/context و انتخاب شعبه
 
@@ -167,7 +167,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | هشت migration تازه‌اعمال‌شده + identity/terms/token/draft/capability readback | Wrangler D1 محلی | passed | hosted DB/API not-run |
 | UI branch/CSRF/version adapter، POST/DELETE auth و session/logout | عملیاتی | not-run | نقطه ادامه ثبت‌شده |
 
-جزئیات علت، expected/actual و blast radius در `runs/20261010R-actor-context.md`. schema، هشت migration، ۲۰ منو و baseline frozen تغییر نکردند؛ Worker/API میزبانی‌شده و آمادگی پایلوت تأیید نشده‌اند.
+جزئیات علت، expected/actual و blast radius در `../docs/history/worker/20261010R-actor-context.md`. schema، هشت migration، ۲۰ منو و baseline frozen تغییر نکردند؛ Worker/API میزبانی‌شده و آمادگی پایلوت تأیید نشده‌اند.
 
 ## اجرای 20261011S — adapter شعبه و CSRF رابط
 
@@ -183,7 +183,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | هشت schema file + پنج identity/terms/draft/capability readback/denial | Wrangler D1 محلی تازه | passed 5/5 | hosted DB/API not-run |
 | bootstrap مستقل از followups، نسخه‌های draft/terms/device/case | UI پذیرش واقعی | not-run | نقطه ادامه؛ bootstrap فعلی all-or-nothing است |
 
-جزئیات expected/actual و blast radius در `runs/20261011S-ui-branch-adapter.md`. ۱۹ فایل frozen رابط، ۲۰ منو، schema و هشت migration تغییر نکردند. root فعال همچنان status/demo static است؛ Worker/API میزبانی‌شده و آمادگی پایلوت تأیید نشده‌اند.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261011S-ui-branch-adapter.md`. ۱۹ فایل frozen رابط، ۲۰ منو، schema و هشت migration تغییر نکردند. root فعال همچنان status/demo static است؛ Worker/API میزبانی‌شده و آمادگی پایلوت تأیید نشده‌اند.
 
 ## اجرای 20261011T — جداسازی bootstrap از followups
 
@@ -199,7 +199,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | lint مستقیم page.tsx | baseline شناخته‌شده | ۱۰ خطا + ۱ هشدار، بدون افزایش | بدهی قدیمی رفع نشده |
 | نسخه‌های draft/terms/device/case و autosave/discard | UI پذیرش واقعی | not-run | نقطه ادامه |
 
-جزئیات expected/actual و blast radius در `runs/20261011T-bootstrap-isolation.md`. schema و هشت migration تغییر نکردند. root فعال همچنان status/demo static است؛ Worker/API میزبانی‌شده، D1 میزبانی‌شده و آمادگی پایلوت تأیید نشده‌اند.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261011T-bootstrap-isolation.md`. schema و هشت migration تغییر نکردند. root فعال همچنان status/demo static است؛ Worker/API میزبانی‌شده، D1 میزبانی‌شده و آمادگی پایلوت تأیید نشده‌اند.
 
 ## اجرای 20261011U — شرایط فعال پذیرش در رابط
 
@@ -215,7 +215,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | ارسال فرم واقعی دستگاه جدید | قرارداد strict `previousDeviceId` | not-run/blocked by A04 | UI هنوز `null` می‌فرستد و باید فیلد را حذف کند |
 | مرورگر/موبایل/چاپ و hosted API/D1 | E2E عملیاتی | blocked/not-run | ابزار مرورگر در دسترس نیست؛ هیچ fallback بداهه استفاده نشد |
 
-جزئیات expected/actual و blast radius در `runs/20261011U-receipt-terms-ui.md`. A03 محلی بسته شد، اما آمادگی پایلوت و پذیرش واقعی تا قبض تأیید نشده است؛ نقطه ادامه A04 و سپس نسخه‌های device/draft است.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261011U-receipt-terms-ui.md`. A03 محلی بسته شد، اما آمادگی پایلوت و پذیرش واقعی تا قبض تأیید نشده است؛ نقطه ادامه A04 و سپس نسخه‌های device/draft است.
 
 ## اجرای 20261011V — قرارداد دستگاه جدید در رابط
 
@@ -231,7 +231,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | دستگاه قبلی و submit پیش‌نویس | `expectedDeviceVersion` / `draftExpectedVersion` | not-run/blocked by A05 | نقطه ادامه |
 | مرورگر/موبایل/چاپ و hosted API/D1 | E2E عملیاتی | blocked/not-run | `control-browser` در دسترس نیست؛ fallback بداهه اجرا نشد |
 
-جزئیات expected/actual و blast radius در `runs/20261011V-new-device-contract.md`. A04 در سطح source/type/serialization/handler/SQLite محلی بسته شد، اما آمادگی پایلوت و E2E پذیرش تأیید نشده است؛ نقطه ادامه A05 برای نسخه‌های authoritative دستگاه و پیش‌نویس است.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261011V-new-device-contract.md`. A04 در سطح source/type/serialization/handler/SQLite محلی بسته شد، اما آمادگی پایلوت و E2E پذیرش تأیید نشده است؛ نقطه ادامه A05 برای نسخه‌های authoritative دستگاه و پیش‌نویس است.
 
 ## اجرای 20261011W — submit نسخه‌دار دستگاه قبلی و پیش‌نویس
 
@@ -248,7 +248,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | autosave/discard پیش‌نویس | `expectedVersion` و نمایش conflict 409 | not-run/blocked by A06 | نقطه ادامه |
 | مرورگر/موبایل/چاپ و hosted API/D1 | E2E عملیاتی | blocked/not-run | `control-browser` در دسترس نیست؛ fallback بداهه اجرا نشد |
 
-جزئیات expected/actual و blast radius در `runs/20261011W-versioned-submit-ui.md`. A05 در سطح source/type/serialization/handler/SQLite محلی بسته شد، اما آمادگی پایلوت و E2E پذیرش تأیید نشده است؛ نقطه ادامه A06 برای autosave/discard نسخه‌دار و conflict قابل‌مشاهده است.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261011W-versioned-submit-ui.md`. A05 در سطح source/type/serialization/handler/SQLite محلی بسته شد، اما آمادگی پایلوت و E2E پذیرش تأیید نشده است؛ نقطه ادامه A06 برای autosave/discard نسخه‌دار و conflict قابل‌مشاهده است.
 
 ## اجرای 20261011X — autosave و حذف نسخه‌دار پیش‌نویس
 
@@ -266,7 +266,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | نمایش و بازیابی conflict | alert و reload recovery در source/build | integrated locally | مشاهده واقعی مرورگر blocked؛ پاس E2E اعلام نمی‌شود |
 | نسخه mutation پرونده | `expectedVersion` پرونده | not-run/next A08 | نقطه ادامه؛ A07 branch/CSRF قبلاً بسته شده است |
 
-جزئیات expected/actual و blast radius در `runs/20261011X-draft-mutation-ui.md`. A06 در سطح source/type/queue/handler/SQLite محلی بسته شد، اما مشاهده مرورگری هشدار و بازیابی، API/D1 میزبانی‌شده و آمادگی پایلوت همچنان تأیید نشده‌اند.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261011X-draft-mutation-ui.md`. A06 در سطح source/type/queue/handler/SQLite محلی بسته شد، اما مشاهده مرورگری هشدار و بازیابی، API/D1 میزبانی‌شده و آمادگی پایلوت همچنان تأیید نشده‌اند.
 
 ## اجرای 20261011Y — mutation نسخه‌دار پرونده
 
@@ -285,7 +285,7 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | بازیابی conflict | handler مرکزی بعد از 409 snapshot عملیات را تازه می‌کند | integrated locally | مشاهده واقعی alert/toast و retry مرورگری blocked |
 | POST/DELETE auth و single-active-session/logout | نشست authoritative | not-run/next | نقطه ادامه محدود بعدی |
 
-جزئیات expected/actual و blast radius در `runs/20261011Y-case-mutation-version-ui.md`. A08 در سطح source/type/Request-Response/SQLite/Wrangler-local بسته شد؛ API/D1 میزبانی‌شده، مشاهده مرورگری و آمادگی پایلوت همچنان تأیید نشده‌اند.
+جزئیات expected/actual و blast radius در `../docs/history/worker/20261011Y-case-mutation-version-ui.md`. A08 در سطح source/type/Request-Response/SQLite/Wrangler-local بسته شد؛ API/D1 میزبانی‌شده، مشاهده مرورگری و آمادگی پایلوت همچنان تأیید نشده‌اند.
 
 ## اجرای 20261011Z — نشست authoritative و خروج
 
@@ -303,4 +303,4 @@ CSRF-01…09: passed؛ GET scoped/no-store، random token، expiry boundary، ta
 | انقضای idle/absolute و credential-change invalidation | parity نشست مرجع | not-run/next | نقطه ادامه محدود؛ تکمیل auth یا پایلوت ادعا نمی‌شود |
 | مرورگر/موبایل/چاپ و hosted API/D1 | E2E عملیاتی | blocked/not-run | `control-browser` در دسترس نیست؛ fallback بداهه اجرا نشد |
 
-جزئیات expected/actual، root cause و blast radius در `runs/20261011Z-auth-session.md`. A09 در سطح source/type/Request-Response/SQLite/Wrangler-local بسته شد؛ انقضای نشست، API/D1 میزبانی‌شده، مشاهده مرورگری و آمادگی پایلوت همچنان تأیید نشده‌اند.
+جزئیات expected/actual، root cause و blast radius در `../docs/history/worker/20261011Z-auth-session.md`. A09 در سطح source/type/Request-Response/SQLite/Wrangler-local بسته شد؛ انقضای نشست، API/D1 میزبانی‌شده، مشاهده مرورگری و آمادگی پایلوت همچنان تأیید نشده‌اند.
