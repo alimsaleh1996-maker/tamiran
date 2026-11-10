@@ -96,9 +96,10 @@ def update_files(base: dict[str, bytes]) -> dict[str, bytes]:
     selected = {
         name: data for name, data in base.items()
         if name in {"VERSION", "UPGRADE-FA.md", "UI-FIXES-FA.md", "THIRD-PARTY-NOTICES.txt", "VERIFICATION-FA.md",
-                    "public_html/index.php", "public_html/api/bootstrap.php", "public_html/api/health.php", "public_html/api/captcha.php",
-                    "private/captcha-audio.php", "private/build/manifest.json"}
-        or name.startswith(("public_html/assets/", "private/captcha-audio/"))
+                    "public_html/index.php", "public_html/.htaccess", "public_html/favicon.svg", "private/.htaccess",
+                    "private/v2-core.php", "private/product-service.php", "private/capability-service.php",
+                    "private/backup-engine.php", "private/sms-service.php", "private/captcha-audio.php", "private/build/manifest.json"}
+        or name.startswith(("public_html/assets/", "public_html/api/", "private/captcha-audio/"))
     }
     assert not any(name.startswith("public_html/install/") or name.endswith(".sql") or name == "private/install.key" for name in selected)
     return selected
