@@ -1,0 +1,30 @@
+{
+  "passed": 21,
+  "failed": 0,
+  "checks": [
+    "Default scope is the active PHP edition",
+    "Default overview contains eight modules instead of thousands of nodes",
+    "All source graph nodes embedded",
+    "All typed source graph relationships embedded",
+    "RTL diagram labels remain inside their cards",
+    "Module opens with keyboard",
+    "File listing is bounded to 24 items",
+    "File drill-down opens bootstrap",
+    "Symbol listing is bounded to 24 items",
+    "Search distinguishes editions with paths",
+    "Search opens actual selected node",
+    "Selected node exposes actual typed relationships",
+    "Confidence filter hides inferred rows",
+    "Search also finds inventory files without modeled symbols",
+    "Escape closes search results",
+    "Frozen reference has a separate scoped view",
+    "Evidence paths point to the organized documentation",
+    "Mobile view has no horizontal page overflow",
+    "Mobile overview uses a readable single column",
+    "No JavaScript runtime errors",
+    "Standalone viewer makes no network requests"
+  ],
+  "page_errors": [],
+  "network_requests": [],
+  "scope": "Generated graph viewer only; no application/database/model execution"
+}

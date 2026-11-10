@@ -1,6 +1,6 @@
 {
   "detected_files": 432,
-  "code_files": 358,
+  "code_files": 362,
   "document_files": 47,
   "image_files": 15,
   "audio_files": 8,
@@ -9,24 +9,24 @@
   "semantic_chunks": 18,
   "semantic_nodes": 310,
   "semantic_edges": 394,
-  "raw_nodes": 3902,
-  "raw_edges": 10209,
-  "analysis_nodes": 3962,
-  "analysis_unique_connections": 9996,
-  "communities": 205,
-  "source_commit": "d637e77156b27302637b7c8c91c5ded2ccea4a65",
+  "raw_nodes": 3971,
+  "raw_edges": 10328,
+  "analysis_nodes": 4032,
+  "analysis_unique_connections": 10107,
+  "communities": 203,
+  "source_commit": "904466d64a5da2bfe7c3756678bc2c6c5374c723",
   "token_usage_status": "unavailable for host agents; external API calls not made",
   "excluded_generated_bundle": "hosting/public_html/assets/index-Dmf-qGAD.js",
   "sensitive_file_skipped": "migration/worker/.npmrc",
   "health": {
     "missing_endpoint_edges": 0,
-    "dangling_endpoint_edges": 110,
+    "dangling_endpoint_edges": 135,
     "self_loop_edges": 12,
-    "directed_same_endpoint_collapsed_edges": 165,
-    "undirected_same_endpoint_collapsed_edges": 169
+    "directed_same_endpoint_collapsed_edges": 173,
+    "undirected_same_endpoint_collapsed_edges": 177
   },
   "excluded_cross_edition_call_candidates": 22,
-  "serialized_relationships": 10187,
+  "serialized_relationships": 10306,
   "parallel_relationships_preserved": true,
   "community_labels_curated": true,
   "failed_ast_files": 0,
@@ -74,5 +74,42 @@
       "workflows/result.schema.json"
     ],
     "external_model_calls": 0
-  }
+  },
+  "organization_refresh": {
+    "date": "2026-11-10",
+    "source_commit": "904466d64a5da2bfe7c3756678bc2c6c5374c723",
+    "ast_files": [
+      "scripts/build_project_map.py",
+      "scripts/project_map/viewer.js",
+      "scripts/project_map/verify_browser.py",
+      "tests/test_project_map.py"
+    ],
+    "ast_sha256": {
+      "scripts/build_project_map.py": "3a39ee2cf3cf9085d0a433ed47dd686129ca85d2a3e07efd842cbc379278e787",
+      "scripts/project_map/viewer.js": "7f123644cf267164d1f7ead9cbdf2fd4b8072d8eb8958b625501b390cdea250e",
+      "scripts/project_map/verify_browser.py": "a18fb23c783aea1376ce0509393c76fffe3cac4bc5e26ad42a933c8afa215e95",
+      "tests/test_project_map.py": "0a8ec5ee204a1b4a7f859a1d15fca5488ec6ea433699b66362d3e4201128de17"
+    },
+    "semantic_files_verified_complete": [
+      "docs/project/STRUCTURE-FA.md",
+      "docs/reports/hosting/README.md",
+      "docs/reports/worker/README.md",
+      "docs/history/worker/README.md",
+      "docs/ruflo/WORKFLOW-FA.md",
+      "README.md",
+      "AGENTS.md"
+    ],
+    "pending_semantic_documents": [
+      "docs/README.md",
+      "graphify-out/README-FA.md"
+    ],
+    "relocated_files": 46,
+    "retained_semantic_layer": "Other documents/images retained from prior builds; no new image/audio analysis",
+    "external_model_api_calls": 0,
+    "token_usage": "unavailable",
+    "nodes": 4032,
+    "typed_links": 10306,
+    "communities": 203
+  },
+  "detected_files_note": "Top-level corpus counts are inherited from prior scans; organization_refresh lists the exact newly processed scope"
 }

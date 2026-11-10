@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-10",
+  "source_commit": "904466d64a5da2bfe7c3756678bc2c6c5374c723",
+  "ast_files": [
+    "scripts/build_project_map.py",
+    "scripts/project_map/viewer.js",
+    "scripts/project_map/verify_browser.py",
+    "tests/test_project_map.py"
+  ],
+  "ast_sha256": {
+    "scripts/build_project_map.py": "3a39ee2cf3cf9085d0a433ed47dd686129ca85d2a3e07efd842cbc379278e787",
+    "scripts/project_map/viewer.js": "7f123644cf267164d1f7ead9cbdf2fd4b8072d8eb8958b625501b390cdea250e",
+    "scripts/project_map/verify_browser.py": "a18fb23c783aea1376ce0509393c76fffe3cac4bc5e26ad42a933c8afa215e95",
+    "tests/test_project_map.py": "0a8ec5ee204a1b4a7f859a1d15fca5488ec6ea433699b66362d3e4201128de17"
+  },
+  "semantic_files_verified_complete": [
+    "docs/project/STRUCTURE-FA.md",
+    "docs/reports/hosting/README.md",
+    "docs/reports/worker/README.md",
+    "docs/history/worker/README.md",
+    "docs/ruflo/WORKFLOW-FA.md",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "pending_semantic_documents": [
+    "docs/README.md",
+    "graphify-out/README-FA.md"
+  ],
+  "relocated_files": 46,
+  "retained_semantic_layer": "Other documents/images retained from prior builds; no new image/audio analysis",
+  "external_model_api_calls": 0,
+  "token_usage": "unavailable",
+  "nodes": 4032,
+  "typed_links": 10306,
+  "communities": 203
+}

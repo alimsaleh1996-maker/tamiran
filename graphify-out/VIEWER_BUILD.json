@@ -1,0 +1,20 @@
+{
+  "graph_sha256": "8e4dade63b0f08e34e229cfc5dc6f15a922385e18029da86c618f6af4ca916e6",
+  "source_commit": "904466d64a5da2bfe7c3756678bc2c6c5374c723",
+  "nodes_embedded": 4032,
+  "typed_relationships_embedded": 10306,
+  "default_scope": "hosting",
+  "default_level": "modules",
+  "max_rendered_items": 24,
+  "editions": {
+    "worker": 1833,
+    "hosting": 1186,
+    "tools": 131,
+    "reference": 493,
+    "external": 134,
+    "docs": 255
+  },
+  "offline": true,
+  "external_dependencies": [],
+  "complete_graph": "graph-full.html"
+}
