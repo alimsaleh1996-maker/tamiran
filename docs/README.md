@@ -6,6 +6,7 @@
 |---|---|
 | نصب یا به‌روزرسانی روی هاست | [راهنمای نسخهٔ PHP](../hosting/README.md) |
 | پیدا کردن فایل و مسئولیت هر بخش | [ساختار پروژه](project/STRUCTURE-FA.md) |
+| انتخاب ابزار و نوشتن دستور درست در Codex | [راهنمای ابزارهای توسعه](project/TOOLS-FA.md) |
 | دیدن نقشهٔ خلاصه و تعاملی | [راهنمای نقشه](../graphify-out/README-FA.md) |
 | اجرای مراحل توسعه با Ruflo و Codex | [راهنمای جریان کار](ruflo/WORKFLOW-FA.md) |
 | بررسی‌ها و تصاویر نسخهٔ PHP | [گزارش‌های PHP](reports/hosting/README.md) |

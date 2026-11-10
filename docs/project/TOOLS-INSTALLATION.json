@@ -1,0 +1,61 @@
+{
+  "installed_at": "2026-11-10",
+  "scope": "Current Codex development environment; two selected skill packages, not all thirteen repositories",
+  "installed": [
+    {
+      "name": "impeccable",
+      "source_commit": "ec229b48547f24685ffb22aa51c462c5ae27908c",
+      "installed_path": "/home/agent/.agents/skills/impeccable",
+      "skill_sha256": "c6921e830b7a565ebbe9aabe11516d34092062cd7fa2b442f030134857bf86a8"
+    },
+    {
+      "name": "code-simplification",
+      "source_commit": "301b02b12bff98e4688e6984af6556802322bbde",
+      "installed_path": "/home/agent/.agents/skills/code-simplification",
+      "skill_sha256": "e13b433345e6bf425c3625442ac1b3507b371c18d7ea3e3db822da7a7f742a29"
+    }
+  ],
+  "impeccable_skill_version": "4.8.2",
+  "impeccable_engine_version": "0.1.22",
+  "cli_command": "impeccable",
+  "discovery": {
+    "method": "Codex app-server skills/list; no model execution",
+    "discovered": [
+      {
+        "name": "code-simplification",
+        "path": "/home/agent/.agents/skills/code-simplification/SKILL.md",
+        "enabled": true
+      },
+      {
+        "name": "graphify",
+        "path": "/home/agent/.codex/skills/graphify/SKILL.md",
+        "enabled": true
+      },
+      {
+        "name": "impeccable",
+        "path": "/home/agent/.agents/skills/impeccable/SKILL.md",
+        "enabled": true
+      },
+      {
+        "name": "ui-ux-pro-max",
+        "path": "/home/agent/.agents/skills/ui-ux-pro-max/SKILL.md",
+        "enabled": true
+      }
+    ],
+    "errors": [
+      []
+    ]
+  },
+  "smoke_test": {
+    "command": "impeccable detect hosting/frontend/public/assets/accessibility.css --json",
+    "exit_code": 0,
+    "output": "valid JSON; no findings on the named source file",
+    "scope": "Installation smoke check only; not a rendered UI or product audit"
+  },
+  "hooks_enabled_by_this_install": false,
+  "model_or_permission_overrides": false,
+  "live_model_test_executed": false,
+  "runtime_application_changed": false,
+  "ruflo_project_policy_status": "blocked: policy-anchor-log-missing; original ledger backup required",
+  "reload": "Open a new Codex session to refresh the skill menu"
+}
