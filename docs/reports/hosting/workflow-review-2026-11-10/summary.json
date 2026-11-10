@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-10",
+  "runtime": {
+    "php": "8.4.27",
+    "mariadb": "11.8.6",
+    "chromium": "151",
+    "vite": "8.3.7"
+  },
+  "checks": {
+    "php_syntax": {
+      "passed": 54,
+      "failed": 0
+    },
+    "frontend_contracts": {
+      "passed": 5,
+      "failed": 0
+    },
+    "installer_unit": {
+      "passed": 29,
+      "failed": 0
+    },
+    "installer_http": {
+      "passed": 14,
+      "failed": 0
+    },
+    "captcha_audio_assets": {
+      "passed": 16,
+      "failed": 0
+    },
+    "typescript": "passed",
+    "build": "passed",
+    "npm_clean_install": "passed",
+    "foundation": "passed",
+    "frozen_hashes": 67,
+    "menu_contracts": 20,
+    "api_paths": 27
+  },
+  "evidence_files": [
+    "api-results.json",
+    "database-results.json",
+    "browser-results.json",
+    "accessibility-results.json",
+    "pagination-results.json",
+    "services-results.json",
+    "npm-audit.json"
+  ],
+  "not_run": [
+    "hosted deployment",
+    "live SMS/payment",
+    "all inventory Pro/QC combinations",
+    "formal screen reader",
+    "parallel delivery race",
+    "Graphify refresh"
+  ],
+  "generated_assets": {
+    "hosting/public_html/assets/index-D8HEdlR4.js": "5009be40abf15b94b5a4f54c6c825fed00851d27411c133e2507a4044015540a"
+  }
+}

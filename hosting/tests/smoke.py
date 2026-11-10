@@ -316,6 +316,23 @@ def run(args):
         expect(len(stored["payments"]) == 1, "duplicate payment persisted")
         expect(any(row["event_type"] == "payment_received" for row in stored["ledger"]), "payment ledger event missing")
     runner.check("persisted invoice payment and financial ledger agree", check_ledger)
+    current = manager.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]
+    runner.check("settlement automatically advances to ready for delivery", lambda: expect(current["status"] == "ready_for_delivery", "settled case did not advance automatically"))
+    delivery_request = {"action": "complete", "caseId": case_id, "idempotencyKey": marker + "-DELIVERY",
+        "recipientType": "customer", "recipientFullName": marker + "-CUSTOMER", "recipientMobile": mobile(20),
+        "verificationMethod": "identity_document", "verificationEvidence": {"syntheticDocumentCheck": marker}, "accessoriesConfirmed": []}
+    runner.check("technician cannot complete delivery", lambda: technician.api("delivery-v2.php", "POST", delivery_request, expected=403))
+    runner.check("missing delivery evidence is rejected", lambda: reception.api("delivery-v2.php", "POST", {**delivery_request, "verificationEvidence": {}}, expected=409))
+    delivery = runner.check("reception completes synthetic verified delivery", lambda: reception.api("delivery-v2.php", "POST", delivery_request))
+    runner.check("delivery retry returns the same delivery", lambda: expect(reception.api("delivery-v2.php", "POST", delivery_request)["publicId"] == delivery["publicId"], "delivery duplicated"))
+    runner.check("delivery key cannot replay for another case", lambda: reception.api("delivery-v2.php", "POST", {**delivery_request, "caseId": second["repairCase"]["id"]}, expected=409))
+    runner.check("foreign tenant cannot replay delivery", lambda: other.api("delivery-v2.php", "POST", delivery_request, expected=(403, 404)))
+    def delivered_state():
+        stored = manager.api("operations.php?receipt=" + str(case["receiptSequence"]))["repairCase"]
+        workflow = manager.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]
+        expect(stored["status"] == "delivered" and workflow["status"] == "delivered", "delivery states diverged")
+    runner.check("delivery persists both case and workflow final states", delivered_state)
+    runner.check("new key cannot deliver an already delivered case", lambda: reception.api("delivery-v2.php", "POST", {**delivery_request, "idempotencyKey": marker + "-DELIVERY-AGAIN"}, expected=409))
     runner.check("foreign origin cannot mutate", lambda: manager.api("settings.php", "PATCH", {}, expected=403, headers={"Origin": "https://evil.invalid"}))
     replacement = Client(args.url)
     runner.check("second genuine login rotates operational session", lambda: replacement.login(mobile(3), staff_password))

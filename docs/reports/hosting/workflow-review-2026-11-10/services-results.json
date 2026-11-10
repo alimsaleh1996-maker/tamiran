@@ -1,0 +1,27 @@
+{
+  "passed": 20,
+  "checks": [
+    "local_shop_backup_succeeds",
+    "checksum_decryption_record_verification",
+    "shop_snapshot_excludes_other_shop",
+    "shop_customers_scoped",
+    "central_admin_excluded_from_shop_snapshot",
+    "private_file_bytes_included",
+    "validated_restore_preview",
+    "restore_creates_emergency_snapshot",
+    "shop_data_restored",
+    "restored_shop_sessions_revoked",
+    "private_file_preserved_and_verified",
+    "other_shop_unchanged",
+    "archive_tamper_rejected",
+    "sms_disabled_no_network",
+    "wrong_otp_rejected",
+    "attempt_survives_business_rollback",
+    "cross_shop_otp_rejected",
+    "otp_consumed_once",
+    "otp_attempt_limit_enforced",
+    "expired_otp_rejected"
+  ],
+  "network_sms": "NOT_SENT",
+  "database": "tamiran_services_test"
+}

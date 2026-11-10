@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { WorkspaceProfile } from "./access";
 import { FollowUpApiError } from "./followups-api";
+import { matchesQueueSearch } from "./queue-search";
 import {
   assignV2Case,
   createV2Estimate,
@@ -188,11 +189,8 @@ export function V2Workspace({ page, profile, notify }: Props) {
   const [error, setError] = useState("");
   const [queueSearch, setQueueSearch] = useState("");
   const queueCases = useMemo(() => {
-    const query = queueSearch.trim().toLocaleLowerCase("fa");
-    if (!query) return workflow?.cases ?? [];
     return (workflow?.cases ?? []).filter((item) =>
-      [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle]
-        .some((value) => String(value || "").toLocaleLowerCase("fa").includes(query)),
+      matchesQueueSearch(queueSearch, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle]),
     );
   }, [workflow?.cases, queueSearch]);
   const pageSubtitle =
@@ -279,6 +277,7 @@ export function V2Workspace({ page, profile, notify }: Props) {
         <label className="module-search v2-queue-search">
           <FileText size={17} />
           <input
+            aria-label="جست‌وجوی صف"
             value={queueSearch}
             onChange={(event) => setQueueSearch(event.target.value)}
             placeholder="جست‌وجو با شماره قبض، موبایل، IMEI یا سریال"
@@ -384,6 +383,8 @@ function WorkflowBoard({
   const [queue, setQueue] = useState<"critical" | "unassigned" | "waiting" | "all">(
     focusedCaseId ? "all" : "critical",
   );
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
   const [selectedId, setSelectedId] = useState(
     focusedCaseId || data.cases[0]?.id || 0,
   );
@@ -417,7 +418,7 @@ function WorkflowBoard({
   const waitingCases = data.cases.filter((item) =>
     ["awaiting_customer_approval", "awaiting_parts", "qc_pending", "finance_pending"].includes(item.status),
   );
-  const visibleCases =
+  const categoryCases =
     queue === "critical"
       ? criticalCases
       : queue === "unassigned"
@@ -425,6 +426,11 @@ function WorkflowBoard({
         : queue === "waiting"
           ? waitingCases
           : data.cases;
+  const visibleCases = categoryCases.filter((item) =>
+    (!status || item.status === status) && matchesQueueSearch(search, [
+      item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle,
+    ]),
+  );
   const selected =
     visibleCases.find((item) => item.id === selectedId) ?? visibleCases[0];
   const openHandovers = data.handovers.filter(
@@ -463,10 +469,20 @@ function WorkflowBoard({
           { key: "waiting" as const, label: "صف‌های انتظار", count: waitingCases.length },
           { key: "all" as const, label: "همه پرونده‌ها", count: data.cases.length },
         ].map((item) => (
-          <button key={item.key} type="button" className={queue === item.key ? "active" : ""} onClick={() => { setQueue(item.key); setSelectedId(0); }}>
+          <button key={item.key} type="button" aria-pressed={queue === item.key} className={queue === item.key ? "active" : ""} onClick={() => { setQueue(item.key); setSelectedId(0); }}>
             <span>{item.label}</span><strong>{toman.format(item.count)}</strong>
           </button>
         ))}
+      </div>
+      <div className="repair-queue-filters" role="search" aria-label="فیلتر صف تعمیر">
+        <label className="repair-queue-search"><span>جست‌وجوی صف تعمیر</span>
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="رسید، مشتری، موبایل یا سریال" />
+        </label>
+        <label><span>وضعیت صف تعمیر</span><select aria-label="وضعیت صف تعمیر" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="">همه وضعیت‌ها</option>
+          {Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></label>
+        {(search || status) && <button type="button" className="outline-action" onClick={() => { setSearch(""); setStatus(""); }}>پاک‌کردن فیلترها</button>}
       </div>
       <div className="v2-master-detail">
         <section className="v2-list-panel">
@@ -475,8 +491,8 @@ function WorkflowBoard({
               <ClipboardCheck />
               <span>
                 <strong>صف پرونده‌ها</strong>
-                <small>
-                  {toman.format(visibleCases.length)} پرونده در این صف
+                <small role="status" aria-live="polite">
+                  {toman.format(visibleCases.length)} از {toman.format(categoryCases.length)} پروندهٔ دریافت‌شده در این صف
                 </small>
               </span>
             </div>
@@ -484,7 +500,9 @@ function WorkflowBoard({
           <div className="v2-case-list">
             {visibleCases.map((item) => (
               <button
+                type="button"
                 key={item.id}
+                aria-pressed={selected?.id === item.id}
                 className={selected?.id === item.id ? "active" : ""}
                 onClick={() => setSelectedId(item.id)}
               >
@@ -499,7 +517,7 @@ function WorkflowBoard({
               </button>
             ))}
             {visibleCases.length === 0 && (
-              <Empty text="در حال حاضر مورد نیازمند اقدام در این صف وجود ندارد." />
+              <Empty text={search || status ? "پرونده‌ای با این فیلترها پیدا نشد؛ جست‌وجو یا وضعیت را تغییر دهید." : "در حال حاضر مورد نیازمند اقدام در این صف وجود ندارد."} />
             )}
           </div>
         </section>

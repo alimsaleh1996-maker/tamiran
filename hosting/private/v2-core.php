@@ -41,6 +41,19 @@ function v2_text(mixed $value, string $label, int $max, bool $required = true): 
     return $text === '' ? null : $text;
 }
 
+/** A delivery retry is readable only within the authenticated branch and case. */
+function v2_delivery_replay(PDO $pdo, array $scope, int $caseId, string $idempotency): ?array
+{
+    $statement = $pdo->prepare('SELECT d.public_id,d.case_id,c.receipt_number FROM repair_deliveries d INNER JOIN repair_cases c ON c.id=d.case_id WHERE d.shop_id=:shop AND c.branch_id=:branch AND d.idempotency_key=:idempotency LIMIT 1');
+    $statement->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'idempotency'=>$idempotency]);
+    $row = $statement->fetch();
+    if (!is_array($row)) return null;
+    if ((int)$row['case_id'] !== $caseId) {
+        throw new TamiranApiException('شناسه یکتای تحویل قبلاً برای پرونده دیگری استفاده شده است.', 409);
+    }
+    return ['delivered'=>true,'replayed'=>true,'publicId'=>$row['public_id'],'receiptNumber'=>$row['receipt_number']];
+}
+
 function v2_json(mixed $value): string
 {
     return json_encode(is_array($value) ? $value : new stdClass(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);

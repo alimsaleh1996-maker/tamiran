@@ -1,0 +1,363 @@
+{
+  "suite": "PHP/MariaDB real HTTP synthetic smoke",
+  "results": [
+    {
+      "name": "installer is locked after successful setup",
+      "status": "PASS"
+    },
+    {
+      "name": "private path blocked /private/config.php",
+      "status": "PASS"
+    },
+    {
+      "name": "private path blocked /database/schema.sql",
+      "status": "PASS"
+    },
+    {
+      "name": "private path blocked /.env",
+      "status": "PASS"
+    },
+    {
+      "name": "private path blocked /tests/smoke.py",
+      "status": "PASS"
+    },
+    {
+      "name": "anonymous operations denied",
+      "status": "PASS"
+    },
+    {
+      "name": "staging role spoof does not authenticate",
+      "status": "PASS"
+    },
+    {
+      "name": "legacy setup API disabled",
+      "status": "PASS"
+    },
+    {
+      "name": "real captcha CSRF administrator login",
+      "status": "PASS"
+    },
+    {
+      "name": "central administrator identity",
+      "status": "PASS"
+    },
+    {
+      "name": "administrator central dashboard",
+      "status": "PASS"
+    },
+    {
+      "name": "central cannot access shop settings",
+      "status": "PASS"
+    },
+    {
+      "name": "create shop A branch manager and idempotent retry",
+      "status": "PASS"
+    },
+    {
+      "name": "create isolated shop B and manager",
+      "status": "PASS"
+    },
+    {
+      "name": "create and authenticate reception",
+      "status": "PASS"
+    },
+    {
+      "name": "create and authenticate technician",
+      "status": "PASS"
+    },
+    {
+      "name": "create and authenticate quality_control",
+      "status": "PASS"
+    },
+    {
+      "name": "create and authenticate warehouse_keeper",
+      "status": "PASS"
+    },
+    {
+      "name": "create and authenticate finance_cashier",
+      "status": "PASS"
+    },
+    {
+      "name": "reception cannot read central administration",
+      "status": "PASS"
+    },
+    {
+      "name": "technician cannot read central administration",
+      "status": "PASS"
+    },
+    {
+      "name": "quality_control cannot read central administration",
+      "status": "PASS"
+    },
+    {
+      "name": "warehouse_keeper cannot read central administration",
+      "status": "PASS"
+    },
+    {
+      "name": "finance_cashier cannot read central administration",
+      "status": "PASS"
+    },
+    {
+      "name": "manager cannot read central administration",
+      "status": "PASS"
+    },
+    {
+      "name": "reception cannot alter catalog",
+      "status": "PASS"
+    },
+    {
+      "name": "missing CSRF cannot mutate",
+      "status": "PASS"
+    },
+    {
+      "name": "manager creates device catalog through API",
+      "status": "PASS"
+    },
+    {
+      "name": "manager publishes acceptance terms",
+      "status": "PASS"
+    },
+    {
+      "name": "reception saves draft",
+      "status": "PASS"
+    },
+    {
+      "name": "stale draft save rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "draft is visible to its owner",
+      "status": "PASS"
+    },
+    {
+      "name": "draft hidden from another actor",
+      "status": "PASS"
+    },
+    {
+      "name": "another actor cannot overwrite draft key",
+      "status": "PASS"
+    },
+    {
+      "name": "create independent discardable draft",
+      "status": "PASS"
+    },
+    {
+      "name": "stale draft discard rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "owner discards matching draft version",
+      "status": "PASS"
+    },
+    {
+      "name": "reception creates real customer device receipt and case",
+      "status": "PASS"
+    },
+    {
+      "name": "case retry reuses receipt and device",
+      "status": "PASS"
+    },
+    {
+      "name": "changed idempotency payload conflicts",
+      "status": "PASS"
+    },
+    {
+      "name": "customer lookup returns stored device",
+      "status": "PASS"
+    },
+    {
+      "name": "existing device stale version rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "existing device accepted with authoritative version",
+      "status": "PASS"
+    },
+    {
+      "name": "repeat visit preserves customer and device IDs",
+      "status": "PASS"
+    },
+    {
+      "name": "assigned technician writes versioned case report",
+      "status": "PASS"
+    },
+    {
+      "name": "stale case patch cannot overwrite report",
+      "status": "PASS"
+    },
+    {
+      "name": "tenant B cannot read tenant A case",
+      "status": "PASS"
+    },
+    {
+      "name": "technician cannot create reception",
+      "status": "PASS"
+    },
+    {
+      "name": "warehouse cannot read finance",
+      "status": "PASS"
+    },
+    {
+      "name": "finance can read financial workspace",
+      "status": "PASS"
+    },
+    {
+      "name": "warehouse can read inventory workspace",
+      "status": "PASS"
+    },
+    {
+      "name": "manager creates real inventory and ledger",
+      "status": "PASS"
+    },
+    {
+      "name": "manager reads workflow-v2.php",
+      "status": "PASS"
+    },
+    {
+      "name": "manager reads my-tasks-v2.php",
+      "status": "PASS"
+    },
+    {
+      "name": "manager reads capabilities.php",
+      "status": "PASS"
+    },
+    {
+      "name": "manager reads notifications-v2.php",
+      "status": "PASS"
+    },
+    {
+      "name": "manager reads followups.php",
+      "status": "PASS"
+    },
+    {
+      "name": "manager reads tickets.php",
+      "status": "PASS"
+    },
+    {
+      "name": "assigned technician starts diagnosis atomically",
+      "status": "PASS"
+    },
+    {
+      "name": "workflow idempotent transition retry",
+      "status": "PASS"
+    },
+    {
+      "name": "stale workflow update rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign tenant cannot mutate case",
+      "status": "PASS"
+    },
+    {
+      "name": "technician advances diagnosis to repairing",
+      "status": "PASS"
+    },
+    {
+      "name": "completed repair enters finance with QC disabled",
+      "status": "PASS"
+    },
+    {
+      "name": "finance issues integer-rial invoice",
+      "status": "PASS"
+    },
+    {
+      "name": "invoice total is exactly 10000 rials",
+      "status": "PASS"
+    },
+    {
+      "name": "invoice retry reuses original invoice",
+      "status": "PASS"
+    },
+    {
+      "name": "overpayment rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "record synthetic local cash payment",
+      "status": "PASS"
+    },
+    {
+      "name": "cash payment settles full balance",
+      "status": "PASS"
+    },
+    {
+      "name": "payment retry does not double charge",
+      "status": "PASS"
+    },
+    {
+      "name": "persisted invoice payment and financial ledger agree",
+      "status": "PASS"
+    },
+    {
+      "name": "settlement automatically advances to ready for delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "technician cannot complete delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "missing delivery evidence is rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "reception completes synthetic verified delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery retry returns the same delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery key cannot replay for another case",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign tenant cannot replay delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery persists both case and workflow final states",
+      "status": "PASS"
+    },
+    {
+      "name": "new key cannot deliver an already delivered case",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign origin cannot mutate",
+      "status": "PASS"
+    },
+    {
+      "name": "second genuine login rotates operational session",
+      "status": "PASS"
+    },
+    {
+      "name": "previous operational session is revoked",
+      "status": "PASS"
+    },
+    {
+      "name": "new operational session can read cases",
+      "status": "PASS"
+    },
+    {
+      "name": "logout releases session",
+      "status": "PASS"
+    },
+    {
+      "name": "logged-out client cannot access cases",
+      "status": "PASS"
+    }
+  ],
+  "fixture_marker": "TEST-TAMIRAN-FINAL20261110",
+  "base_url": "http://127.0.0.1:9173",
+  "passed": 87,
+  "failed": 0,
+  "seconds": 4.74,
+  "limits": [
+    "Loopback development HTTP, not shared-host HTTPS",
+    "No browser visual/E2E",
+    "No real SMS or payment gateway requests"
+  ]
+}
