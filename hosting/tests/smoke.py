@@ -17,6 +17,7 @@ from pathlib import Path
 import re
 import secrets
 import sys
+import subprocess
 import time
 import urllib.error
 import urllib.parse
@@ -197,7 +198,7 @@ def run(args):
             "branchName": marker + "-BRANCH-" + suffix,
             "expiresAt": (dt.date.today() + dt.timedelta(days=365)).isoformat(),
             "productProfile": "pro", "modules": ["repair", "finance", "inventory", "customer_portal"],
-            "inventoryMode": "simple", "qcMode": "off", "maxUsers": 12,
+            "inventoryMode": "pro" if args.advanced else "simple", "qcMode": "independent" if args.advanced else "off", "maxUsers": 12,
             "idempotencyKey": marker + "-CREATE-" + suffix,
         }
         result = admin.api("admin.php", "POST", request)
@@ -225,6 +226,18 @@ def run(args):
             expect(profile["role"] == role, "role mismatch")
             return client, profile
         roles[role] = runner.check("create and authenticate " + role, make_role)
+    branch_reception = branch_warehouse = None
+    if args.branch_fixture_php:
+        helper = Path(__file__).with_name("create_synthetic_branch.php")
+        second_branch = int(subprocess.check_output([args.branch_fixture_php, str(helper), str(shop_id), marker], text=True))
+        def make_branch_staff(index, role):
+            admin.api("admin-users.php", "POST", {"shopId": shop_id, "displayName": marker + "-BRANCH2-" + role,
+                "mobile": mobile(index), "password": staff_password, "role": role, "branchIds": [second_branch]})
+            client = Client(args.url)
+            client.login(mobile(index), staff_password)
+            return client
+        branch_reception = runner.check("authenticate second branch reception", lambda: make_branch_staff(31, "reception"))
+        branch_warehouse = runner.check("authenticate second branch warehouse", lambda: make_branch_staff(32, "warehouse_keeper"))
     reception = roles["reception"][0]
     technician, technician_actor = roles["technician"]
     finance = roles["finance_cashier"][0]
@@ -260,6 +273,11 @@ def run(args):
     created = runner.check("reception creates real customer device receipt and case", lambda: reception.api("operations.php", "POST", case_request))
     case = created["repairCase"]
     case_id = case["id"]
+    admin.api("admin-users.php", "POST", {"shopId": shop_id, "displayName": marker + "-UNASSIGNED", "mobile": mobile(30), "password": staff_password, "role": "technician", "branchIds": [branch_id]})
+    unassigned = Client(args.url)
+    unassigned.login(mobile(30), staff_password)
+    estimate_input = {"action": "estimate_create", "caseId": case_id, "items": [{"type": "labor", "title": marker, "quantity": 1, "unitPrice": 10000}]}
+    runner.check("unassigned technician cannot create an estimate", lambda: unassigned.api("workflow-v2.php", "POST", estimate_input, expected=403))
     runner.check("case retry reuses receipt and device", lambda: expect(reception.api("operations.php", "POST", case_request)["repairCase"]["id"] == case_id, "case replay duplicated"))
     runner.check("changed idempotency payload conflicts", lambda: reception.api("operations.php", "POST", {**case_request, "declaredIssue": marker + "-ALTERED"}, expected=409))
     lookup = runner.check("customer lookup returns stored device", lambda: reception.api("operations.php?customerMobile=" + mobile(20)))
@@ -270,6 +288,29 @@ def run(args):
     runner.check("existing device stale version rejected", lambda: reception.api("operations.php", "POST", {**second_request, "expectedDeviceVersion": device["expectedDeviceVersion"] + 1}, expected=409))
     second = runner.check("existing device accepted with authoritative version", lambda: reception.api("operations.php", "POST", second_request))
     runner.check("repeat visit preserves customer and device IDs", lambda: expect(second["repairCase"]["deviceId"] == case["deviceId"] and second["repairCase"]["customerId"] == case["customerId"], "repeat visit duplicated device or customer"))
+    estimate_input["caseId"] = second["repairCase"]["id"]
+    estimate = runner.check("manager creates estimate above customer limit", lambda: manager.api("workflow-v2.php", "POST", estimate_input)["estimate"])
+    runner.check("unassigned technician cannot send estimate", lambda: unassigned.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}, expected=403))
+    runner.check("foreign shop cannot send estimate", lambda: other.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}, expected=404))
+    if branch_reception:
+        runner.check("other branch cannot send estimate", lambda: branch_reception.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}, expected=(403, 404)))
+        runner.check("other branch cannot decide estimate", lambda: branch_reception.api("workflow-v2.php", "POST", {"action": "estimate_decide", "estimatePublicId": estimate["publicId"], "decision": "approved", "channel": "recorded_phone"}, expected=(403, 404)))
+    runner.check("manager sends estimate", lambda: manager.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}))
+    decision = {"action": "estimate_decide", "estimatePublicId": estimate["publicId"], "decision": "approved", "channel": "recorded_phone"}
+    runner.check("reception records customer approval", lambda: reception.api("workflow-v2.php", "POST", decision))
+    runner.check("customer decision cannot be repeated", lambda: reception.api("workflow-v2.php", "POST", decision, expected=409))
+    rejected_estimate = runner.check("manager creates a new estimate revision", lambda: manager.api("workflow-v2.php", "POST", estimate_input)["estimate"])
+    runner.check("manager sends revised estimate", lambda: manager.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": rejected_estimate["publicId"]}))
+    def advance_second(target):
+        second_id = second["repairCase"]["id"]
+        row = technician.api("workflow-v2.php?caseId=" + str(second_id))["cases"][0]
+        return technician.api("workflow-v2.php", "POST", {"action": "transition", "caseId": second_id, "target": target, "lockVersion": row["lockVersion"], "idempotencyKey": marker + "-SECOND-" + target, "reason": marker})
+    runner.check("second case enters diagnosis", lambda: advance_second("diagnosing"))
+    runner.check("second case enters estimate stage", lambda: advance_second("estimate_pending"))
+    runner.check("second case waits for customer decision", lambda: advance_second("awaiting_customer_approval"))
+    reject = {"action": "estimate_decide", "estimatePublicId": rejected_estimate["publicId"], "decision": "rejected", "channel": "recorded_phone", "reason": marker}
+    runner.check("reception records customer rejection", lambda: reception.api("workflow-v2.php", "POST", reject))
+    runner.check("rejected estimate closes case without repair", lambda: expect(manager.api("workflow-v2.php?caseId=" + str(second["repairCase"]["id"]))["cases"][0]["status"] == "returned_unrepaired", "rejected case not closed"))
     patch = {"id": case_id, "expectedVersion": case["expectedVersion"], "operationReport": marker + "-DIAGNOSIS"}
     runner.check("assigned technician writes versioned case report", lambda: technician.api("operations.php", "PATCH", patch))
     runner.check("stale case patch cannot overwrite report", lambda: technician.api("operations.php", "PATCH", patch, expected=409))
@@ -297,12 +338,72 @@ def run(args):
         return technician.api("workflow-v2.php", "POST", {"action": "transition", "caseId": case_id,
             "target": target, "lockVersion": int(current["lockVersion"]),
             "idempotencyKey": marker + "-" + target, "reason": marker})
-    runner.check("technician advances diagnosis to repairing", lambda: advance("repairing"))
-    runner.check("completed repair enters finance with QC disabled", lambda: advance("finance_pending"))
+    if args.advanced:
+        inventory = warehouse.api("inventory-v2.php")
+        item = next(row for row in inventory["items"] if row["item_code"] == marker + "-STOCK")
+        warehouse_id = int(inventory["warehouse"]["id"])
+        part = {"action": "request", "caseId": case_id, "itemId": item["id"], "quantity": 2}
+        runner.check("assigned technician requests two parts", lambda: technician.api("inventory-v2.php", "POST", part))
+        request = next(row for row in warehouse.api("inventory-v2.php")["requests"] if row["case_id"] == case_id)
+        reserve = {"action": "reserve", "requestId": request["id"], "quantity": 2, "warehouseId": warehouse_id}
+        runner.check("excess reservation is rejected", lambda: warehouse.api("inventory-v2.php", "POST", {**reserve, "quantity": 3}, expected=409))
+        runner.check("warehouse reserves requested parts", lambda: warehouse.api("inventory-v2.php", "POST", reserve))
+        issue = {"action": "issue", "requestId": request["id"], "quantity": 1, "warehouseId": warehouse_id, "technicianUserId": technician_actor["id"], "idempotencyKey": marker + "-ISSUE-1"}
+        first = runner.check("warehouse issues first part", lambda: warehouse.api("inventory-v2.php", "POST", issue))
+        if branch_warehouse:
+            runner.check("other branch cannot replay issue", lambda: branch_warehouse.api("inventory-v2.php", "POST", issue, expected=(403, 404)))
+        runner.check("issue retry is idempotent", lambda: expect(warehouse.api("inventory-v2.php", "POST", issue)["issuePublicId"] == first["issuePublicId"], "issue duplicated"))
+        second_issue = runner.check("warehouse issues second part", lambda: warehouse.api("inventory-v2.php", "POST", {**issue, "idempotencyKey": marker + "-ISSUE-2"}))
+        consume = {"action": "finalize_issue", "issuePublicId": first["issuePublicId"], "decision": "consumed"}
+        returned = {"action": "finalize_issue", "issuePublicId": second_issue["issuePublicId"], "decision": "returned"}
+        runner.check("technician consumes first part", lambda: technician.api("inventory-v2.php", "POST", consume))
+        runner.check("unassigned technician cannot replay part finalization", lambda: unassigned.api("inventory-v2.php", "POST", consume, expected=403))
+        runner.check("issue key cannot replay with different quantity", lambda: warehouse.api("inventory-v2.php", "POST", {**issue, "quantity": 2}, expected=409))
+        runner.check("technician returns second part", lambda: technician.api("inventory-v2.php", "POST", returned))
+        def stock_balanced():
+            current = next(row for row in warehouse.api("inventory-v2.php")["items"] if row["id"] == item["id"])
+            expect(current["physical_quantity"] == 4 and current["reserved_quantity"] == 0, "stock or reservations do not balance")
+        runner.check("consumption and return balance stock", stock_balanced)
+        current = technician.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]
+        if current["status"] != "repairing":
+            runner.check("technician resumes repair after parts", lambda: advance("repairing"))
+        runner.check("repair enters parts closeout", lambda: advance("parts_closeout"))
+        runner.check("parts closeout enters independent QC", lambda: advance("qc_pending"))
+        qc = roles["quality_control"][0]
+        templates = qc.api("quality-v2.php")["templates"]
+        workflow_code = technician.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]["workflowCode"]
+        template = next(row for row in templates if row["workflow_code"] == workflow_code)
+        answers = [{"templateItemId": int(row["id"]), "result": "passed"} for row in template["items"]]
+        qc_request = {"action": "run", "caseId": case_id, "templateId": int(template["id"]), "idempotencyKey": marker + "-QC-FAIL", "result": "failed", "failureReason": marker, "items": answers}
+        runner.check("independent QC fails repair", lambda: qc.api("quality-v2.php", "POST", qc_request))
+        runner.check("failed QC routes to rework", lambda: expect(technician.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]["status"] == "qc_rework", "QC did not route to rework"))
+        runner.check("technician starts rework", lambda: advance("repairing"))
+        # A distinct transition key is necessary when returning to a previous state.
+        def rework_advance(target):
+            current = technician.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]
+            return technician.api("workflow-v2.php", "POST", {"action": "transition", "caseId": case_id, "target": target, "lockVersion": current["lockVersion"], "idempotencyKey": marker + "-REWORK-" + target, "reason": marker})
+        runner.check("rework enters parts closeout", lambda: rework_advance("parts_closeout"))
+        runner.check("rework returns to QC", lambda: rework_advance("qc_pending"))
+        if args.conditional:
+            conditional = runner.check("manager records conditional QC after rework", lambda: manager.api("quality-v2.php", "POST", {**qc_request, "idempotencyKey": marker + "-QC-CONDITIONAL", "result": "conditional", "failureReason": "", "conditionalLimitations": marker}))
+            ack = {"action": "ack_conditional", "qcRunPublicId": conditional["publicId"], "channel": "in_person_signature"}
+            if branch_reception:
+                runner.check("other branch cannot acknowledge conditional QC", lambda: branch_reception.api("quality-v2.php", "POST", ack, expected=(403, 404)))
+            runner.check("reception records conditional QC acknowledgement", lambda: reception.api("quality-v2.php", "POST", ack))
+            current = manager.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]
+            runner.check("acknowledged conditional QC enters finance", lambda: manager.api("workflow-v2.php", "POST", {"action": "transition", "caseId": case_id, "target": "finance_pending", "lockVersion": current["lockVersion"], "idempotencyKey": marker + "-CONDITIONAL-FINANCE", "reason": marker}))
+        else:
+            runner.check("independent QC passes rework", lambda: qc.api("quality-v2.php", "POST", {**qc_request, "idempotencyKey": marker + "-QC-PASS", "result": "passed", "failureReason": ""}))
+        runner.check("completed QC enters finance", lambda: expect(technician.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]["status"] == "finance_pending", "QC did not reach finance"))
+    else:
+        runner.check("technician advances diagnosis to repairing", lambda: advance("repairing"))
+        runner.check("completed repair enters finance with QC disabled", lambda: advance("finance_pending"))
     invoice_request = {"action": "issue", "caseId": case_id, "idempotencyKey": marker + "-INVOICE",
         "items": [{"type": "labor", "title": marker + "-LABOR", "quantity": 1, "saleUnitPrice": 10000, "discountAmount": 0, "taxRate": 0}]}
     invoice = runner.check("finance issues integer-rial invoice", lambda: finance.api("finance-v2.php", "POST", invoice_request))
     runner.check("invoice total is exactly 10000 rials", lambda: expect(invoice["totalAmount"] == 10000, "invoice total mismatch"))
+    unpaid_delivery = {"action": "complete", "caseId": case_id, "idempotencyKey": marker + "-UNPAID-DELIVERY", "recipientType": "customer", "recipientFullName": marker + "-CUSTOMER", "recipientMobile": mobile(20), "verificationMethod": "identity_document", "verificationEvidence": {"syntheticDocumentCheck": marker}, "accessoriesConfirmed": []}
+    runner.check("unpaid case cannot be delivered", lambda: reception.api("delivery-v2.php", "POST", unpaid_delivery, expected=409))
     runner.check("invoice retry reuses original invoice", lambda: expect(finance.api("finance-v2.php", "POST", invoice_request)["publicId"] == invoice["publicId"], "invoice duplicated"))
     payment_request = {"action": "payment", "invoicePublicId": invoice["publicId"], "amount": 10000,
         "method": "cash", "idempotencyKey": marker + "-PAYMENT", "paidByName": marker}
@@ -349,6 +450,9 @@ def main():
     parser.add_argument("--url", default="http://127.0.0.1:8088")
     parser.add_argument("--admin-mobile", default="09990000000")
     parser.add_argument("--run-id")
+    parser.add_argument("--advanced", action="store_true", help="Exercise Pro inventory and independent QC")
+    parser.add_argument("--conditional", action="store_true", help="Exercise conditional QC acknowledgement")
+    parser.add_argument("--branch-fixture-php", help="PHP executable for strictly local synthetic branch fixture")
     parser.add_argument("--report", default="/workspace/scratch/tamiran-php-smoke.json")
     args = parser.parse_args()
     try:

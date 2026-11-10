@@ -247,6 +247,7 @@ function workflow_v2_estimate(PDO $pdo,array $scope,array $input): array
     $pdo->beginTransaction();
     try{
         $row=v2_case($pdo,$scope,$caseId,true);if($row['locked_at']!==null)throw new TamiranApiException('پرونده بسته قابل برآورد نیست.',409);
+        if($scope['role']==='technician')v2_transition_role_allowed($pdo,$scope,$row,'estimate_pending');
         $revisionStatement=$pdo->prepare('SELECT COALESCE(MAX(revision),0)+1 FROM repair_estimates WHERE case_id=:case FOR UPDATE');$revisionStatement->execute(['case'=>$caseId]);$revision=(int)$revisionStatement->fetchColumn();
         $subtotal=0;$taxTotal=0;$discountTotal=0;$normalized=[];
         foreach($items as $item){
@@ -295,6 +296,7 @@ function workflow_v2_estimate_decide(PDO $pdo,array $scope,array $input): array
     $public=v2_text($input['estimatePublicId']??'','برآورد',80);$decision=(string)($input['decision']??'');$channel=(string)($input['channel']??'');
     if(!in_array($decision,['approved','rejected','explanation_requested'],true)||!in_array($channel,['recorded_phone','sms_otp','in_person_signature','secure_portal'],true))throw new TamiranApiException('تصمیم یا روش تأیید معتبر نیست.');
     $statement=$pdo->prepare('SELECT e.*,c.public_id AS case_public_id,cu.mobile FROM repair_estimates e INNER JOIN repair_cases c ON c.id=e.case_id INNER JOIN repair_customers cu ON cu.id=c.customer_id WHERE e.public_id=:public AND e.shop_id=:shop LIMIT 1');$statement->execute(['public'=>$public,'shop'=>$scope['shop_id']]);$estimate=$statement->fetch();if(!is_array($estimate))throw new TamiranApiException('برآورد پیدا نشد.',404);
+    v2_case($pdo,$scope,(int)$estimate['case_id']);
     if(in_array($channel,['recorded_phone','in_person_signature'],true)&&!v2_has_permission($scope,'estimate.record_customer_decision',['reception']))throw new TamiranApiException('ثبت این روش تأیید برای نقش فعلی مجاز نیست.',403);
     $mobile=tamiran_mobile((string)$estimate['mobile']);
     if(in_array($channel,['sms_otp','secure_portal'],true)){
@@ -344,7 +346,7 @@ tamiran_api(static function():array{
         'migrate_case_to_pro'=>workflow_v2_migrate_case_to_pro($pdo,$scope,$input),
         'manual_part_add'=>workflow_v2_add_manual_part($pdo,$scope,$input),
         'estimate_create'=>['estimate'=>workflow_v2_estimate($pdo,$scope,$input)],
-        'estimate_send'=>(function()use($pdo,$scope,$input){v2_require_permission($scope,'estimate.send',['reception','technician'],'ارسال برآورد مجاز نیست.');$public=v2_text($input['estimatePublicId']??'','برآورد',80);$update=$pdo->prepare("UPDATE repair_estimates SET status='sent',sent_at=NOW() WHERE public_id=:public AND shop_id=:shop AND status='draft'");$update->execute(['public'=>$public,'shop'=>$scope['shop_id']]);if($update->rowCount()!==1)throw new TamiranApiException('برآورد قابل ارسال نیست.',409);return ['sent'=>true];})(),
+        'estimate_send'=>(function()use($pdo,$scope,$input){v2_require_permission($scope,'estimate.send',['reception','technician'],'ارسال برآورد مجاز نیست.');$public=v2_text($input['estimatePublicId']??'','برآورد',80);$lookup=$pdo->prepare('SELECT case_id FROM repair_estimates WHERE public_id=:public AND shop_id=:shop LIMIT 1');$lookup->execute(['public'=>$public,'shop'=>$scope['shop_id']]);$caseId=$lookup->fetchColumn();if($caseId===false)throw new TamiranApiException('برآورد پیدا نشد.',404);$case=v2_case($pdo,$scope,(int)$caseId);if($scope['role']==='technician')v2_transition_role_allowed($pdo,$scope,$case,'estimate_pending');$update=$pdo->prepare("UPDATE repair_estimates SET status='sent',sent_at=NOW() WHERE public_id=:public AND shop_id=:shop AND status='draft'");$update->execute(['public'=>$public,'shop'=>$scope['shop_id']]);if($update->rowCount()!==1)throw new TamiranApiException('برآورد قابل ارسال نیست.',409);return ['sent'=>true];})(),
         'estimate_decide'=>['approval'=>workflow_v2_estimate_decide($pdo,$scope,$input)],
         'update_promise'=>workflow_v2_update_promise($pdo,$scope,$input),
         default=>throw new TamiranApiException('عملیات فرایندی معتبر نیست.'),
