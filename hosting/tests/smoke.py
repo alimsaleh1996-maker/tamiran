@@ -283,6 +283,18 @@ def run(args):
     decision = {"action": "estimate_decide", "estimatePublicId": estimate["publicId"], "decision": "approved", "channel": "recorded_phone"}
     runner.check("reception records customer approval", lambda: reception.api("workflow-v2.php", "POST", decision))
     runner.check("customer decision cannot be repeated", lambda: reception.api("workflow-v2.php", "POST", decision, expected=409))
+    rejected_estimate = runner.check("manager creates a new estimate revision", lambda: manager.api("workflow-v2.php", "POST", estimate_input)["estimate"])
+    runner.check("manager sends revised estimate", lambda: manager.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": rejected_estimate["publicId"]}))
+    def advance_second(target):
+        second_id = second["repairCase"]["id"]
+        row = technician.api("workflow-v2.php?caseId=" + str(second_id))["cases"][0]
+        return technician.api("workflow-v2.php", "POST", {"action": "transition", "caseId": second_id, "target": target, "lockVersion": row["lockVersion"], "idempotencyKey": marker + "-SECOND-" + target, "reason": marker})
+    runner.check("second case enters diagnosis", lambda: advance_second("diagnosing"))
+    runner.check("second case enters estimate stage", lambda: advance_second("estimate_pending"))
+    runner.check("second case waits for customer decision", lambda: advance_second("awaiting_customer_approval"))
+    reject = {"action": "estimate_decide", "estimatePublicId": rejected_estimate["publicId"], "decision": "rejected", "channel": "recorded_phone", "reason": marker}
+    runner.check("reception records customer rejection", lambda: reception.api("workflow-v2.php", "POST", reject))
+    runner.check("rejected estimate closes case without repair", lambda: expect(manager.api("workflow-v2.php?caseId=" + str(second["repairCase"]["id"]))["cases"][0]["status"] == "returned_unrepaired", "rejected case not closed"))
     patch = {"id": case_id, "expectedVersion": case["expectedVersion"], "operationReport": marker + "-DIAGNOSIS"}
     runner.check("assigned technician writes versioned case report", lambda: technician.api("operations.php", "PATCH", patch))
     runner.check("stale case patch cannot overwrite report", lambda: technician.api("operations.php", "PATCH", patch, expected=409))
