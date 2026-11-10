@@ -10,6 +10,7 @@ if (!preg_match('/^TEST-TAMIRAN-[A-Z0-9_-]{1,64}$/D', $marker)) {
     exit(2);
 }
 require dirname(__DIR__) . '/public_html/api/bootstrap.php';
+require dirname(__DIR__) . '/private/v2-core.php';
 $results = [];
 function verify_db(string $label, bool $condition): void {
     global $results;
@@ -77,6 +78,21 @@ try {
     $statement->execute(['shop' => $shopId]);
     $stock = $statement->fetchAll();
     verify_db('initial stock retains five available units', count($stock) === 1 && (int)$stock[0]['physical_quantity'] === 5 && (int)$stock[0]['reserved_quantity'] === 0);
+    $statement = $pdo->prepare('SELECT d.*,c.branch_id,c.status,w.process_status,w.locked_at,w.temporary_device_secret_ciphertext FROM repair_deliveries d INNER JOIN repair_cases c ON c.id=d.case_id INNER JOIN repair_case_workflows w ON w.case_id=c.id WHERE d.shop_id=:shop');
+    $statement->execute(['shop'=>$shopId]);
+    $deliveries = $statement->fetchAll();
+    verify_db('delivery retry persists exactly one delivery', count($deliveries) === 1);
+    $delivery = $deliveries[0];
+    verify_db('delivery locks the workflow and clears its temporary secret', $delivery['status'] === 'delivered' && $delivery['process_status'] === 'delivered' && $delivery['locked_at'] !== null && $delivery['temporary_device_secret_ciphertext'] === null);
+    $scope = ['shop_id'=>$shopId,'branch_id'=>(int)$delivery['branch_id']];
+    $replay = v2_delivery_replay($pdo,$scope,(int)$delivery['case_id'],$delivery['idempotency_key']);
+    verify_db('valid same-branch same-case delivery replay returns original ID', $replay['publicId'] === $delivery['public_id']);
+    verify_db('delivery replay reveals nothing to another branch', v2_delivery_replay($pdo,array_replace($scope,['branch_id'=>(int)$delivery['branch_id']+1000000]),(int)$delivery['case_id'],$delivery['idempotency_key']) === null);
+    verify_db('delivery replay reveals nothing to another shop', v2_delivery_replay($pdo,array_replace($scope,['shop_id'=>$shopId+1000000]),(int)$delivery['case_id'],$delivery['idempotency_key']) === null);
+    $conflict = false;
+    try { v2_delivery_replay($pdo,$scope,(int)$delivery['case_id']+1000000,$delivery['idempotency_key']); }
+    catch (TamiranApiException $error) { $conflict = $error->httpStatus === 409; }
+    verify_db('same key for a different case conflicts without replay', $conflict);
     $pdo->rollBack();
     echo json_encode(['suite' => 'MariaDB read-only smoke evidence', 'fixture_marker' => $marker, 'passed' => count($results), 'failed' => 0, 'results' => $results], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";
 } catch (Throwable $error) {

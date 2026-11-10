@@ -1,0 +1,139 @@
+{
+  "passed": 32,
+  "failed": 0,
+  "results": [
+    {
+      "name": "authoritative dashboard total is three",
+      "status": "PASS"
+    },
+    {
+      "name": "welcome uses authoritative total",
+      "status": "PASS"
+    },
+    {
+      "name": "paginated summary contract shows 503 while the loaded page has three cases",
+      "status": "PASS"
+    },
+    {
+      "name": "secondary detail starts collapsed",
+      "status": "PASS"
+    },
+    {
+      "name": "queue appears before optional detailed charts",
+      "status": "PASS"
+    },
+    {
+      "name": "dashboard Arabic name search finds Persian customer",
+      "status": "PASS"
+    },
+    {
+      "name": "dashboard Persian mobile search finds ASCII record",
+      "status": "PASS"
+    },
+    {
+      "name": "status and query intersect with useful empty state",
+      "status": "PASS"
+    },
+    {
+      "name": "clearing dashboard filters restores every row",
+      "status": "PASS"
+    },
+    {
+      "name": "keyboard expands preserved flow and team information",
+      "status": "PASS"
+    },
+    {
+      "name": "SQL UTC time displays correctly in a Tehran browser",
+      "status": "PASS"
+    },
+    {
+      "name": "dashboard and table fit 375x812",
+      "status": "PASS"
+    },
+    {
+      "name": "queue needs no inner horizontal scrolling 375",
+      "status": "PASS"
+    },
+    {
+      "name": "dashboard and table fit 768x1024",
+      "status": "PASS"
+    },
+    {
+      "name": "queue needs no inner horizontal scrolling 768",
+      "status": "PASS"
+    },
+    {
+      "name": "dashboard and table fit 812x375",
+      "status": "PASS"
+    },
+    {
+      "name": "queue needs no inner horizontal scrolling 812",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile keeps table headings and rows in the accessibility tree",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile row action remains in its labeled cell",
+      "status": "PASS"
+    },
+    {
+      "name": "workflow filter exposes its pressed state",
+      "status": "PASS"
+    },
+    {
+      "name": "workflow uses the same normalized name matching",
+      "status": "PASS"
+    },
+    {
+      "name": "workflow hides detail when combined filters match nothing",
+      "status": "PASS"
+    },
+    {
+      "name": "clearing workflow filters restores queue",
+      "status": "PASS"
+    },
+    {
+      "name": "selected case exposes pressed state",
+      "status": "PASS"
+    },
+    {
+      "name": "workflow filters fit RTL mobile",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid reception focuses its error and stays on customer step",
+      "status": "PASS"
+    },
+    {
+      "name": "next reception step receives keyboard focus",
+      "status": "PASS"
+    },
+    {
+      "name": "Tab from step start reaches product input",
+      "status": "PASS"
+    },
+    {
+      "name": "third reception step receives focus",
+      "status": "PASS"
+    },
+    {
+      "name": "final reception step fits mobile",
+      "status": "PASS"
+    },
+    {
+      "name": "previous reception step receives focus and retains product",
+      "status": "PASS"
+    },
+    {
+      "name": "browser has no JavaScript errors",
+      "status": "PASS"
+    }
+  ],
+  "page_errors": [],
+  "limits": [
+    "Synthetic local PHP/MariaDB only; no hosted deployment or screen reader certification",
+    "One browser contract check overrides the authorized server summary with 503 to reproduce a paginated response; it does not verify SQL aggregation"
+  ]
+}

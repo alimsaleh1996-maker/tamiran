@@ -13,8 +13,8 @@ export type CaseMutationRequest = {
   deliveryNotes?: string;
 };
 
-const safeNonNegativeInteger = (value: number, label: string) => {
-  if (!Number.isSafeInteger(value) || value < 0)
+const checkedInteger = (value: number, minimum: number, label: string) => {
+  if (!Number.isSafeInteger(value) || value < minimum)
     throw new Error(`${label} معتبر نیست.`);
   return value;
 };
@@ -22,20 +22,11 @@ const safeNonNegativeInteger = (value: number, label: string) => {
 export function buildCaseMutationRequest(
   input: CaseMutationRequest,
 ): CaseMutationRequest {
-  if (!Number.isSafeInteger(input.id) || input.id < 1)
-    throw new Error("شناسه پرونده معتبر نیست.");
-  safeNonNegativeInteger(input.expectedVersion, "نسخه پرونده");
-  if (
-    input.deliveryAmount !== undefined &&
-    (!Number.isSafeInteger(input.deliveryAmount) || input.deliveryAmount < 0)
-  )
-    throw new Error("مبلغ تحویل معتبر نیست.");
-  if (
-    input.assignedToUserId !== undefined &&
-    input.assignedToUserId !== null &&
-    (!Number.isSafeInteger(input.assignedToUserId) ||
-      input.assignedToUserId < 1)
-  )
-    throw new Error("مسئول پرونده معتبر نیست.");
+  checkedInteger(input.id, 1, "شناسه پرونده");
+  checkedInteger(input.expectedVersion, 0, "نسخه پرونده");
+  if (input.deliveryAmount !== undefined)
+    checkedInteger(input.deliveryAmount, 0, "مبلغ تحویل");
+  if (input.assignedToUserId !== undefined && input.assignedToUserId !== null)
+    checkedInteger(input.assignedToUserId, 1, "مسئول پرونده");
   return { ...input };
 }

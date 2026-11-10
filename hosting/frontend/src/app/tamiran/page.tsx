@@ -71,7 +71,6 @@ import {
 } from "./directadmin-api";
 import {
   emptyOperationalSnapshot,
-  repairCaseStatusLabels,
   type CreateInventoryItemInput,
   type CreatePartRequestInput,
   type CreateRepairCaseInput,
@@ -84,6 +83,7 @@ import {
 } from "./operations";
 import { assignV2Case } from "./v2-api";
 import { V2Workspace } from "./v2-workspace";
+import { RepairQueue } from "./repair-queue";
 import { CapabilityCatalog } from "./capabilities";
 import { TechnicianWorkbench } from "./technician-workbench";
 import { CustomerPortal } from "./customer-portal";
@@ -1344,54 +1344,20 @@ function Dashboard({
         .map((part) => part[0])
         .join(""),
     }));
-  const queue = operations.cases.slice(0, 8).map((item) => ({
-    receipt: item.receiptNumber,
-    device: `${item.brand} ${item.model}`,
-    customer: item.customerName,
-    issue: item.declaredIssue,
-    status: repairCaseStatusLabels[item.status],
-    tone:
-      item.status === "awaiting_assignment"
-        ? "gold"
-        : item.status === "ready_for_delivery"
-          ? "sky"
-          : item.status === "awaiting_part"
-            ? "coral"
-            : "teal",
-    time: new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(new Date(item.updatedAt.replace(" ", "T"))),
-  }));
   return (
     <>
-      <section className="welcome-panel">
+      <section className="welcome-panel dashboard-welcome">
         <div className="welcome-copy">
-          <span className="welcome-chip">
-            <Activity size={16} />
-            وضعیت زنده امروز
-          </span>
           <h2>{profile.shopName}</h2>
           <p>
             {loading
               ? "در حال دریافت اطلاعات عملیاتی..."
-              : activeCases.length > 0
-                ? `فضای «${profile.branch}» با ${number.format(activeCases.length)} پرونده فعال در دسترس است.`
+              : operations.summary.activeCases > 0
+                ? `فضای «${profile.branch}» با ${number.format(operations.summary.activeCases)} پرونده فعال در دسترس است.`
                 : isManager
                   ? "هنوز اطلاعاتی ثبت نشده است؛ ابتدا نوع، برند و مدل دستگاه‌ها را در تنظیمات تعریف و سپس اولین پذیرش را ثبت کنید."
                   : "هنوز پرونده یا پیگیری فعالی برای حساب شما ثبت نشده است."}
           </p>
-        </div>
-        <div className="welcome-visual" aria-hidden="true">
-          <span className="spark spark-one">
-            <Sparkles size={18} />
-          </span>
-          <span className="spark spark-two">
-            <CircleCheckBig size={20} />
-          </span>
-          <div className="tool-orbit tool-orbit-one" />
-          <div className="tool-orbit tool-orbit-two" />
-          <Wrench size={58} strokeWidth={1.9} />
         </div>
       </section>
 
@@ -1416,6 +1382,75 @@ function Dashboard({
         })}
       </section>
 
+      <section className="quick-actions dashboard-actions">
+        {(isManager || isReception) && (
+          <button onClick={() => onNavigate("پذیرش تعمیرات")}>
+            <span className="quick-icon tone-gold">
+              <ClipboardList />
+            </span>
+            <span>
+              <strong>پذیرش دستگاه</strong>
+              <small>ایجاد پرونده و قبض A5</small>
+            </span>
+            <ChevronLeft />
+          </button>
+        )}
+        {(isManager || isTechnical) &&
+          profile.modules.includes("inventory") && (
+            <button onClick={() => onNavigate("درخواست‌های قطعه")}>
+              <span className="quick-icon tone-teal">
+                <PackageOpen />
+              </span>
+              <span>
+                <strong>صف درخواست قطعه</strong>
+                <small>
+                  {number.format(
+                    operations.partRequests.filter(
+                      (item) => item.status === "pending",
+                    ).length,
+                  )}{" "}
+                  درخواست منتظر تصمیم
+                </small>
+              </span>
+              <ChevronLeft />
+            </button>
+          )}
+        {isManager && profile.modules.includes("inventory") && (
+          <button onClick={() => onNavigate("تعهدهای داغی")}>
+            <span className="quick-icon tone-coral">
+              <Archive />
+            </span>
+            <span>
+              <strong>کنترل داغی</strong>
+              <small>
+                {number.format(operations.summary.openHotReturns)} تعهد باز
+                تکنسین‌ها
+              </small>
+            </span>
+            <ChevronLeft />
+          </button>
+        )}
+      </section>
+
+      <section className="panel queue-panel">
+        <PanelHeader
+          icon={<FileClock size={20} />}
+          title="آخرین پرونده‌ها"
+          description="پرونده‌های صفحهٔ دریافت‌شده، به‌ترتیب آخرین تغییر"
+          action={
+            <button
+              type="button"
+              className="filter-button"
+              onClick={() => onNavigate(caseTarget)}
+            >
+              همه پرونده‌ها
+              <ChevronLeft size={16} />
+            </button>
+          }
+        />
+        <RepairQueue cases={operations.cases} loading={loading} onOpen={() => onNavigate(caseTarget)} />
+      </section>
+
       <section className="panel followup-dashboard-panel">
         <PanelHeader
           icon={<AlarmClock size={20} />}
@@ -1432,7 +1467,7 @@ function Dashboard({
             </button>
           }
         />
-        <div className="followup-dashboard-overview">
+        <div className={`followup-dashboard-overview ${activeFollowUps.length === 0 ? "is-empty" : ""}`}>
           <article>
             <span>جدید</span>
             <strong>
@@ -1496,12 +1531,14 @@ function Dashboard({
         )}
       </section>
 
+      <details className="dashboard-secondary">
+        <summary>جزئیات جریان پرونده‌ها{isManager ? " و بار کاری تیم" : ""}</summary>
       <section className="dashboard-grid">
         <article className="panel stage-panel">
           <PanelHeader
             icon={<Gauge size={20} />}
             title="جریان پرونده‌های فعال"
-            description={`تصویر لحظه‌ای از ${number.format(activeCases.length)} پرونده تعمیر`}
+            description={`${number.format(activeCases.length)} پرونده فعال در صفحهٔ دریافت‌شده`}
           />
           <div className="stage-list">
             {repairStages.map((stage) => (
@@ -1533,7 +1570,7 @@ function Dashboard({
             <PanelHeader
               icon={<UsersRound size={20} />}
               title="بار کاری تکنسین‌ها"
-              description="پرونده فعال، تکمیل امروز و داغی باز"
+              description="فعال و تحویل‌شده در این صفحه؛ تعهدهای داغی دریافت‌شده"
             />
             <div className="technician-list">
               {technicians.map((technician, index) => (
@@ -1576,132 +1613,8 @@ function Dashboard({
         )}
       </section>
 
-      <section className="panel queue-panel">
-        <PanelHeader
-          icon={<FileClock size={20} />}
-          title="آخرین پرونده‌ها"
-          description="رویدادهای واقعی امروز، به‌ترتیب آخرین تغییر"
-          action={
-            <button
-              type="button"
-              className="filter-button"
-              onClick={() => onNavigate(caseTarget)}
-            >
-              همه پرونده‌ها
-              <ChevronLeft size={16} />
-            </button>
-          }
-        />
-        <div className="queue-table-wrap">
-          <table className="queue-table">
-            <thead>
-              <tr>
-                <th>رسید</th>
-                <th>دستگاه و مشتری</th>
-                <th>ایراد اعلامی</th>
-                <th>وضعیت</th>
-                <th>آخرین تغییر</th>
-                <th aria-label="عملیات" />
-              </tr>
-            </thead>
-            <tbody>
-              {queue.map((item) => (
-                <tr key={item.receipt}>
-                  <td>
-                    <button
-                      type="button"
-                      className="receipt-link"
-                      onClick={() => onNavigate(caseTarget)}
-                    >
-                      {item.receipt}
-                    </button>
-                  </td>
-                  <td>
-                    <div className="device-cell">
-                      <strong>{item.device}</strong>
-                      <span>{item.customer}</span>
-                    </div>
-                  </td>
-                  <td>{item.issue}</td>
-                  <td>
-                    <span className={`status-pill tone-${item.tone}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="muted-cell">{item.time}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="row-action"
-                      onClick={() => onNavigate(caseTarget)}
-                      aria-label={`مشاهده ${item.receipt}`}
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!loading && queue.length === 0 && (
-          <DashboardEmpty
-            icon={<FileClock size={25} />}
-            title="هنوز اطلاعاتی ثبت نشده است"
-            description="با ثبت اولین پذیرش، پرونده و رسید آن در این جدول نمایش داده می‌شود."
-          />
-        )}
-      </section>
+      </details>
 
-      <section className="quick-actions">
-        {(isManager || isReception) && (
-          <button onClick={() => onNavigate("پذیرش تعمیرات")}>
-            <span className="quick-icon tone-gold">
-              <ClipboardList />
-            </span>
-            <span>
-              <strong>پذیرش دستگاه</strong>
-              <small>ایجاد پرونده و قبض A5</small>
-            </span>
-            <ChevronLeft />
-          </button>
-        )}
-        {(isManager || isTechnical) &&
-          profile.modules.includes("inventory") && (
-            <button onClick={() => onNavigate("درخواست‌های قطعه")}>
-              <span className="quick-icon tone-teal">
-                <PackageOpen />
-              </span>
-              <span>
-                <strong>صف درخواست قطعه</strong>
-                <small>
-                  {number.format(
-                    operations.partRequests.filter(
-                      (item) => item.status === "pending",
-                    ).length,
-                  )}{" "}
-                  درخواست منتظر تصمیم
-                </small>
-              </span>
-              <ChevronLeft />
-            </button>
-          )}
-        {isManager && profile.modules.includes("inventory") && (
-          <button onClick={() => onNavigate("تعهدهای داغی")}>
-            <span className="quick-icon tone-coral">
-              <Archive />
-            </span>
-            <span>
-              <strong>کنترل داغی</strong>
-              <small>
-                {number.format(operations.summary.openHotReturns)} تعهد باز
-                تکنسین‌ها
-              </small>
-            </span>
-            <ChevronLeft />
-          </button>
-        )}
-      </section>
     </>
   );
 }

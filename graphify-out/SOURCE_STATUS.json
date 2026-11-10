@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-10",
+  "edition": "PHP hosting",
+  "source_base_commit": "62101d4c360da916df6663ea5627d1a2037d0c6c",
+  "historical_graph_source_commit": "904466d64a5da2bfe7c3756678bc2c6c5374c723",
+  "status": "pending_graphify_refresh",
+  "reason": "Graphify 0.9.105 was installed and the existing graph queried, but the incremental refresh was interrupted by the agent usage limit; graph remains stale.",
+  "source_snapshot_sha256": {
+    "hosting/frontend/src/app/software/case-mutations.ts": "2b0d3cb75e3613d2043834935907e44606673ec27437d229f5b6fb903dc30945",
+    "hosting/frontend/src/app/tamiran/page.tsx": "6d8c3167aca403218559bedad998947ce00c992886dadd5786d4475a47c73265",
+    "hosting/frontend/src/app/tamiran/modules.tsx": "f868ca9086734ac20282ade89eb0d3a91bd0e541bd0e987954efe283e0ff254d",
+    "hosting/frontend/src/app/tamiran/v2-workspace.tsx": "e9bc642c531d9ed641a723127602309e27f6999634dfdc9aa718327111e9a9c6",
+    "hosting/frontend/src/app/tamiran/queue-search.ts": "3b6389800c8f7fa6181c55a729282e7887ae50970284abea54def6ebabd672e9",
+    "hosting/frontend/src/app/tamiran/repair-queue.tsx": "4e63cb27a28df15196e4fe15bb3dc733cf3355f504b91ec91678aa378e21a0d7",
+    "hosting/private/v2-core.php": "7c9e6ef93de4ff1fa38ea40555b3e8393b9c0d2b94c3f5ce9bc3408be8f2dc2c",
+    "hosting/public_html/api/delivery-v2.php": "5f9d63e5b35af4b7db09c388dacd7ea8830e733267172e9239b16addde53f83a"
+  },
+  "report": "docs/reports/hosting/2026-11-10-workflow-review-FA.md"
+}

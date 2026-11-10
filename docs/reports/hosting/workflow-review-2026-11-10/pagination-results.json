@@ -1,0 +1,108 @@
+{
+  "suite": "PHP/MariaDB real HTTP synthetic smoke",
+  "results": [
+    {
+      "name": "administrator genuine captcha login",
+      "status": "PASS"
+    },
+    {
+      "name": "create isolated regression shop through API",
+      "status": "PASS"
+    },
+    {
+      "name": "251 genuine reception cases persist",
+      "status": "PASS"
+    },
+    {
+      "name": "first page returns capped list",
+      "status": "PASS"
+    },
+    {
+      "name": "full active aggregate exceeds list limit",
+      "status": "PASS"
+    },
+    {
+      "name": "full awaiting-assignment aggregate exceeds list limit",
+      "status": "PASS"
+    },
+    {
+      "name": "first page exposes full scoped total and continuation",
+      "status": "PASS"
+    },
+    {
+      "name": "caseOffset250 returns remainder",
+      "status": "PASS"
+    },
+    {
+      "name": "second page has one case and no continuation",
+      "status": "PASS"
+    },
+    {
+      "name": "pagination has no duplicate or missing IDs",
+      "status": "PASS"
+    },
+    {
+      "name": "second page preserves full aggregate",
+      "status": "PASS"
+    },
+    {
+      "name": "unassigned technician sees no cases or aggregate",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid offset rejected -1",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid offset rejected 1.5",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid offset rejected 10000000",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid offset rejected 01",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid offset rejected bad",
+      "status": "PASS"
+    },
+    {
+      "name": "ordinary PATCH cannot reassign V2 ownership",
+      "status": "PASS"
+    },
+    {
+      "name": "rejected reassignment leaves both owners and versions unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "workflow assignment API accepts technician",
+      "status": "PASS"
+    },
+    {
+      "name": "workflow assignment updates both ownership records",
+      "status": "PASS"
+    },
+    {
+      "name": "assigned technician gets exactly one scoped case",
+      "status": "PASS"
+    },
+    {
+      "name": "manager aggregate remains251 after workflow assignment",
+      "status": "PASS"
+    }
+  ],
+  "fixture_marker": "TEST-TAMIRAN-REG-3EDFEBC5",
+  "base_url": "http://127.0.0.1:9173",
+  "synthetic_cases_created": 251,
+  "passed": 23,
+  "failed": 0,
+  "seconds": 5.2,
+  "limits": [
+    "Loopback development HTTP, not shared-host HTTPS",
+    "No browser visual/E2E",
+    "No real SMS or payment gateway requests"
+  ]
+}

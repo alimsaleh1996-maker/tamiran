@@ -13,7 +13,7 @@ npm run build
 
 The build writes `hosting/public_html/index.php`, `favicon.svg` and `assets/` without removing API or installer files. On a new host, `index.php` redirects to `/install/` until `hosting/private/config.php` exists. Serve `public_html` as the document root; keep `private` outside it.
 
-For this development checkout, `node_modules` may be a symlink to the existing migration Worker dependencies. That symlink is local build tooling and must not be uploaded. Upload only the packaged PHP application and generated browser assets.
+The npm lockfile resolves packages from the registry and supports a clean standalone checkout. It must not contain links into the migration Worker's `node_modules`. Upload only the packaged PHP application and generated browser assets.
 
 The hosting PHP APIs expose draft `version`, accept `expectedVersion` for draft edits/discard, and accept `draftExpectedVersion` when submitting. Previous-device lookups expose `expectedDeviceVersion`; the browser sends that version when reusing a device. Displayed receipt acceptance is sent as `{publicId, contentSha256, accepted: true}` and must match the active terms on the server. This browser build must be distributed with the matching hosting API copies, not the frozen migration baseline.
 

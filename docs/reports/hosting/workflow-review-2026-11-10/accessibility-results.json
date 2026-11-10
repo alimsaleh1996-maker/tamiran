@@ -1,0 +1,150 @@
+{
+  "passed": 35,
+  "failed": 0,
+  "results": [
+    {
+      "name": "CAPTCHA input has its visible accessible label",
+      "status": "PASS"
+    },
+    {
+      "name": "Native Persian audio control is available",
+      "status": "PASS"
+    },
+    {
+      "name": "Actual CAPTCHA audio decodes in browser",
+      "status": "PASS"
+    },
+    {
+      "name": "Login audio layout has no horizontal overflow375x812",
+      "status": "PASS"
+    },
+    {
+      "name": "Login audio layout has no horizontal overflow768x1024",
+      "status": "PASS"
+    },
+    {
+      "name": "Login audio layout has no horizontal overflow812x375",
+      "status": "PASS"
+    },
+    {
+      "name": "Central admin dialog focuses inside",
+      "status": "PASS"
+    },
+    {
+      "name": "Owned calendar portal remains keyboard reachable",
+      "status": "PASS"
+    },
+    {
+      "name": "First Escape closes calendar and returns its trigger",
+      "status": "PASS"
+    },
+    {
+      "name": "Admin dialog closes and restores opener",
+      "status": "PASS"
+    },
+    {
+      "name": "Visible dashboard text meets minimum contrast",
+      "status": "PASS"
+    },
+    {
+      "name": "Real one-case statistic is shown",
+      "status": "PASS"
+    },
+    {
+      "name": "Initial API failure never renders false zero statistics",
+      "status": "PASS"
+    },
+    {
+      "name": "Persistent retry is available",
+      "status": "PASS"
+    },
+    {
+      "name": "Retry restores data without reload",
+      "status": "PASS"
+    },
+    {
+      "name": "Refresh error preserves and labels last valid data",
+      "status": "PASS"
+    },
+    {
+      "name": "First Back returns to dashboard",
+      "status": "PASS"
+    },
+    {
+      "name": "Forward restores reception",
+      "status": "PASS"
+    },
+    {
+      "name": "Visible reception text meets minimum contrast",
+      "status": "PASS"
+    },
+    {
+      "name": "Opening dialog moves focus inside",
+      "status": "PASS"
+    },
+    {
+      "name": "Dialog traps forward and reverse Tab",
+      "status": "PASS"
+    },
+    {
+      "name": "Dialog Escape closes and restores opener",
+      "status": "PASS"
+    },
+    {
+      "name": "Drawer announces expansion and focuses inside",
+      "status": "PASS"
+    },
+    {
+      "name": "Drawer background is inert",
+      "status": "PASS"
+    },
+    {
+      "name": "Drawer Escape restores opener",
+      "status": "PASS"
+    },
+    {
+      "name": "Pointer backdrop dismissal remains functional",
+      "status": "PASS"
+    },
+    {
+      "name": "Desktop sidebar is not left inert",
+      "status": "PASS"
+    },
+    {
+      "name": "Combobox exposes active option",
+      "status": "PASS"
+    },
+    {
+      "name": "Enter selects product and retains focus",
+      "status": "PASS"
+    },
+    {
+      "name": "Combobox Escape closes its list",
+      "status": "PASS"
+    },
+    {
+      "name": "Tab moves on without BODY focus",
+      "status": "PASS"
+    },
+    {
+      "name": "No horizontal overflow375x812",
+      "status": "PASS"
+    },
+    {
+      "name": "No horizontal overflow768x1024",
+      "status": "PASS"
+    },
+    {
+      "name": "No horizontal overflow812x375",
+      "status": "PASS"
+    },
+    {
+      "name": "No JavaScript page errors",
+      "status": "PASS"
+    }
+  ],
+  "page_errors": [],
+  "limits": [
+    "Synthetic local PHP/MariaDB; no hosted SSL/Apache or formal screen-reader session"
+  ]
+}

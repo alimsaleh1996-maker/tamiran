@@ -27,12 +27,8 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
     $evidence=is_array($input['verificationEvidence']??null)?$input['verificationEvidence']:[];
     $confirmed=is_array($input['accessoriesConfirmed']??null)?$input['accessoriesConfirmed']:[];
 
-    $replay=$pdo->prepare('SELECT d.public_id,c.receipt_number FROM repair_deliveries d INNER JOIN repair_cases c ON c.id=d.case_id WHERE d.shop_id=:shop AND d.idempotency_key=:idempotency LIMIT 1');
-    $replay->execute(['shop'=>$scope['shop_id'],'idempotency'=>$idempotency]);
-    $replayed=$replay->fetch();
-    if(is_array($replayed)){
-        return['delivered'=>true,'replayed'=>true,'publicId'=>$replayed['public_id'],'receiptNumber'=>$replayed['receipt_number']];
-    }
+    $replayed=v2_delivery_replay($pdo,$scope,$caseId,$idempotency);
+    if($replayed!==null)return $replayed;
 
     $pdo->beginTransaction();
     try{
@@ -128,10 +124,9 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
     }catch(Throwable$error){
         if($pdo->inTransaction())$pdo->rollBack();
         if($error instanceof PDOException&&str_contains(strtolower($error->getMessage()),'duplicate')){
-            $retry=$pdo->prepare('SELECT d.public_id,c.receipt_number FROM repair_deliveries d INNER JOIN repair_cases c ON c.id=d.case_id WHERE d.shop_id=:shop AND d.idempotency_key=:idempotency LIMIT 1');
-            $retry->execute(['shop'=>$scope['shop_id'],'idempotency'=>$idempotency]);
-            $row=$retry->fetch();
-            if(is_array($row))return['delivered'=>true,'replayed'=>true,'publicId'=>$row['public_id'],'receiptNumber'=>$row['receipt_number']];
+            $replayed=v2_delivery_replay($pdo,$scope,$caseId,$idempotency);
+            if($replayed!==null)return $replayed;
+            throw new TamiranApiException('شناسه یکتای تحویل یا تحویل پرونده قبلاً ثبت شده است.',409);
         }
         throw$error;
     }

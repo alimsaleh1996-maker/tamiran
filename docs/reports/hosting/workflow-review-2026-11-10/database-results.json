@@ -1,0 +1,108 @@
+{
+  "suite": "MariaDB read-only smoke evidence",
+  "fixture_marker": "TEST-TAMIRAN-FINAL20261110",
+  "passed": 25,
+  "failed": 0,
+  "results": [
+    {
+      "name": "PDO uses native prepared statements",
+      "status": "PASS"
+    },
+    {
+      "name": "repeated named parameters preserve native values and quoted text",
+      "status": "PASS"
+    },
+    {
+      "name": "exact synthetic shop exists",
+      "status": "PASS"
+    },
+    {
+      "name": "repeat visit creates two cases",
+      "status": "PASS"
+    },
+    {
+      "name": "repeat visit reuses one customer",
+      "status": "PASS"
+    },
+    {
+      "name": "repeat visit reuses one device",
+      "status": "PASS"
+    },
+    {
+      "name": "receipt counter advances exactly twice",
+      "status": "PASS"
+    },
+    {
+      "name": "two drafts persisted with terminal outcomes",
+      "status": "PASS"
+    },
+    {
+      "name": "draft 1 payload encrypted at rest",
+      "status": "PASS"
+    },
+    {
+      "name": "draft 1 encryption roundtrip",
+      "status": "PASS"
+    },
+    {
+      "name": "draft 2 payload encrypted at rest",
+      "status": "PASS"
+    },
+    {
+      "name": "draft 2 encryption roundtrip",
+      "status": "PASS"
+    },
+    {
+      "name": "invoice retry persists one exact-rial invoice",
+      "status": "PASS"
+    },
+    {
+      "name": "payment retry persists one exact payment",
+      "status": "PASS"
+    },
+    {
+      "name": "invoice and payment ledger events written once",
+      "status": "PASS"
+    },
+    {
+      "name": "versioned case report has one audit",
+      "status": "PASS"
+    },
+    {
+      "name": "both cases preserve accepted receipt evidence",
+      "status": "PASS"
+    },
+    {
+      "name": "both portal tokens stored only as hashes",
+      "status": "PASS"
+    },
+    {
+      "name": "initial stock retains five available units",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery retry persists exactly one delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery locks the workflow and clears its temporary secret",
+      "status": "PASS"
+    },
+    {
+      "name": "valid same-branch same-case delivery replay returns original ID",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery replay reveals nothing to another branch",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery replay reveals nothing to another shop",
+      "status": "PASS"
+    },
+    {
+      "name": "same key for a different case conflicts without replay",
+      "status": "PASS"
+    }
+  ]
+}

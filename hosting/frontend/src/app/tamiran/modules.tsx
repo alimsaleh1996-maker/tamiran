@@ -760,6 +760,14 @@ function ReceptionPage({
     >;
   };
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const stepFormRef = React.useRef<HTMLDivElement>(null);
+  const previousStepRef = React.useRef(step);
+  useEffect(() => {
+    if (previousStepRef.current === step) return;
+    previousStepRef.current = step;
+    stepFormRef.current?.focus();
+    stepFormRef.current?.scrollIntoView({ block: "start" });
+  }, [step]);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [savingReceipt, setSavingReceipt] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(receptionIdempotencyKey);
@@ -1623,7 +1631,7 @@ function ReceptionPage({
       )}
 
       <div className="reception-layout">
-        <div className="form-stack">
+        <div className="form-stack" ref={stepFormRef} tabIndex={-1} role="group" aria-label={`فرم مرحله ${step} از ۳`}>
           {step === 1 && (
             <section className="form-card panel reception-step-card">
               <SectionTitle
@@ -1966,6 +1974,7 @@ function ReceptionPage({
                     <button
                       type="button"
                       key={item}
+                      aria-pressed={accessories.includes(item)}
                       className={accessories.includes(item) ? "selected" : ""}
                       onClick={() => toggleAccessory(item)}
                     >
@@ -1995,6 +2004,7 @@ function ReceptionPage({
                     <button
                       type="button"
                       key={item}
+                      aria-pressed={appearanceStates.includes(item)}
                       className={
                         appearanceStates.includes(item) ? "selected" : ""
                       }
@@ -2091,9 +2101,10 @@ function ReceptionPage({
                   <strong>
                     نحوه برخورد با اطلاعات دستگاه <b>*</b>
                   </strong>
-                  <div>
+                  <div role="group" aria-label="مجوز حذف اطلاعات دستگاه">
                     <button
                       type="button"
+                      aria-pressed={dataHandling === "no_erasure"}
                       className={
                         dataHandling === "no_erasure" ? "selected" : ""
                       }
@@ -2104,6 +2115,7 @@ function ReceptionPage({
                     </button>
                     <button
                       type="button"
+                      aria-pressed={dataHandling === "coordinate_first"}
                       className={
                         dataHandling === "coordinate_first" ? "selected" : ""
                       }
@@ -2116,6 +2128,7 @@ function ReceptionPage({
                     </button>
                     <button
                       type="button"
+                      aria-pressed={dataHandling === "erase_authorized"}
                       className={
                         dataHandling === "erase_authorized" ? "selected" : ""
                       }
