@@ -42,6 +42,11 @@ summary:focus-visible { outline: 3px solid #146b66; outline-offset: 3px; }
 .dashboard-welcome::before, .dashboard-welcome::after { display: none; }
 .dashboard-actions { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .dashboard-actions small { color: var(--text-muted-readable); }
+.followup-dashboard-overview.is-empty { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-block: 12px; }
+.followup-dashboard-overview.is-empty article { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; }
+.followup-dashboard-panel:has(.followup-dashboard-overview.is-empty) .dashboard-empty-state { padding: 14px; border: 0; background: none; }
+.reception-page .choice-chips button { min-height: 44px; }
+.reception-page input::placeholder, .reception-page textarea::placeholder { color: var(--text-muted-readable); opacity: 1; }
 .dashboard-secondary { margin-block: 18px; }
 .dashboard-secondary > summary { cursor: pointer; color: #146b66; font-weight: 700; padding: 16px; border: 1px solid #c9dfdc; border-radius: 16px; background: #fff; }
 .dashboard-secondary[open] > summary { margin-block-end: 16px; }

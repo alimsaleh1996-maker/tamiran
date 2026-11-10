@@ -1348,10 +1348,6 @@ function Dashboard({
     <>
       <section className="welcome-panel dashboard-welcome">
         <div className="welcome-copy">
-          <span className="welcome-chip">
-            <Activity size={16} />
-            وضعیت زنده امروز
-          </span>
           <h2>{profile.shopName}</h2>
           <p>
             {loading
@@ -1471,7 +1467,7 @@ function Dashboard({
             </button>
           }
         />
-        <div className="followup-dashboard-overview">
+        <div className={`followup-dashboard-overview ${activeFollowUps.length === 0 ? "is-empty" : ""}`}>
           <article>
             <span>جدید</span>
             <strong>

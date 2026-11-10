@@ -1974,6 +1974,7 @@ function ReceptionPage({
                     <button
                       type="button"
                       key={item}
+                      aria-pressed={accessories.includes(item)}
                       className={accessories.includes(item) ? "selected" : ""}
                       onClick={() => toggleAccessory(item)}
                     >
@@ -2003,6 +2004,7 @@ function ReceptionPage({
                     <button
                       type="button"
                       key={item}
+                      aria-pressed={appearanceStates.includes(item)}
                       className={
                         appearanceStates.includes(item) ? "selected" : ""
                       }
@@ -2099,9 +2101,10 @@ function ReceptionPage({
                   <strong>
                     نحوه برخورد با اطلاعات دستگاه <b>*</b>
                   </strong>
-                  <div>
+                  <div role="group" aria-label="مجوز حذف اطلاعات دستگاه">
                     <button
                       type="button"
+                      aria-pressed={dataHandling === "no_erasure"}
                       className={
                         dataHandling === "no_erasure" ? "selected" : ""
                       }
@@ -2112,6 +2115,7 @@ function ReceptionPage({
                     </button>
                     <button
                       type="button"
+                      aria-pressed={dataHandling === "coordinate_first"}
                       className={
                         dataHandling === "coordinate_first" ? "selected" : ""
                       }
@@ -2124,6 +2128,7 @@ function ReceptionPage({
                     </button>
                     <button
                       type="button"
+                      aria-pressed={dataHandling === "erase_authorized"}
                       className={
                         dataHandling === "erase_authorized" ? "selected" : ""
                       }
