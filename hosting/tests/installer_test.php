@@ -46,6 +46,12 @@ install_check(count($triggers) === 8, 'all eight immutable-identity/ledger trigg
 install_check(count(array_filter($statements, fn($sql) => preg_match('/^ALTER TABLE (repair_customer_devices ADD COLUMN row_version|repair_reception_drafts ADD COLUMN row_version|repair_cases ADD COLUMN reception_request_hash)/', $sql))) === 3, 'three hosting concurrency additions parsed');
 install_check(!array_filter($statements, fn($sql) => preg_match('/^CREATE DATABASE /i', $sql)), 'does not require CREATE DATABASE');
 install_rejected(fn() => tamiran_install_sql_statements('CREATE TABLE incomplete'), 'reject truncated SQL');
+$dbError = new PDOException('SECRET-DO-NOT-PRINT');
+$dbError->errorInfo = ['42000', 1142, 'SECRET-DO-NOT-PRINT'];
+$diagnostic = tamiran_install_safe_diagnostic($dbError, 'schema', 12, 120);
+install_check(str_contains($diagnostic, '12') && str_contains($diagnostic, '1142') && !str_contains($diagnostic, 'SECRET'), 'diagnostic exposes safe stage and database code without raw error');
+install_check(str_contains(tamiran_install_safe_diagnostic(new RuntimeException('CONFIG_PUBLISH_FAILED'), 'publish', 0, 0), 'CONFIG_PUBLISH_FAILED'), 'config publication failure has a safe diagnostic');
+install_check(!str_contains(tamiran_install_safe_diagnostic(new RuntimeException('SECRET-DO-NOT-PRINT'), 'config', 0, 0), 'SECRET'), 'unexpected private exception text stays hidden');
 
 $temporary = sys_get_temp_dir() . '/tamiran-installer-test-' . bin2hex(random_bytes(8));
 mkdir($temporary, 0700);
@@ -53,6 +59,8 @@ mkdir($temporary . '/database', 0700);
 file_put_contents($temporary . '/database/schema.sql', $schema);
 try {
     install_check(!tamiran_install_is_complete($temporary), 'fresh directory is not installed');
+    tamiran_install_check_config_publication($temporary);
+    install_check(!glob($temporary . '/.install-publish-check-*'), 'atomic publication preflight cleans up its files');
     tamiran_install_ensure_key($temporary);
     $installKey = trim(file_get_contents($temporary . '/install.key'));
     install_check(preg_match('/^[a-f0-9]{64}$/D', $installKey) === 1, 'filesystem install key has 256 bits');
