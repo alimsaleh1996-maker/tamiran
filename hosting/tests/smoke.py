@@ -369,6 +369,9 @@ def run(args):
             runner.check("technician resumes repair after parts", lambda: advance("repairing"))
         runner.check("repair enters parts closeout", lambda: advance("parts_closeout"))
         runner.check("parts closeout enters independent QC", lambda: advance("qc_pending"))
+        if args.quality_browser_output:
+            from phase3_quality_browser import check_quality_browser
+            check_quality_browser(runner, args.url, manager, args.quality_browser_output)
         qc = roles["quality_control"][0]
         templates = qc.api("quality-v2.php")["templates"]
         workflow_code = technician.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]["workflowCode"]
@@ -451,6 +454,7 @@ def main():
     parser.add_argument("--admin-mobile", default="09990000000")
     parser.add_argument("--run-id")
     parser.add_argument("--advanced", action="store_true", help="Exercise Pro inventory and independent QC")
+    parser.add_argument("--quality-browser-output", help="Run real Chromium QC checks and save a synthetic screenshot")
     parser.add_argument("--conditional", action="store_true", help="Exercise conditional QC acknowledgement")
     parser.add_argument("--branch-fixture-php", help="PHP executable for strictly local synthetic branch fixture")
     parser.add_argument("--report", default="/workspace/scratch/tamiran-php-smoke.json")

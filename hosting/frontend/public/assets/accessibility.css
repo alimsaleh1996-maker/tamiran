@@ -3,6 +3,13 @@
   --action-text-readable: #146b66;
 }
 
+/* Queue cards are selection controls, not primary action buttons. */
+.v2-card-form .v2-queue-card { display: grid; color: #173f3c; background: #fff; }
+.v2-card-form .v2-queue-card:hover,
+.v2-card-form .v2-queue-card.selected { color: #173f3c; background: #f2fbfa; border-color: #147a74; }
+.v2-card-form .v2-queue-card small { color: #536c69; }
+.v2-card-form .v2-queue-card em { color: #146b66; }
+
 .stat-body small,
 .panel-heading p,
 .form-progress-item small,
@@ -99,4 +106,20 @@ summary:focus-visible { outline: 3px solid #146b66; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   .sidebar, .app-modal, .modal-backdrop { animation: none; transition: none; }
   html { scroll-behavior: auto; }
+}
+.v2-qc-test-item label { display: grid; gap: 6px; }
+.v2-qc-test-item label input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #b8cecb;
+  border-radius: 12px;
+  background: #fff;
+  color: #173f3c;
+  font: inherit;
+}
+.v2-qc-test-item label input::placeholder { color: #536c69; opacity: 1; }
+@media (max-width: 720px) {
+  .v2-card-form .v2-queue-card { grid-template-columns: minmax(0, 1fr); }
+  .v2-card-form .v2-queue-card > * { min-width: 0; overflow-wrap: anywhere; }
 }

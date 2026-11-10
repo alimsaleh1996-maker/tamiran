@@ -1148,6 +1148,7 @@ function InventoryBoard({
                 type="button"
                 key={item.id}
                 className={`v2-queue-card ${selectedRequestCase?.id === item.id ? "selected" : ""}`}
+                aria-pressed={selectedRequestCase?.id === item.id}
                 onClick={() => setRequest({ ...request, caseId: String(item.id) })}
               >
                 <strong dir="ltr">{item.receiptNumber}</strong>
@@ -1464,6 +1465,7 @@ function InventoryBoard({
                     <td data-label="شمارش واقعی">
                       <input
                         className="v2-count-input"
+                        aria-label={`شمارش واقعی ${item.item_title}، کد ${item.item_code}`}
                         inputMode="numeric"
                         value={
                           stocktakeCounts[Number(item.item_id)] ??
@@ -2010,6 +2012,7 @@ function QualityBoard({
               type="button"
               key={item.id}
               className={`v2-queue-card ${selected?.id === item.id ? "selected" : ""}`}
+              aria-pressed={selected?.id === item.id}
               onClick={() => { setCaseId(String(item.id)); setChecks({}); }}
             >
               <strong dir="ltr">{item.receiptNumber}</strong>
@@ -2067,11 +2070,11 @@ function QualityBoard({
                   </select>
                 </label>
                 {checks[item.id] === "failed" && (
-                  <input
+                  <label><span>شرح ایراد {item.title} (الزامی)</span><input
                     value={checkNotes[item.id] ?? ""}
                     onChange={(event) => setCheckNotes({ ...checkNotes, [item.id]: event.target.value })}
                     placeholder="شرح ایراد این تست (الزامی)"
-                  />
+                  /></label>
                 )}
               </div>
             ))}
@@ -2080,7 +2083,7 @@ function QualityBoard({
                 <div key={item.id} className="v2-qc-test-item">
                   <label><span>عنوان تست سفارشی</span><input value={item.title} onChange={(event) => setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, title: event.target.value } : test))} /></label>
                   <label><span>نتیجه</span><select value={item.result} onChange={(event) => { const nextResult = event.target.value; setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, result: nextResult } : test)); if (nextResult === "failed") setResult("failed"); }}><option value="passed">قبول</option><option value="failed">رد</option><option value="not_applicable">قابل اعمال نیست</option><option value="not_tested">تست نشده</option></select></label>
-                  {item.result === "failed" && <input value={item.notes} onChange={(event) => setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, notes: event.target.value } : test))} placeholder="شرح ایراد تست سفارشی (الزامی)" />}
+                  {item.result === "failed" && <label><span>شرح ایراد تست {item.title || "سفارشی"} (الزامی)</span><input value={item.notes} onChange={(event) => setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, notes: event.target.value } : test))} placeholder="شرح ایراد تست سفارشی (الزامی)" /></label>}
                   <button type="button" className="v2-mini-action" onClick={() => setCustomTests(customTests.filter((test) => test.id !== item.id))}>حذف</button>
                 </div>
               ))}
@@ -2243,7 +2246,7 @@ function FinanceBoard({
           {visibleDrafts.map((draft) => {
             const item = cases.find((candidate) => candidate.id === draft.caseId);
             return (
-              <button type="button" key={`draft-${draft.caseId}`} className={`v2-queue-card ${selectedDraft?.caseId === draft.caseId ? "selected" : ""}`} onClick={() => {
+              <button type="button" key={`draft-${draft.caseId}`} className={`v2-queue-card ${selectedDraft?.caseId === draft.caseId ? "selected" : ""}`} aria-pressed={selectedDraft?.caseId === draft.caseId} onClick={() => {
                 setRefund({ ...refund, invoice: "", amount: "", reason: "" });
                 setPayment({ ...payment, invoice: "", amount: "" });
                 setForm({ ...form, caseId: String(draft.caseId) });
@@ -2258,7 +2261,7 @@ function FinanceBoard({
           {openInvoices.map((invoice) => {
             const item = cases.find((candidate) => candidate.id === invoice.case_id);
             return (
-              <button type="button" key={`invoice-${invoice.id}`} className={`v2-queue-card ${selectedInvoice?.id === invoice.id ? "selected" : ""}`} onClick={() => {
+              <button type="button" key={`invoice-${invoice.id}`} className={`v2-queue-card ${selectedInvoice?.id === invoice.id ? "selected" : ""}`} aria-pressed={selectedInvoice?.id === invoice.id} onClick={() => {
                 setRefund({ ...refund, invoice: "", amount: "", reason: "" });
                 setForm({ ...form, caseId: "" });
                 setPayment({ ...payment, invoice: invoice.public_id, amount: String(invoice.balance) });
@@ -2580,6 +2583,7 @@ function DeliveryBoard({
                 type="button"
                 key={item.case_id}
                 className={`v2-queue-card ${selected?.case_id === item.case_id ? "selected" : ""}`}
+                aria-pressed={selected?.case_id === item.case_id}
                 onClick={() => {
                   setForm({ ...form, caseId: String(item.case_id), name: item.customer_name, mobile: item.customer_mobile });
                   setConfirmedAccessories([]);

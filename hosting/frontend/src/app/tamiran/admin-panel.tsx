@@ -2762,12 +2762,14 @@ function SalesSection({
             <label className="central-admin-ticket-search">
               <Search size={17} />
               <input
+                aria-label="جست‌وجوی خریدار یا شماره فاکتور"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="جست‌وجوی خریدار یا شماره فاکتور"
               />
             </label>
             <select
+              aria-label="وضعیت فاکتور"
               value={status}
               onChange={(event) => setStatus(event.target.value)}
             >
@@ -4625,6 +4627,7 @@ export function SupportTickets({
                     {central ? (
                       <select
                         className="central-admin-ticket-status"
+                        aria-label={`وضعیت درخواست ${ticket.subject}، ${ticket.public_id}`}
                         value={ticket.status}
                         onChange={(event) =>
                           void setTicketStatus(
