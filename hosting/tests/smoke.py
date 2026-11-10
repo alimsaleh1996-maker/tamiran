@@ -260,6 +260,11 @@ def run(args):
     created = runner.check("reception creates real customer device receipt and case", lambda: reception.api("operations.php", "POST", case_request))
     case = created["repairCase"]
     case_id = case["id"]
+    admin.api("admin-users.php", "POST", {"shopId": shop_id, "displayName": marker + "-UNASSIGNED", "mobile": mobile(30), "password": staff_password, "role": "technician", "branchIds": [branch_id]})
+    unassigned = Client(args.url)
+    unassigned.login(mobile(30), staff_password)
+    estimate_input = {"action": "estimate_create", "caseId": case_id, "items": [{"type": "labor", "title": marker, "quantity": 1, "unitPrice": 10000}]}
+    runner.check("unassigned technician cannot create an estimate", lambda: unassigned.api("workflow-v2.php", "POST", estimate_input, expected=403))
     runner.check("case retry reuses receipt and device", lambda: expect(reception.api("operations.php", "POST", case_request)["repairCase"]["id"] == case_id, "case replay duplicated"))
     runner.check("changed idempotency payload conflicts", lambda: reception.api("operations.php", "POST", {**case_request, "declaredIssue": marker + "-ALTERED"}, expected=409))
     lookup = runner.check("customer lookup returns stored device", lambda: reception.api("operations.php?customerMobile=" + mobile(20)))
@@ -270,6 +275,14 @@ def run(args):
     runner.check("existing device stale version rejected", lambda: reception.api("operations.php", "POST", {**second_request, "expectedDeviceVersion": device["expectedDeviceVersion"] + 1}, expected=409))
     second = runner.check("existing device accepted with authoritative version", lambda: reception.api("operations.php", "POST", second_request))
     runner.check("repeat visit preserves customer and device IDs", lambda: expect(second["repairCase"]["deviceId"] == case["deviceId"] and second["repairCase"]["customerId"] == case["customerId"], "repeat visit duplicated device or customer"))
+    estimate_input["caseId"] = second["repairCase"]["id"]
+    estimate = runner.check("manager creates estimate above customer limit", lambda: manager.api("workflow-v2.php", "POST", estimate_input)["estimate"])
+    runner.check("unassigned technician cannot send estimate", lambda: unassigned.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}, expected=403))
+    runner.check("foreign shop cannot send estimate", lambda: other.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}, expected=404))
+    runner.check("manager sends estimate", lambda: manager.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}))
+    decision = {"action": "estimate_decide", "estimatePublicId": estimate["publicId"], "decision": "approved", "channel": "recorded_phone"}
+    runner.check("reception records customer approval", lambda: reception.api("workflow-v2.php", "POST", decision))
+    runner.check("customer decision cannot be repeated", lambda: reception.api("workflow-v2.php", "POST", decision, expected=409))
     patch = {"id": case_id, "expectedVersion": case["expectedVersion"], "operationReport": marker + "-DIAGNOSIS"}
     runner.check("assigned technician writes versioned case report", lambda: technician.api("operations.php", "PATCH", patch))
     runner.check("stale case patch cannot overwrite report", lambda: technician.api("operations.php", "PATCH", patch, expected=409))
