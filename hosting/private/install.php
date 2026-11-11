@@ -4,6 +4,31 @@ declare(strict_types=1);
 /** Installation errors contain safe operator messages only, never PDO messages. */
 final class TamiranInstallException extends RuntimeException {}
 
+function tamiran_install_request_id(): string
+{
+    static $id = null;
+    return $id ??= bin2hex(random_bytes(12));
+}
+
+/** Installer has no config yet; log bounded metadata only, never SQL or credentials. */
+function tamiran_install_log(string $privateDir, string $event, string $stage = 'preparation', int $statement = 0, ?Throwable $error = null): void
+{
+    $dir = $privateDir . '/logs';
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    $record = ['time'=>gmdate('c'), 'level'=>$event === 'install_completed' ? 'INFO' : 'WARNING',
+        'event'=>$event, 'request_id'=>tamiran_install_request_id(), 'stage'=>$stage, 'statement'=>$statement];
+    if ($error instanceof PDOException) {
+        $state = (string) $error->getCode();
+        if (preg_match('/^[A-Z0-9]{5}$/D', $state)) $record['sqlstate'] = $state;
+        $vendor = $error->errorInfo[1] ?? null;
+        if (is_int($vendor) || (is_string($vendor) && ctype_digit($vendor) && strlen($vendor) <= 6)) $record['db_code'] = (int) $vendor;
+    }
+    $oldUmask = umask(0077);
+    $written = @file_put_contents($dir . '/tamiran-' . gmdate('Y-m-d') . '.log', json_encode($record, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . PHP_EOL, FILE_APPEND | LOCK_EX);
+    umask($oldUmask);
+    if ($written === false && function_exists('error_log')) error_log('tamiran: unable to write private installer log');
+}
+
 /** Check exclusive creation and same-directory rename before any database writes. */
 function tamiran_install_check_config_publication(string $privateDir): void
 {
@@ -283,9 +308,11 @@ function tamiran_install(array $input, string $privateDir): array
         @file_put_contents($privateDir . '/installed.lock', gmdate('c') . "\n", LOCK_EX);
         umask($oldUmask);
         @unlink($privateDir . '/install.key');
+        tamiran_install_log($privateDir, 'install_completed', 'complete');
         return ['admin_id' => $adminId, 'mobile' => $values['admin']['mobile'], 'tables' => count($pdo->query('SHOW FULL TABLES')->fetchAll())];
     } catch (Throwable $error) {
         if ($pdo instanceof PDO && $pdo->inTransaction()) $pdo->rollBack();
+        tamiran_install_log($privateDir, 'install_failed', $stage, $statementNumber, $error);
         if ($error instanceof TamiranInstallException) throw $error;
         throw new TamiranInstallException($schemaStarted
             ? 'نصب کامل نشد و فایل تنظیمات فعال نشد. جدول‌های نصب ناقص حفظ شدند؛ برای تکرار از دیتابیس خالی تازه استفاده کنید. ' . tamiran_install_safe_diagnostic($error, $stage, $statementNumber, $statementCount) . '. دسترسی CREATE، ALTER، INDEX و TRIGGER و سازگاری MySQL 8 یا MariaDB 10.6+ را بررسی کنید.'

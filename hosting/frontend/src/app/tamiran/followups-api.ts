@@ -1,3 +1,4 @@
+import { diagnosticFetch } from '../shared/client-diagnostics';
 import type { CaseFollowUp, FollowUpStatus } from "./followups";
 
 type ApiEnvelope<T> = {
@@ -48,7 +49,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 async function getCsrfToken() {
   if (csrfToken) return csrfToken;
-  const response = await fetch("/api/csrf.php", {
+  const response = await diagnosticFetch("/api/csrf.php", {
     credentials: "same-origin",
     cache: "no-store",
     headers: { Accept: "application/json" },
@@ -60,7 +61,7 @@ async function getCsrfToken() {
 
 export async function loadFollowUps(): Promise<CaseFollowUp[] | null> {
   if (!directAdminApiEnabled) return null;
-  const response = await fetch("/api/followups.php", {
+  const response = await diagnosticFetch("/api/followups.php", {
     credentials: "same-origin",
     cache: "no-store",
     headers: { Accept: "application/json" },
@@ -82,7 +83,7 @@ async function mutateFollowUp(
   retry = true,
 ): Promise<CaseFollowUp> {
   const token = await getCsrfToken();
-  const response = await fetch("/api/followups.php", {
+  const response = await diagnosticFetch("/api/followups.php", {
     method,
     credentials: "same-origin",
     cache: "no-store",

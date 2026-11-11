@@ -1,3 +1,4 @@
+import { diagnosticFetch } from '../shared/client-diagnostics';
 import { directAdminApiEnabled, FollowUpApiError } from "./followups-api";
 import type {
   CreateInventoryItemInput,
@@ -43,7 +44,7 @@ async function readEnvelope<T>(response: Response): Promise<Envelope<T>> {
 }
 async function getCsrfToken(): Promise<string> {
   if (csrf) return csrf;
-  const response = await fetch("/api/csrf.php", {
+  const response = await diagnosticFetch("/api/csrf.php", {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
   });
@@ -66,7 +67,7 @@ export async function directAdminRequest<T>(
   if (!directAdminApiEnabled)
     throw new FollowUpApiError("نسخه سرور DirectAdmin فعال نیست.");
   const token = needsCsrf ? await getCsrfToken() : null;
-  const response = await fetch(path, {
+  const response = await diagnosticFetch(path, {
     credentials: "same-origin",
     cache: "no-store",
     ...init,

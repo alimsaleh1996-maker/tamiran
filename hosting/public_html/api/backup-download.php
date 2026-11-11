@@ -15,7 +15,9 @@ try {
     if (!is_file($path)) throw new TamiranApiException('فایل بکاپ موجود نیست.',404);
     $checksum=hash_file('sha256',$path);
     if (!is_string($checksum) || !hash_equals((string)$row['checksum_sha256'],$checksum)) throw new TamiranApiException('صحت فایل بکاپ تأیید نشد.',422);
+    header('X-Request-ID: ' . tamiran_request_id());
     header('Content-Type: application/octet-stream'); header('Content-Disposition: attachment; filename="' . basename($path) . '"');
     header('Content-Length: ' . filesize($path)); header('Cache-Control: no-store'); header('X-Content-Type-Options: nosniff');
+    tamiran_log_response(200);
     readfile($path); exit;
 } catch (Throwable $error) { tamiran_fail($error); }

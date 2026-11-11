@@ -27,7 +27,7 @@
   "page_errors": [],
   "network_requests": [],
   "scope": "Generated graph viewer only; no application/database/model execution",
-  "source_commit": "ca59470bd6e476f8784d3dbcc13a30e7c09c121f",
+  "source_commit": "642701bafbfc46de53de514d95adfa7708039c73",
   "full_viewer_offline_smoke": {
     "canvas_present": true,
     "page_errors": 0,

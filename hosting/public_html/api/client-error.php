@@ -35,24 +35,20 @@ tamiran_api(static function (): array {
     if ($rate['count'] > 10) return ['logged'=>false, 'rate_limited'=>true];
 
     $input = tamiran_json_body();
-    $reference = strtoupper(client_error_text($input['reference'] ?? '', 80));
+    $reference = strtoupper(client_error_text(is_string($input['reference'] ?? null) ? $input['reference'] : '', 80));
     if (!preg_match('/^UI-[A-Z0-9-]{6,76}$/', $reference)) $reference = 'UI-' . strtoupper(substr(tamiran_request_id(), 0, 16));
-    $message = client_error_text($input['message'] ?? 'خطای ناشناخته رابط کاربری', 500);
-    $stack = client_error_text($input['stack'] ?? '', 4000);
-    $componentStack = client_error_text($input['componentStack'] ?? '', 2000);
-    $page = (string) parse_url(client_error_text($input['page'] ?? '/', 300), PHP_URL_PATH);
-    $source = (string) parse_url(client_error_text($input['source'] ?? '', 300), PHP_URL_PATH);
+    // Never persist free-form browser text, URLs, stacks, form values or headers.
+    $kind = is_string($input['kind'] ?? null) ? $input['kind'] : 'runtime';
+    if (!in_array($kind, ['runtime', 'unhandled_rejection', 'render', 'network_failure', 'operation_failure'], true)) $kind = 'runtime';
+    $endpoint = is_string($input['endpoint'] ?? null) ? $input['endpoint'] : '';
+    if (strlen($endpoint) > 120 || !preg_match('~^/api/[a-z0-9_-]+\.php$~D', $endpoint)) $endpoint = '';
+    $status = filter_var($input['status'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>100, 'max_range'=>599]]);
 
-    tamiran_log('error', 'client_runtime_error', [
+    $logged = tamiran_log('error', 'client_runtime_error', [
         'client_reference'=>$reference,
-        'message'=>$message,
-        'stack'=>$stack,
-        'component_stack'=>$componentStack,
-        'page'=>$page ?: '/',
-        'source'=>$source,
-        'client_version'=>client_error_text($input['version'] ?? '', 30),
-        'browser'=>client_error_text($_SERVER['HTTP_USER_AGENT'] ?? '', 240),
-        'ip_hash'=>hash('sha256', 'client-error|' . tamiran_client_ip()),
+        'kind'=>$kind,
+        'endpoint'=>$endpoint !== '' ? $endpoint : null,
+        'status'=>$status !== false ? $status : null,
     ]);
-    return ['logged'=>true, 'reference'=>$reference];
+    return ['logged'=>$logged, 'reference'=>$reference];
 });

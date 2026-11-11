@@ -31,8 +31,10 @@ if (!$complete && $allowed) {
     catch (TamiranInstallException $exception) { $error = $exception->getMessage(); }
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 16384) {
+            tamiran_install_log($privateDir, 'install_body_rejected');
             http_response_code(413); $error = 'حجم فرم نصب بیش از حد مجاز است.';
         } elseif (!is_string($_POST['csrf_token'] ?? null) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+            tamiran_install_log($privateDir, 'install_csrf_rejected');
             http_response_code(403); $error = 'نشست فرم معتبر نیست؛ صفحه را تازه‌سازی کنید.';
         } else {
             try {
@@ -42,13 +44,16 @@ if (!$complete && $allowed) {
                 session_destroy();
                 $complete = true;
             } catch (TamiranInstallException $exception) {
-                http_response_code(422); $error = $exception->getMessage();
+                tamiran_install_log($privateDir, 'install_rejected');
+                http_response_code(422); $error = $exception->getMessage() . ' کد پیگیری نصب: ' . tamiran_install_request_id();
             } catch (Throwable) {
-                http_response_code(500); $error = 'نصب کامل نشد؛ پیش‌نیازها و خالی‌بودن دیتابیس را بررسی کنید.';
+                tamiran_install_log($privateDir, 'install_unexpected_error');
+                http_response_code(500); $error = 'نصب کامل نشد؛ پیش‌نیازها و خالی‌بودن دیتابیس را بررسی کنید. کد پیگیری نصب: ' . tamiran_install_request_id();
             }
         }
     }
 } elseif (!$complete) { http_response_code(403); }
+if ($error !== null && !str_contains($error, 'کد پیگیری نصب:')) $error .= ' کد پیگیری نصب: ' . tamiran_install_request_id();
 $csrf = $_SESSION['csrf_token'] ?? '';
 ?>
 <!doctype html>
