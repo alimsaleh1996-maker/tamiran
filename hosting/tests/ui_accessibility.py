@@ -54,8 +54,19 @@ def run(a):
         check('Visible dashboard text meets minimum contrast',lambda:expect(not page.evaluate(audit),str(page.evaluate(audit))))
         check('Real one-case statistic is shown',lambda:expect(page.locator('.stat-card strong').first.inner_text()=='۱','wrong baseline'))
         page.screenshot(path=str(out/'dashboard-readable.png'),full_page=True)
-        page.route('**/api/operations.php*',lambda r:r.abort());page.reload(wait_until='networkidle')
+        page.route('**/api/operations.php*',lambda r:r.abort())
+        with page.expect_response(lambda r:'/api/client-error.php' in r.url and r.request.method=='POST') as diagnostic:
+            page.reload(wait_until='networkidle')
+        check('Browser reports failed operations request',lambda:expect(diagnostic.value.status==200,'browser diagnostic failed'))
         check('Initial API failure never renders false zero statistics',lambda:expect(page.locator('.stats-grid').count()==0 and page.locator('.operational-error').count()==1,'error looks empty'))
+        def visible_diagnostic_reference():
+            import re
+            match = re.search(r'UI-[A-F0-9]{24}', page.locator('.operational-error').inner_text())
+            expect(match is not None, 'diagnostic reference missing from error')
+            log = Path(__file__).resolve().parents[1] / 'private' / 'logs' / ('tamiran-' + dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d') + '.log')
+            rows = [json.loads(line) for line in log.read_text().splitlines() if match.group() in line]
+            expect(any(row.get('event') == 'client_runtime_error' and row.get('context', {}).get('kind') == 'operation_failure' for row in rows), 'visible reference has no corresponding diagnostic')
+        check('Visible operational error has a matching private diagnostic', visible_diagnostic_reference)
         check('Persistent retry is available',lambda:expect(page.get_by_role('button',name='تلاش مجدد',exact=True).is_enabled(),'retry missing'))
         page.screenshot(path=str(out/'initial-load-error.png'),full_page=True)
         page.unroute('**/api/operations.php*');page.get_by_role('button',name='تلاش مجدد',exact=True).click();page.locator('.stats-grid').wait_for()

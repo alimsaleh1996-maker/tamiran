@@ -1,5 +1,7 @@
 "use client";
 
+import { diagnosticFetch } from '../shared/client-diagnostics';
+
 import {
   Building2,
   ChevronRight,
@@ -156,7 +158,7 @@ export function AccessGateway({
     setCaptchaReady(false);
     setCaptchaFailed(false);
     setCaptchaAudioFailed(false);
-    void fetch(`/api/captcha.php?mode=init&v=${captchaNonce}`, { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } })
+    void diagnosticFetch(`/api/captcha.php?mode=init&v=${captchaNonce}`, { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } })
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok || !payload.ok || !payload.data?.audioAvailable) throw new Error("CAPTCHA unavailable");

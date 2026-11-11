@@ -89,6 +89,7 @@ import { TechnicianWorkbench } from "./technician-workbench";
 import { CustomerPortal } from "./customer-portal";
 import { APP_VERSION } from "./version";
 import { loadOperationalBootstrap } from "../software/operational-bootstrap";
+import { reportClientDiagnostic } from "../shared/client-diagnostics";
 import { parseActiveReceiptTerms } from "../software/reception-ui-contract";
 
 const workspaceSessionKey = "tamiran_workspace_session";
@@ -364,12 +365,13 @@ export default function Home() {
         if (followUpResult.status === "fulfilled" && followUpResult.value)
           setFollowUps(followUpResult.value);
         if (core.status === "rejected") {
+          const clientReference = reportClientDiagnostic("operation_failure");
           const trackingCode =
             core.reason instanceof FollowUpApiError
               ? core.reason.trackingCode
               : undefined;
           setOperationsError(
-            `بارگذاری اطلاعات عملیاتی ناموفق بود${trackingCode ? ` · کد رهگیری ${trackingCode}` : ""}`,
+            `بارگذاری اطلاعات عملیاتی ناموفق بود${trackingCode ? ` · کد رهگیری ${trackingCode}` : ` · شناسه بررسی ${clientReference}`}`,
           );
           return;
         }
@@ -623,10 +625,11 @@ export default function Home() {
       setDeviceCatalog(catalog);
       if (bootstrapValid.current) setOperationsError(null);
     } catch (error) {
+      const clientReference = reportClientDiagnostic("operation_failure");
       const trackingCode =
         error instanceof FollowUpApiError ? error.trackingCode : undefined;
       setOperationsError(
-        `به‌روزرسانی اطلاعات انجام نشد${trackingCode ? ` · کد رهگیری ${trackingCode}` : ""}`,
+        `به‌روزرسانی اطلاعات انجام نشد${trackingCode ? ` · کد رهگیری ${trackingCode}` : ` · شناسه بررسی ${clientReference}`}`,
       );
     } finally {
       setOperationsLoading(false);

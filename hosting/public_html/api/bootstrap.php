@@ -62,9 +62,10 @@ function tamiran_config(): array
 function tamiran_sanitize_log_value(mixed $value, string $key = ''): mixed
 {
     $normalizedKey = strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $key) ?? $key);
-    foreach (['password','secret','token','authorization','cookie','captcha','apple_id','google_account'] as $sensitivePart) {
+    foreach (['password','secret','token','authorization','cookie','captcha','apple_id','google_account','message','stack','reason','error'] as $sensitivePart) {
         if ($normalizedKey !== '' && str_contains($normalizedKey, $sensitivePart)) return '[REDACTED]';
     }
+    if ($normalizedKey === 'actor' && is_string($value)) return '[REDACTED]';
     if (is_array($value)) {
         $clean = [];
         foreach ($value as $childKey => $childValue) {
@@ -78,11 +79,11 @@ function tamiran_sanitize_log_value(mixed $value, string $key = ''): mixed
     return $value;
 }
 
-function tamiran_log(string $level, string $event, array $context = []): void
+function tamiran_log(string $level, string $event, array $context = []): bool
 {
     $logDirectory = tamiran_private_root() . '/logs';
     if (!is_dir($logDirectory)) {
-        @mkdir($logDirectory, 0770, true);
+        @mkdir($logDirectory, 0700, true);
     }
 
     $record = [
@@ -92,15 +93,30 @@ function tamiran_log(string $level, string $event, array $context = []): void
         'request_id' => tamiran_request_id(),
         'version' => TAMIRAN_VERSION,
         'method' => $_SERVER['REQUEST_METHOD'] ?? null,
-        'route' => isset($_SERVER['REQUEST_URI']) ? parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH) : null,
+        // A path can contain customer identifiers or tokens. API filenames are bounded.
+        'route' => preg_match('/^[a-z0-9_-]+\.php$/i', basename((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''))) ? basename((string) $_SERVER['SCRIPT_FILENAME']) : null,
         'context' => tamiran_sanitize_log_value($context),
     ];
 
-    @file_put_contents(
-        $logDirectory . '/tamiran-' . gmdate('Y-m-d') . '.log',
-        json_encode($record, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL,
-        FILE_APPEND | LOCK_EX,
-    );
+    $path = $logDirectory . '/tamiran-' . gmdate('Y-m-d') . '.log';
+    $encoded = json_encode($record, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    $oldUmask = umask(0077);
+    $written = is_string($encoded) ? @file_put_contents($path, $encoded . PHP_EOL, FILE_APPEND | LOCK_EX) : false;
+    umask($oldUmask);
+    if ($written === false || !is_string($encoded) || $written !== strlen($encoded) + 1) {
+        // Do not recursively call the application logger or include customer data.
+        if (function_exists('error_log')) error_log('tamiran: unable to write private application log');
+        return false;
+    }
+    return true;
+}
+
+/** One bounded, payload-free entry per API response. */
+function tamiran_log_response(int $status): void
+{
+    $start = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
+    $duration = is_numeric($start) ? max(0, (int) round((microtime(true) - (float) $start) * 1000)) : null;
+    tamiran_log($status >= 500 ? 'error' : ($status >= 400 ? 'warning' : 'info'), 'api_response', ['status'=>$status, 'duration_ms'=>$duration]);
 }
 
 /** Expand reused named parameters while retaining real MySQL native prepares.
@@ -730,6 +746,7 @@ function tamiran_require_debug_token(): void
 
 function tamiran_respond(mixed $data, int $status = 200): never
 {
+    tamiran_log_response($status);
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
@@ -748,11 +765,19 @@ function tamiran_fail(Throwable $error): never
     $status = $error instanceof TamiranApiException ? $error->httpStatus : 500;
     $publicMessage = $status >= 500 ? 'خطای داخلی سرور رخ داد.' : $error->getMessage();
     if ($status >= 500) {
-        tamiran_log('error', 'api_request_failed', [
-            'exception' => get_class($error), 'message' => $error->getMessage(),
+        $context = [
+            'exception' => get_class($error),
             'file' => basename($error->getFile()), 'line' => $error->getLine(), 'status' => $status,
-        ]);
+        ];
+        if ($error instanceof PDOException) {
+            $state = (string) $error->getCode();
+            if (preg_match('/^[A-Z0-9]{5}$/D', $state)) $context['sqlstate'] = $state;
+            $vendor = $error->errorInfo[1] ?? null;
+            if (is_int($vendor) || (is_string($vendor) && ctype_digit($vendor) && strlen($vendor) <= 6)) $context['db_code'] = (int) $vendor;
+        }
+        tamiran_log('error', 'api_request_failed', $context);
     }
+    tamiran_log_response($status);
 
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
@@ -806,7 +831,7 @@ register_shutdown_function(static function (): void {
     $error = error_get_last();
     if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
         tamiran_log('critical', 'php_fatal_error', [
-            'message' => $error['message'],
+            'type' => $error['type'],
             'file' => basename($error['file']),
             'line' => $error['line'],
         ]);

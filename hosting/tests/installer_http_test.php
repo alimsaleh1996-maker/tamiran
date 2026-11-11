@@ -47,6 +47,10 @@ try {
     wizard_check(!file_exists("$root/private/.install.mutex"), 'CSRF rejection occurs before database installer');
     [$status, $html] = wizard_request($root, ['REQUEST_METHOD' => 'POST'], ['csrf_token' => $csrf, 'install_key' => str_repeat('0', 64)]);
     wizard_check($status === 422 && str_contains($html, 'کلید نصب معتبر نیست'), 'wrong ownership key rejected');
+    $installLog = "$root/private/logs/tamiran-" . gmdate('Y-m-d') . '.log';
+    $logText = is_file($installLog) ? file_get_contents($installLog) : '';
+    wizard_check(is_string($logText) && str_contains($logText, 'install_rejected') && !str_contains($logText, $privateKey) && !str_contains($logText, str_repeat('0', 64)), 'installer rejection logged without keys');
+    wizard_check(str_contains($html, 'کد پیگیری نصب:'), 'installer error provides a tracking code');
     wizard_check(!file_exists("$root/private/.install.mutex"), 'ownership rejection occurs before database installer');
     [$status] = wizard_request($root, ['REQUEST_METHOD' => 'POST'], ['csrf_token' => $csrf, 'install_key' => ['bad']]);
     wizard_check($status === 422, 'array ownership key rejected');

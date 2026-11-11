@@ -6,6 +6,7 @@ require tamiran_private_root() . '/captcha-audio.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('X-Content-Type-Options: nosniff');
+header('X-Request-ID: ' . tamiran_request_id());
 header('Cross-Origin-Resource-Policy: same-origin');
 
 try {
@@ -39,11 +40,13 @@ try {
     if ($mode === 'init') tamiran_respond(['audioAvailable' => true, 'expiresIn' => max(0, $state['expires_at'] - time())]);
     if ($mode === 'audio') {
         tamiran_public_rate_limit('captcha-audio|' . tamiran_client_ip(), 120, 60, 60);
+        tamiran_log_response(200);
         header('Content-Type: audio/wav');
         header('Content-Length: ' . strlen($state['audio_wav']));
         header('Link: </assets/captcha-audio-credits.txt>; rel="license"');
         echo $state['audio_wav'];
     } else {
+        tamiran_log_response(200);
         header('Content-Type: ' . $state['image_type']);
         header("Content-Security-Policy: default-src 'none'; sandbox");
         echo $state['image_body'];
