@@ -4,6 +4,73 @@ declare(strict_types=1);
 /** Installation errors contain safe operator messages only, never PDO messages. */
 final class TamiranInstallException extends RuntimeException {}
 
+/** Check exclusive creation and same-directory rename before any database writes. */
+function tamiran_install_check_config_publication(string $privateDir): void
+{
+    $source = $privateDir . '/.install-publish-check-' . bin2hex(random_bytes(12));
+    $target = $source . '.target';
+    $oldUmask = umask(0077);
+    $handle = @fopen($source, 'xb');
+    umask($oldUmask);
+    if (!$handle) throw new TamiranInstallException('ساخت فایل آزمایشی در پوشه private ممکن نیست؛ نصب پیش از ساخت جدول متوقف شد.');
+    try {
+        if (!chmod($source, 0600) || fwrite($handle, 'test') !== 4 || !fflush($handle)) {
+            throw new TamiranInstallException('نوشتن فایل امن در پوشه private ممکن نیست؛ نصب پیش از ساخت جدول متوقف شد.');
+        }
+        fclose($handle); $handle = null;
+        if (!@rename($source, $target) || @file_get_contents($target) !== 'test') {
+            throw new TamiranInstallException('انتقال امن فایل در پوشه private ممکن نیست؛ نصب پیش از ساخت جدول متوقف شد.');
+        }
+    } finally {
+        if (is_resource($handle)) fclose($handle);
+        @unlink($target);
+        @unlink($source);
+    }
+}
+
+/** Publish a complete file while holding the installer mutex; never replace an existing config. */
+function tamiran_install_publish_config(string $temporary, string $privateDir): void
+{
+    $target = $privateDir . '/config.php';
+    if (function_exists('link') && @link($temporary, $target)) return;
+    // Reserve the name exclusively. The fail-closed placeholder prevents an
+    // interrupted installation from exposing a partially written PHP config.
+    $oldUmask = umask(0077);
+    $handle = @fopen($target, 'xb');
+    umask($oldUmask);
+    if (!$handle) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+    $identity = fstat($handle);
+    $placeholder = "<?php http_response_code(503); exit;\n";
+    try {
+        if (!chmod($target, 0600) || fwrite($handle, $placeholder) !== strlen($placeholder) || !fflush($handle)) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+        if (function_exists('fsync') && !fsync($handle)) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+        $current = @lstat($target);
+        if (!is_array($identity) || !is_array($current) || $identity['dev'] !== $current['dev'] || $identity['ino'] !== $current['ino']) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+        if (!@rename($temporary, $target)) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+    } catch (Throwable $error) {
+        $current = @lstat($target);
+        if (is_array($identity) && is_array($current) && $identity['dev'] === $current['dev'] && $identity['ino'] === $current['ino']) @unlink($target);
+        throw $error;
+    } finally { fclose($handle); }
+}
+
+/** Do not expose raw SQL errors, credentials, SQL text or filesystem paths. */
+function tamiran_install_safe_diagnostic(Throwable $error, string $stage, int $statementNumber, int $statementCount): string
+{
+    $labels = ['schema' => 'ساخت ساختار پایگاه داده', 'admin' => 'ساخت حساب مدیر', 'config' => 'نوشتن تنظیمات خصوصی', 'publish' => 'فعال‌سازی تنظیمات خصوصی'];
+    $details = 'مرحله: ' . ($labels[$stage] ?? 'آماده‌سازی نصب');
+    if ($stage === 'schema' && $statementNumber > 0 && $statementCount >= $statementNumber) $details .= '؛ دستور ' . $statementNumber . ' از ' . $statementCount;
+    if ($error instanceof PDOException) {
+        $state = (string) $error->getCode();
+        if (preg_match('/^[A-Z0-9]{5}$/D', $state)) $details .= '؛ SQLSTATE: ' . $state;
+        $vendor = $error->errorInfo[1] ?? null;
+        if (is_int($vendor) || (is_string($vendor) && ctype_digit($vendor) && strlen($vendor) <= 6)) $details .= '؛ کد دیتابیس: ' . (int) $vendor;
+    } elseif (in_array($error->getMessage(), ['CONFIG_TEMP_FAILED', 'CONFIG_WRITE_FAILED', 'CONFIG_SYNC_FAILED', 'CONFIG_PUBLISH_FAILED'], true)) {
+        $details .= '؛ کد: ' . $error->getMessage();
+    }
+    return $details;
+}
+
 function tamiran_install_preflight(string $privateDir): array
 {
     return [
@@ -144,6 +211,9 @@ function tamiran_install(array $input, string $privateDir): array
     $databaseLock = false;
     $schemaStarted = false;
     $temporary = null;
+    $stage = 'preparation';
+    $statementNumber = 0;
+    $statementCount = 0;
     try {
         if (tamiran_install_is_complete($privateDir)) throw new TamiranInstallException('نصب قبلاً کامل شده است؛ نصب دوباره مجاز نیست.');
         $db = $values['db'];
@@ -166,19 +236,24 @@ function tamiran_install(array $input, string $privateDir): array
         if ($pdo->query('SHOW FULL TABLES')->fetch()) {
             throw new TamiranInstallException('پایگاه داده خالی نیست. هیچ داده‌ای تغییر نکرد؛ برای نصب، یک دیتابیس خالی در پنل هاست بسازید.');
         }
+        tamiran_install_check_config_publication($privateDir);
         $schema = file_get_contents($privateDir . '/database/schema.sql');
         if ($schema === false) throw new TamiranInstallException('فایل ساختار پایگاه داده خوانده نشد.');
         $statements = tamiran_install_sql_statements($schema);
         $hash = password_hash($values['admin']['password'], PASSWORD_BCRYPT, ['cost' => 12]);
         if ($hash === false) throw new TamiranInstallException('ساخت رمز امن مدیر ممکن نشد.');
         $schemaStarted = true;
-        foreach ($statements as $statement) $pdo->exec($statement);
+        $stage = 'schema';
+        $statementCount = count($statements);
+        foreach ($statements as $statement) { $statementNumber++; $pdo->exec($statement); }
+        $stage = 'admin';
         $pdo->beginTransaction();
         $admin = $pdo->prepare("INSERT INTO tamiran_users(shop_id,username,display_name,phone,password_hash,role_code,must_change_password,is_active) VALUES(NULL,?,?,?,?,'central_admin',0,1)");
         $admin->execute([$values['admin']['mobile'], $values['admin']['name'], $values['admin']['mobile'], $hash]);
         $adminId = (int) $pdo->lastInsertId();
         $pdo->commit();
 
+        $stage = 'config';
         $config = [
             'db' => $db, 'timezone' => 'UTC',
             'secrets' => ['encryption_key' => base64_encode(random_bytes(32))],
@@ -199,8 +274,9 @@ function tamiran_install(array $input, string $privateDir): array
             if (!chmod($temporary, 0600) || fwrite($handle, $body) !== strlen($body) || !fflush($handle)) throw new RuntimeException('CONFIG_WRITE_FAILED');
             if (function_exists('fsync') && !fsync($handle)) throw new RuntimeException('CONFIG_SYNC_FAILED');
         } finally { fclose($handle); }
-        // Same-directory hard link publishes a complete file atomically and never overwrites.
-        if (!@link($temporary, $privateDir . '/config.php')) throw new RuntimeException('CONFIG_PUBLISH_FAILED');
+        // Installer mutex and exclusive reservation prevent concurrent installer overwrites.
+        $stage = 'publish';
+        tamiran_install_publish_config($temporary, $privateDir);
         @unlink($temporary);
         $temporary = null;
         $oldUmask = umask(0077);
@@ -212,7 +288,7 @@ function tamiran_install(array $input, string $privateDir): array
         if ($pdo instanceof PDO && $pdo->inTransaction()) $pdo->rollBack();
         if ($error instanceof TamiranInstallException) throw $error;
         throw new TamiranInstallException($schemaStarted
-            ? 'نصب کامل نشد و فایل تنظیمات فعال نشد. جدول‌های نصب ناقص حفظ شدند؛ برای تکرار، دیتابیس خالی تازه بسازید یا فقط دیتابیس اختصاصی همین نصب را پس از بررسی در پنل خالی کنید. دسترسی CREATE، ALTER، INDEX و TRIGGER و سازگاری MySQL 8 یا MariaDB 10.4+ را بررسی کنید.'
+            ? 'نصب کامل نشد و فایل تنظیمات فعال نشد. جدول‌های نصب ناقص حفظ شدند؛ برای تکرار از دیتابیس خالی تازه استفاده کنید. ' . tamiran_install_safe_diagnostic($error, $stage, $statementNumber, $statementCount) . '. دسترسی CREATE، ALTER، INDEX و TRIGGER و سازگاری MySQL 8 یا MariaDB 10.6+ را بررسی کنید.'
             : 'نصب آغاز نشد. دسترسی دیتابیس و قابلیت قفل نصب روی هاست را بررسی کنید.');
     } finally {
         if ($temporary !== null) @unlink($temporary);
