@@ -349,7 +349,11 @@ def run(args):
         runner.check("excess reservation is rejected", lambda: warehouse.api("inventory-v2.php", "POST", {**reserve, "quantity": 3}, expected=409))
         runner.check("warehouse reserves requested parts", lambda: warehouse.api("inventory-v2.php", "POST", reserve))
         issue = {"action": "issue", "requestId": request["id"], "quantity": 1, "warehouseId": warehouse_id, "technicianUserId": technician_actor["id"], "idempotencyKey": marker + "-ISSUE-1"}
-        first = runner.check("warehouse issues first part", lambda: warehouse.api("inventory-v2.php", "POST", issue))
+        if args.issue_race:
+            from phase4_issue_race import issue_once_concurrently
+            first = runner.check("independent sessions issue the same part once", lambda: issue_once_concurrently([warehouse, manager], issue))
+        else:
+            first = runner.check("warehouse issues first part", lambda: warehouse.api("inventory-v2.php", "POST", issue))
         if branch_warehouse:
             runner.check("other branch cannot replay issue", lambda: branch_warehouse.api("inventory-v2.php", "POST", issue, expected=(403, 404)))
         runner.check("issue retry is idempotent", lambda: expect(warehouse.api("inventory-v2.php", "POST", issue)["issuePublicId"] == first["issuePublicId"], "issue duplicated"))
@@ -454,6 +458,7 @@ def main():
     parser.add_argument("--admin-mobile", default="09990000000")
     parser.add_argument("--run-id")
     parser.add_argument("--advanced", action="store_true", help="Exercise Pro inventory and independent QC")
+    parser.add_argument("--issue-race", action="store_true", help="Race one part issue across independent sessions on a multi-worker local server")
     parser.add_argument("--quality-browser-output", help="Run real Chromium QC checks and save a synthetic screenshot")
     parser.add_argument("--conditional", action="store_true", help="Exercise conditional QC acknowledgement")
     parser.add_argument("--branch-fixture-php", help="PHP executable for strictly local synthetic branch fixture")
