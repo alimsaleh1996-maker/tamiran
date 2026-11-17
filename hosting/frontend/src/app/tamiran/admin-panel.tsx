@@ -51,6 +51,7 @@ import {
 import * as React from "react";
 import { useModalFocus } from "../shared/use-modal-focus";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { normalizeQueueSearch } from "./queue-search";
 import {
   changeTicket,
   checkProductChange,
@@ -124,7 +125,6 @@ type AdminModalState =
   | { kind: "shop-create" }
   | {
       kind: "shop-activation";
-      shopCode: string;
       publicShopCode: string;
       managerMobile: string;
       temporaryPassword: string;
@@ -498,20 +498,21 @@ export function CentralAdminPanel({
   }, []);
 
   const shops = useMemo(() => dashboard?.shops ?? [], [dashboard]);
+  const normalizedShopQuery = normalizeQueueSearch(query);
   const normalizedQuery = query.trim().toLocaleLowerCase("fa");
   const filteredShops = useMemo(
     () =>
       shops.filter((shop) => {
         const matchesQuery =
-          !normalizedQuery ||
-          `${shop.name} ${shop.code} ${repairTypeLabels[shop.repairType] ?? ""}`
-            .toLocaleLowerCase("fa")
-            .includes(normalizedQuery);
+          !normalizedShopQuery ||
+          normalizeQueueSearch(
+            `${shop.name} ${shop.code} ${repairTypeLabels[shop.repairType] ?? ""}`,
+          ).includes(normalizedShopQuery);
         return (
           matchesQuery && (shopStatus === "all" || shop.status === shopStatus)
         );
       }),
-    [shops, normalizedQuery, shopStatus],
+    [shops, normalizedShopQuery, shopStatus],
   );
   const filteredUsers = useMemo(
     () =>
@@ -529,6 +530,15 @@ export function CentralAdminPanel({
       }),
     [users, normalizedQuery, userRole, userStatus],
   );
+
+  const copyActivationText = async (text: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      notify(successMessage);
+    } catch {
+      notify("کپی در کلیپ‌بورد انجام نشد.");
+    }
+  };
 
   const openSection = (section: AdminSection) => {
     setActiveSection(section);
@@ -551,7 +561,6 @@ export function CentralAdminPanel({
           const result = await createShop(input);
           setModal({
             kind: "shop-activation",
-            shopCode: result.shopCode,
             publicShopCode: result.publicShopCode,
             managerMobile: result.managerMobile,
             temporaryPassword: result.temporaryPassword,
@@ -999,12 +1008,11 @@ export function CentralAdminPanel({
               <ShieldCheck size={22} />
               <div>
                 <strong>تعمیرگاه با موفقیت Provision شد</strong>
-                <p>کد عمومی و توالی قبض مستقل از محصول باقی می‌مانند.</p>
+                <p>از این کد برای انتخاب تعمیرگاه هنگام ورود استفاده می‌شود. همین کد پیشوند شمارهٔ قبض است.</p>
               </div>
             </div>
             <div className="product-impact-grid">
-              <div><span>کد ورود</span><strong dir="ltr">{modal.shopCode}</strong></div>
-              <div><span>کد عمومی قبض</span><strong dir="ltr">{modal.publicShopCode}</strong></div>
+              <div><span>کد تعمیرگاه</span><strong dir="ltr">{modal.publicShopCode}</strong></div>
               <div><span>موبایل مدیر</span><strong dir="ltr">{modal.managerMobile}</strong></div>
             </div>
             <label className="field-block">
@@ -1015,9 +1023,18 @@ export function CentralAdminPanel({
             <div className="central-admin-form-actions">
               <button
                 type="button"
-                onClick={() => void navigator.clipboard?.writeText(`کد تعمیرگاه: ${modal.shopCode}\nموبایل: ${modal.managerMobile}\nرمز موقت: ${modal.temporaryPassword}`)}
+                onClick={() => void copyActivationText(modal.publicShopCode, "کد تعمیرگاه کپی شد.")}
               >
-                کپی اطلاعات
+                کپی کد تعمیرگاه
+              </button>
+              <button
+                type="button"
+                onClick={() => void copyActivationText(
+                  `کد تعمیرگاه: ${modal.publicShopCode}\nموبایل: ${modal.managerMobile}\nرمز موقت: ${modal.temporaryPassword}`,
+                  "اطلاعات فعال‌سازی کپی شد.",
+                )}
+              >
+                کپی اطلاعات فعال‌سازی
               </button>
               <button type="button" className="central-admin-primary" onClick={() => setModal(null)}>
                 اطلاعات را تحویل دادم
