@@ -169,6 +169,9 @@ export type CreateRepairCaseInput = {
   secondaryMobile?: string;
   deviceModelId: number;
   identifier?: string;
+  identifierUnavailable?: boolean;
+  identifierUnavailableReason?: string;
+  identifierUnavailableNote?: string;
   color: string;
   declaredIssue: string;
   accessories: string[];
@@ -257,7 +260,7 @@ export const repairCaseStatusLabels: Record<RepairCaseStatus, string> = {
   awaiting_part: "در انتظار قطعه",
   awaiting_customer: "منتظر تأیید مشتری",
   ready_for_delivery: "آماده تحویل",
-  returned: "برگشت به تکنسین",
+  returned: "عودت بدون تعمیر",
   delivered: "تحویل‌شده",
   cancelled: "لغوشده",
 };

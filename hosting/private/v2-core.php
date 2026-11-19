@@ -207,7 +207,7 @@ function v2_case(PDO $pdo, array $scope, int $caseId, bool $lock = false): array
 {
     $sql = 'SELECT w.*,c.public_id AS case_public_id,c.receipt_number,c.customer_id,c.device_id,c.declared_issue,c.accessories_json,
                    c.operation_report,c.result,c.created_at AS accepted_at,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
-                   cu.secondary_mobile,cu.address AS customer_address,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.identifier_snapshot,
+                   cu.secondary_mobile,cu.address AS customer_address,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.identifier_snapshot,c.delivered_at,
                    c.product_profile_snapshot,c.inventory_mode_snapshot,c.qc_mode_snapshot,c.feature_flags_snapshot_json,
                    u.display_name AS technician_name
             FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id
@@ -443,4 +443,47 @@ function v2_stock_mutate(PDO $pdo, array $scope, int $warehouseId, int $itemId, 
     $pdo->prepare('INSERT INTO repair_inventory_ledger(public_id,shop_id,branch_id,warehouse_id,item_id,case_id,movement_type,physical_delta,reserved_delta,unit_cost,balance_physical,balance_reserved,reference_type,reference_public_id,reason,actor_user_id) VALUES(:public,:shop,:branch,:warehouse,:item,:case,:movement,:physical_delta,:reserved_delta,:unit_cost,:physical,:reserved,:reference_type,:reference_public,:reason,:actor)')
         ->execute(['public'=>$public,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'warehouse'=>$warehouseId,'item'=>$itemId,'case'=>$caseId,'movement'=>$movement,'physical_delta'=>$physicalDelta,'reserved_delta'=>$reservedDelta,'unit_cost'=>$unitCost,'physical'=>$physical,'reserved'=>$reserved,'reference_type'=>$referenceType,'reference_public'=>$referencePublicId,'reason'=>$reason,'actor'=>$scope['actor']['id']]);
     return ['physicalQuantity'=>$physical,'reservedQuantity'=>$reserved,'availableQuantity'=>$physical-$reserved,'averageUnitCost'=>$average,'ledgerPublicId'=>$public];
+}
+
+
+/** Device identity is scoped to one case; the initial reception event is immutable history. */
+function v2_identity_value(string $value, string $deviceType, bool $required = true): ?string
+{
+    $value=trim(strtr($value,array_combine(preg_split('//u','۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩',-1,PREG_SPLIT_NO_EMPTY),str_split('01234567890123456789'))));
+    if($value===''){if($required)throw new TamiranApiException('ثبت سریال یا IMEI معتبر دستگاه پیش از تحویل الزامی است.',422);return null;}
+    if(mb_strlen($value)>180 || preg_match('/^(?:[-?]+|0+|ندارد|نامشخص|بدون سریال|unknown|n\/a)$/iu',$value))throw new TamiranApiException('شناسه دستگاه معتبر نیست؛ سریال واقعی یا IMEI را وارد کنید.',422);
+    if(preg_match('/(موبایل|تبلت|تلفن همراه|mobile|tablet|phone)/iu',$deviceType)){
+        $value=preg_replace('/[\s-]+/u','',$value);
+        if(!preg_match('/^[0-9]{15}$/',$value)||preg_match('/^(.)\1+$/',$value))throw new TamiranApiException('IMEI باید ۱۵ رقم معتبر باشد.',422);
+        $sum=0;for($i=0;$i<15;$i++){$digit=(int)$value[$i];if($i%2===1){$digit*=2;if($digit>9)$digit-=9;}$sum+=$digit;}
+        if($sum%10!==0)throw new TamiranApiException('رقم کنترل IMEI صحیح نیست؛ شناسه را از روی دستگاه دوباره بررسی کنید.',422);
+    }
+    return $value;
+}
+function v2_identity_normalized(string $value): string
+{
+    return mb_strtoupper(preg_replace('/[^\p{L}\p{N}]/u','',$value)??'');
+}
+function v2_delivery_identity(PDO $pdo,array $scope,array $case,array $input): array
+{
+    $value=v2_identity_value((string)($input['deviceIdentifier']??''),(string)$case['device_type_snapshot']);
+    if(($input['identityConfirmed']??false)!==true)throw new TamiranApiException('تطبیق شناسه با دستگاه تحویلی را تأیید کنید.',422);
+    $old=trim((string)($case['identifier_snapshot']??''));
+    $reason=trim((string)($input['identifierChangeReason']??''));
+    if($old!==''&&v2_identity_normalized($old)!==v2_identity_normalized($value)){
+        if($scope['role']!=='repair_manager'||$reason===''||mb_strlen($reason)>1000)throw new TamiranApiException('تغییر شناسه ثبت‌شده فقط توسط مدیر و با ثبت علت مانند تعویض برد مجاز است.',403);
+    }
+    $device=$pdo->prepare('SELECT id,row_version,identifier_value FROM repair_customer_devices WHERE id=:id AND shop_id=:shop FOR UPDATE');
+    $device->execute(['id'=>$case['device_id'],'shop'=>$scope['shop_id']]);$currentDevice=$device->fetch();if(!$currentDevice)throw new TamiranApiException('دستگاه پرونده پیدا نشد.',409);
+    $deviceIdentifier=trim((string)($currentDevice['identifier_value']??''));
+    if($deviceIdentifier!==''&&v2_identity_normalized($deviceIdentifier)!==v2_identity_normalized($value)&&($scope['role']!=='repair_manager'||$reason===''||mb_strlen($reason)>1000))throw new TamiranApiException('شناسه فعلی این دستگاه متفاوت است؛ اصلاح فقط توسط مدیر و با ثبت علت مجاز است.',403);
+    $normalized=v2_identity_normalized($value);
+    $duplicate=$pdo->prepare('SELECT id FROM repair_customer_devices WHERE shop_id=:shop AND normalized_identifier=:identifier AND id<>:device LIMIT 1 FOR UPDATE');
+    $duplicate->execute(['shop'=>$scope['shop_id'],'identifier'=>$normalized,'device'=>$case['device_id']]);if($duplicate->fetchColumn()!==false)throw new TamiranApiException('این شناسه متعلق به دستگاه دیگری است؛ مالکیت و سابقه را بررسی کنید.',409);
+    if($old!==$value){
+        $pdo->prepare('UPDATE repair_cases SET identifier_snapshot=:value WHERE id=:id')->execute(['value'=>$value,'id'=>$case['case_id']]);
+        $pdo->prepare('UPDATE repair_customer_devices SET identifier_value=:value,normalized_identifier=:normalized,row_version=row_version+1 WHERE id=:id')->execute(['value'=>$value,'normalized'=>$normalized,'id'=>$case['device_id']]);
+        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'device.identity.record','repair_case',$case['case_public_id'],['identifier'=>$old],['identifier'=>$value,'reason'=>$reason]);
+    }
+    return ['identifier'=>$value,'previousIdentifier'=>$old,'changeReason'=>$reason,'confirmed'=>true];
 }

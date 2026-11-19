@@ -14,7 +14,7 @@ VERSION = (ROOT / "VERSION").read_text().strip()
 STAMP = (2026, 10, 24, 0, 0, 0)
 PRIVATE = (
     ".htaccess", "install.php", "config.example.php", "v2-core.php",
-    "product-service.php", "capability-service.php", "backup-engine.php",
+    "product-service.php", "capability-service.php", "catalog-similarity.php", "backup-engine.php",
     "sms-service.php", "database/schema.sql",
     "captcha-audio.php", "captcha-audio/CREDITS.json",
     *(f"captcha-audio/{digit}.wav" for digit in range(2, 10)),
@@ -97,7 +97,7 @@ def update_files(base: dict[str, bytes]) -> dict[str, bytes]:
         name: data for name, data in base.items()
         if name in {"VERSION", "UPGRADE-FA.md", "UI-FIXES-FA.md", "THIRD-PARTY-NOTICES.txt", "VERIFICATION-FA.md",
                     "public_html/index.php", "public_html/.htaccess", "public_html/favicon.svg", "private/.htaccess",
-                    "private/v2-core.php", "private/product-service.php", "private/capability-service.php",
+                    "private/v2-core.php", "private/product-service.php", "private/capability-service.php", "private/catalog-similarity.php",
                     "private/backup-engine.php", "private/sms-service.php", "private/captcha-audio.php", "private/build/manifest.json"}
         or name.startswith(("public_html/assets/", "public_html/api/", "private/captcha-audio/"))
     }
@@ -145,8 +145,8 @@ def main() -> None:
         write_zip(output / f"tamiran-{VERSION}-install.zip", runtime),
         write_zip(output / f"tamiran-{VERSION}-source.zip", source_files(runtime)),
     ]
-    if VERSION in {"2.0.0-php.2", "2.0.0-php.3", "2.0.0-php.4"}:
-        previous = {"2.0.0-php.2": "php.1", "2.0.0-php.3": "php.2", "2.0.0-php.4": "php.3"}[VERSION]
+    if VERSION in {"2.0.0-php.2", "2.0.0-php.3", "2.0.0-php.4", "2.0.0-php.5"}:
+        previous = {"2.0.0-php.2": "php.1", "2.0.0-php.3": "php.2", "2.0.0-php.4": "php.3", "2.0.0-php.5": "php.4"}[VERSION]
         results.append(write_zip(output / f"tamiran-{VERSION}-update-from-{previous}.zip", update_files(runtime)))
     (output / f"tamiran-{VERSION}-artifacts.json").write_text(json.dumps(results, indent=2) + "\n")
     for result in results:

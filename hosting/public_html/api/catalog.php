@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
+require_once tamiran_private_root().'/catalog-similarity.php';
 
 function catalog_rows(PDO $pdo, int $shopId): array
 {
@@ -38,12 +39,53 @@ tamiran_api(static function (): array {
     tamiran_require_writable_actor($actor);
     $input = tamiran_json_body();
 
+    if ($method === 'POST' && ($input['action'] ?? '') === 'import') {
+        $rows=$input['rows']??null;
+        if(!is_array($rows)||!array_is_list($rows)||count($rows)<1||count($rows)>500)throw new TamiranApiException('فایل باید بین ۱ تا ۵۰۰ ردیف داشته باشد.',422);
+        $validated=[];
+        foreach($rows as $index=>$row){
+            if(!is_array($row))throw new TamiranApiException('ردیف '.($index+2).' معتبر نیست.',422);
+            try{$validated[]=['type'=>catalog_value($row,'type',120),'brand'=>catalog_value($row,'brand',120),'model'=>catalog_value($row,'model',160),'sourceRow'=>max(2,min(100000,(int)($row['sourceRow']??($index+2))))];}
+            catch(TamiranApiException $error){throw new TamiranApiException('ردیف '.($index+2).': '.$error->getMessage(),422);}
+        }
+        $pdo->beginTransaction();
+        try{
+            $lock=$pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE');$lock->execute(['shop'=>$shopId]);
+            $existing=catalog_rows($pdo,$shopId);$insertable=[];$matches=[];
+            foreach($validated as $row){
+                $match=catalog_existing_match($row,$existing);
+                if($match!==null){
+                    $name=$match['item']['type'].' / '.$match['item']['brand'].' / '.$match['item']['model'];
+                    if($match['kind']==='similar')throw new TamiranApiException('ردیف '.$row['sourceRow'].': نام مشابه «'.$name.'» موجود است؛ فایل را اصلاح کنید. هیچ ردیفی وارد نشد.',409);
+                    $matches[]=['sourceRow'=>$row['sourceRow'],'existing'=>$match['item']];continue;
+                }
+                $row=catalog_existing_spelling($row,$existing);$insertable[]=$row;$existing[]=$row;
+            }
+            $type=$pdo->prepare('INSERT INTO repair_device_types(shop_id,title) VALUES(:shop,:title) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+            $brand=$pdo->prepare('INSERT INTO repair_device_brands(device_type_id,title) VALUES(:type,:title) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+            $model=$pdo->prepare('INSERT INTO repair_device_models(brand_id,title) VALUES(:brand,:title) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)');
+            $created=0;
+            foreach($insertable as $row){
+                $type->execute(['shop'=>$shopId,'title'=>$row['type']]);$typeId=(int)$pdo->lastInsertId();
+                $brand->execute(['type'=>$typeId,'title'=>$row['brand']]);$brandId=(int)$pdo->lastInsertId();
+                $model->execute(['brand'=>$brandId,'title'=>$row['model']]);if($model->rowCount()===1)$created++;
+            }
+            tamiran_audit($pdo,$shopId,(int)$actor['branch']['id'],(int)$actor['id'],'catalog.import','repair_shop',(string)$shopId,null,['rows'=>count($validated),'created'=>$created,'duplicates'=>count($validated)-$created]);
+            $pdo->commit();
+        }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
+        return ['created'=>$created,'duplicates'=>count($validated)-$created,'matches'=>$matches,'items'=>catalog_rows($pdo,$shopId)];
+    }
+
     if ($method === 'POST') {
         $type = catalog_value($input, 'type', 120);
         $brand = catalog_value($input, 'brand', 120);
         $model = catalog_value($input, 'model', 160);
         $pdo->beginTransaction();
         try {
+            $lock=$pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE');$lock->execute(['shop'=>$shopId]);
+            $existing=catalog_rows($pdo,$shopId);$row=['type'=>$type,'brand'=>$brand,'model'=>$model];$match=catalog_existing_match($row,$existing);
+            if($match!==null)throw new TamiranApiException('کالای یکسان یا مشابه «'.$match['item']['type'].' / '.$match['item']['brand'].' / '.$match['item']['model'].'» قبلاً تعریف شده است.',409);
+            $row=catalog_existing_spelling($row,$existing);$type=$row['type'];$brand=$row['brand'];$model=$row['model'];
             $typeStatement = $pdo->prepare('INSERT INTO repair_device_types(shop_id,title) VALUES(:shop,:title) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id),is_active=1');
             $typeStatement->execute(['shop'=>$shopId, 'title'=>$type]);
             $typeId = (int) $pdo->lastInsertId();

@@ -17,7 +17,12 @@ function columnIndex(reference: string): number {
 }
 
 export async function readSheet(file: File): Promise<SheetCell[][]> {
-  const archive = unzipSync(new Uint8Array(await file.arrayBuffer()));
+  let totalSize = 0;
+  const archive = unzipSync(new Uint8Array(await file.arrayBuffer()), { filter: (entry) => {
+    totalSize += entry.originalSize;
+    if (totalSize > 20 * 1024 * 1024) throw new Error("حجم بازشدهٔ فایل Excel بیش از حد مجاز است.");
+    return ["xl/worksheets/sheet1.xml", "xl/sharedStrings.xml"].includes(entry.name);
+  }});
   const sheetSource = archive["xl/worksheets/sheet1.xml"];
   if (!sheetSource) throw new Error("فایل Excel فاقد Sheet قابل خواندن است.");
 

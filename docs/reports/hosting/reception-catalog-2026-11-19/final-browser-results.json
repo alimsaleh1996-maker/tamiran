@@ -1,0 +1,75 @@
+{
+  "passed": 17,
+  "failed": 0,
+  "results": [
+    {
+      "name": "normalized duplicate preview names existing Samsung and AirPods models",
+      "status": "PASS"
+    },
+    {
+      "name": "only genuinely new model remains importable",
+      "status": "PASS"
+    },
+    {
+      "name": "catalog import no horizontal page overflow at 1024",
+      "status": "PASS"
+    },
+    {
+      "name": "catalog import no horizontal page overflow at 768",
+      "status": "PASS"
+    },
+    {
+      "name": "catalog import no horizontal page overflow at 390",
+      "status": "PASS"
+    },
+    {
+      "name": "catalog import no horizontal page overflow at 320",
+      "status": "PASS"
+    },
+    {
+      "name": "near spelling match blocks import and identifies Excel row",
+      "status": "PASS"
+    },
+    {
+      "name": "repaired handover button blocked before identifier confirmation",
+      "status": "PASS"
+    },
+    {
+      "name": "initial unavailable identity history remains visible",
+      "status": "PASS"
+    },
+    {
+      "name": "repaired handover enabled after valid identity confirmation",
+      "status": "PASS"
+    },
+    {
+      "name": "browser handover persists recovered identifier",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired return explains missing identity",
+      "status": "PASS"
+    },
+    {
+      "name": "browser unrepaired return records physical handover without identity",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired printed proof explicitly records missing serial",
+      "status": "PASS"
+    },
+    {
+      "name": "closing address restores keyboard focus",
+      "status": "PASS"
+    },
+    {
+      "name": "final device form reflows without overflow",
+      "status": "PASS"
+    },
+    {
+      "name": "no JavaScript errors in final scenarios",
+      "status": "PASS"
+    }
+  ],
+  "scope": "real Chromium and PHP/MariaDB synthetic; invoice/workflow prerequisites seeded, actual repaired and unrepaired handover via UI"
+}

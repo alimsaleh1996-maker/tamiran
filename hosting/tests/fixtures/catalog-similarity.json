@@ -1,0 +1,262 @@
+[
+  {
+    "a": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "گلکسی A56"
+    },
+    "b": {
+      "type": "Mobile",
+      "brand": "SAMSUNG",
+      "model": "Galaxy a ۵۶"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "گلکسی A56"
+    },
+    "b": {
+      "type": "گوشی",
+      "brand": "Samsung",
+      "model": "A-56"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "گلکسی A56"
+    },
+    "b": {
+      "type": "موبایل",
+      "brand": "سامسنگ",
+      "model": "Ｇａｌａｘｙ Ａ５６"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "گلکسی A56"
+    },
+    "b": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "A 5 6"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "گلکسی A56"
+    },
+    "b": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "Galaxy A55"
+    },
+    "expected": null
+  },
+  {
+    "a": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "گلکسی A56"
+    },
+    "b": {
+      "type": "تبلت",
+      "brand": "سامسونگ",
+      "model": "A56"
+    },
+    "expected": null
+  },
+  {
+    "a": {
+      "type": "موبایل",
+      "brand": "سامسونگ",
+      "model": "گلکسی A56"
+    },
+    "b": {
+      "type": "موبایل",
+      "brand": "Apple",
+      "model": "A56"
+    },
+    "expected": null
+  },
+  {
+    "a": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPods Pro 2"
+    },
+    "b": {
+      "type": "Hands free",
+      "brand": "Apple",
+      "model": "Air Pod ۲ Pro"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPods Pro 2"
+    },
+    "b": {
+      "type": "هندسفری",
+      "brand": "APPLE",
+      "model": "ایرپاد پرو ٢"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPods Pro 2"
+    },
+    "b": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "airpod2pro"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPods Pro 2"
+    },
+    "b": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPods Pro 3"
+    },
+    "expected": null
+  },
+  {
+    "a": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPods Pro 2"
+    },
+    "b": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPods 2"
+    },
+    "expected": null
+  },
+  {
+    "a": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPods Pro 2"
+    },
+    "b": {
+      "type": "هندزفری",
+      "brand": "اپل",
+      "model": "AirPdos Pro 2"
+    },
+    "expected": "similar"
+  },
+  {
+    "a": {
+      "type": "موبایل",
+      "brand": "اپل",
+      "model": "iPhone 16"
+    },
+    "b": {
+      "type": "موبایل",
+      "brand": "Apple",
+      "model": "iPhone 16e"
+    },
+    "expected": null
+  },
+  {
+    "a": {
+      "type": "لپ تاپ",
+      "brand": "لنوو",
+      "model": "ThinkPad T14"
+    },
+    "b": {
+      "type": "laptop",
+      "brand": "Lenovo",
+      "model": "ThinkPad T14s"
+    },
+    "expected": null
+  },
+  {
+    "a": {
+      "type": "لپ‌تاپ",
+      "brand": "لنوو",
+      "model": "ThinkPad T14"
+    },
+    "b": {
+      "type": "laptop",
+      "brand": "Lenovo",
+      "model": "ThinkPda T14"
+    },
+    "expected": "similar"
+  },
+  {
+    "a": {
+      "type": "لپ‌تاپ",
+      "brand": "لنوو",
+      "model": "ThinkPad T14"
+    },
+    "b": {
+      "type": "لپ تاپ",
+      "brand": "Lenovo",
+      "model": "ThinkPad T15"
+    },
+    "expected": null
+  },
+  {
+    "a": {
+      "type": "کارتخوان",
+      "brand": "کیان",
+      "model": "مدل نوین ۱۲"
+    },
+    "b": {
+      "type": "كارتخوان",
+      "brand": "كيان",
+      "model": "مدل نوین ١٢"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "هدفون",
+      "brand": "اپل",
+      "model": "AirPods Pro 2"
+    },
+    "b": {
+      "type": "هندزفری",
+      "brand": "Apple",
+      "model": "ایرپاد ۲ پرو"
+    },
+    "expected": "identical"
+  },
+  {
+    "a": {
+      "type": "هدفون",
+      "brand": "Sony",
+      "model": "WH-1000XM5"
+    },
+    "b": {
+      "type": "هدفون",
+      "brand": "Sony",
+      "model": "WF-1000XM5"
+    },
+    "expected": null
+  }
+]

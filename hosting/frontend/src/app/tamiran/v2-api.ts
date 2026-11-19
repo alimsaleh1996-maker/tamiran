@@ -26,6 +26,7 @@ export type V2Case = {
   customerMobile: string;
   deviceTitle: string;
   identifier: string;
+  initialIdentityReason?: string;
   declaredIssue: string;
   dataHandling: "no_erasure" | "coordinate_first" | "erase_authorized";
   technicianName: string;
@@ -310,6 +311,12 @@ export const financeV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/finance-v2.php", payload);
 
 export type V2DeliveryCase = {
+  brand_snapshot: string;
+  model_snapshot: string;
+  delivered_to_name: string | null;
+  identifier_snapshot: string | null;
+  device_type_snapshot: string;
+  delivered_at: string | null;
   case_id: number;
   case_public_id: string;
   receipt_number: string;

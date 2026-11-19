@@ -1,4 +1,5 @@
 "use client";
+import { printHandoverReceipt } from "./handover-receipt";
 
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -122,7 +123,7 @@ function CaseContextHeader({ item, branch }: { item: V2Case; branch: string }) {
     <div className="v2-case-context" aria-label="مشخصات ثابت پرونده">
       <span><small>شماره پرونده</small><strong dir="ltr">{item.receiptNumber}</strong></span>
       <span><small>مشتری</small><strong>{item.customerName}</strong></span>
-      <span><small>دستگاه</small><strong>{item.deviceTitle}</strong></span>
+      <span><small>دستگاه</small><strong>{item.deviceTitle}</strong>{item.initialIdentityReason && <small>در پذیرش بدون شناسه بود: {({powered_off:"دستگاه خاموش", missing_label:"برچسب مفقود", unreadable:"ناخوانا",other:"سایر موارد"} as Record<string,string>)[item.initialIdentityReason] ?? item.initialIdentityReason}</small>}</span>
       <span><small>وضعیت</small><strong>{statusLabels[item.status] ?? item.status}</strong></span>
       <span><small>مسئول</small><strong>{item.technicianName || "تخصیص‌نشده"}</strong></span>
       <span><small>شعبه</small><strong>{branch}</strong></span>
@@ -2535,9 +2536,10 @@ function DeliveryBoard({
   busy: boolean;
   run: Run;
 }) {
+  const [printError, setPrintError] = useState("");
   const visibleCaseIds = new Set(cases.map((item) => item.id));
   const ready = data.cases.filter(
-    (item) => item.process_status === "ready_for_delivery" && visibleCaseIds.has(item.case_id),
+    (item) => ["ready_for_delivery", "returned_unrepaired"].includes(item.process_status) && !item.delivered_at && visibleCaseIds.has(item.case_id),
   );
   const [form, setForm] = useState({
     caseId: "",
@@ -2550,9 +2552,10 @@ function DeliveryBoard({
     discrepancyNote: "",
     otpRequestId: "",
     otpCode: "",
+    identifier: "", identityConfirmed: false, identityChangeReason: "",
   });
   const [confirmedAccessories, setConfirmedAccessories] = useState<string[]>([]);
-  const [warrantyReturn, setWarrantyReturn] = useState({ caseId: "", issue: "", notes: "" });
+  const [warrantyReturn, setWarrantyReturn] = useState({ caseId: "", issue: "", notes: "", identifier: "" });
   const selected = ready.find((item) => item.case_id === Number(form.caseId));
   const selectedWorkflowCase = cases.find((item) => item.id === selected?.case_id);
   const selectedAccessories = selected
@@ -2570,9 +2573,10 @@ function DeliveryBoard({
   );
   return (
     <div className="v2-stack">
+      {printError && <p role="alert" className="identity-error">{printError}</p>}
       <section className="v2-card-form v2-queue">
         <div className="v2-queue-head">
-          <div><strong>آماده تحویل</strong><small> فقط پرونده‌های عبورکرده از کنترل‌های QC و مالی</small></div>
+          <div><strong>صف تحویل دستگاه</strong><small> دستگاه تعمیرشده یا عودت بدون تعمیر؛ ثبت تحویل واقعی جداست.</small></div>
           <b>{toman.format(ready.length)}</b>
         </div>
         <div className="v2-queue-list">
@@ -2585,7 +2589,7 @@ function DeliveryBoard({
                 className={`v2-queue-card ${selected?.case_id === item.case_id ? "selected" : ""}`}
                 aria-pressed={selected?.case_id === item.case_id}
                 onClick={() => {
-                  setForm({ ...form, caseId: String(item.case_id), name: item.customer_name, mobile: item.customer_mobile });
+                  setForm({ ...form, caseId: String(item.case_id), name: item.customer_name, mobile: item.customer_mobile, identifier: item.identifier_snapshot ?? "", identityConfirmed: false, identityChangeReason: "", otpRequestId: "", otpCode: "" });
                   setConfirmedAccessories([]);
                 }}
               >
@@ -2621,6 +2625,7 @@ function DeliveryBoard({
               () =>
                 deliveryV2Action({
                   action: "complete",
+                  deviceIdentifier: form.identifier, identityConfirmed: form.identityConfirmed, identifierChangeReason: form.identityChangeReason, expectedVersion: selectedWorkflowCase?.lockVersion,
                   caseId: Number(form.caseId),
                   recipientType: form.recipientType,
                   recipientFullName: form.name,
@@ -2636,20 +2641,25 @@ function DeliveryBoard({
                   warrantyConditions:
                     "ضمانت هر ردیف مطابق فاکتور و شرایط تعمیرگاه است.",
                 }),
-              "تحویل ثبت و دوره ضمانت آغاز شد.",
+              selected?.process_status === "returned_unrepaired" ? "عودت بدون تعمیر ثبت شد؛ ضمانت تعمیر ایجاد نشد." : "تحویل با شناسه ثبت شد و دوره ضمانت آغاز شد.",
             );
           }}
         >
           {selected && (
             <div className="v2-delivery-readiness grow">
               <strong>آمادگی تحویل</strong>
-              <span className="ready"><CheckCircle2 size={16} /> تعمیر تکمیل شده</span>
+              <span className="ready"><CheckCircle2 size={16} /> {selected.process_status === "returned_unrepaired" ? "عودت بدون تعمیر" : "تعمیر تکمیل شده"}</span>
               <span className={selected.blockers.qc.length ? "blocked" : "ready"}>
                 {selected.blockers.qc.length ? "کنترل کیفیت نیازمند اقدام است" : "کنترل کیفیت تأیید شده"}
               </span>
               <span className={selected.blockers.finance.length ? "blocked" : "ready"}>
                 {selected.blockers.finance.length ? selected.blockers.finance.join("، ") : "وضعیت مالی معتبر است"}
               </span>
+              {selected.process_status === "returned_unrepaired" ? <p>عودت بدون تعمیر{!selected.identifier_snapshot && " ـ شناسه ثبت نشده"}. تحویل‌گیرنده و زمان تحویل ثبت می‌شوند.</p> : <div className="reception-identity-field">
+              <label><span>سریال / IMEI دستگاه تحویلی *</span><input dir="ltr" value={form.identifier} onChange={(e) => setForm({...form, identifier: e.target.value, identityConfirmed: false})} maxLength={180}/></label>
+              <small>{selected.identifier_snapshot ? `شناسه قبلی: ${selected.identifier_snapshot}` : "دستگاه بدون شناسه پذیرش شده؛ شناسه را از دستگاه روشن‌شده ثبت کنید."}</small>
+              {selected.identifier_snapshot && form.identifier !== selected.identifier_snapshot && <label><span>علت تغییر شناسه (ثبت فقط توسط مدیر)</span><input value={form.identityChangeReason} onChange={(e) => setForm({...form, identityChangeReason: e.target.value})} placeholder="مانند تعویض برد، با حفظ شناسه قبلی در سابقه" maxLength={1000}/></label>}
+              <label className="identity-missing-choice"><input type="checkbox" checked={form.identityConfirmed} onChange={(e) => setForm({...form, identityConfirmed: e.target.checked})}/><span>شناسه را با همین دستگاه تطبیق دادم.</span></label></div>}
               <div className="v2-accessory-checklist">
                 <b>لوازم همراه</b>
                 {selectedAccessories.length ? selectedAccessories.map((accessory) => (
@@ -2827,6 +2837,7 @@ function DeliveryBoard({
             disabled={
               busy ||
               !selected ||
+              (selected?.process_status !== "returned_unrepaired" && (!form.identifier.trim() || !form.identityConfirmed)) ||
               !form.name ||
               !form.mobile ||
               (form.recipientType === "representative" &&
@@ -2851,7 +2862,7 @@ function DeliveryBoard({
             <tr key={item.case_id}>
               <td data-label="پرونده">{item.receipt_number}</td>
               <td data-label="مشتری">{item.customer_name}</td>
-              <td data-label="وضعیت">{statusLabels[item.process_status]}</td>
+              <td data-label="وضعیت">{statusLabels[item.process_status]}{item.process_status === "returned_unrepaired" && <small>{item.delivered_at ? "تحویل واقعی ثبت شده" : "منتظر تحویل به مشتری"}</small>}</td>
               <td data-label="مانده">{formatMoney(item.balance)}</td>
               <td data-label="کنترل‌ها">
                 {Object.values(item.blockers).flat().length ? (
@@ -2863,8 +2874,9 @@ function DeliveryBoard({
                 )}
               </td>
               <td data-label="عملیات">
+                {item.delivered_at && <button type="button" className="v2-mini-action" onClick={() => {if(!printHandoverReceipt(item))setPrintError("مرورگر پنجرهٔ چاپ را باز نکرد؛ اجازهٔ بازشدن پنجره را برای این سایت فعال کنید.");}}>چاپ رسید تحویل {item.receipt_number}</button>}
                 {data.warrantyEnabled && item.process_status === "delivered" && Number(item.active_warranty_count) > 0 ? (
-                  <button type="button" className="v2-mini-action" onClick={() => setWarrantyReturn({ caseId: String(item.case_id), issue: "", notes: "" })}>
+                  <button type="button" className="v2-mini-action" onClick={() => setWarrantyReturn({ caseId: String(item.case_id), issue: "", notes: "", identifier: "" })}>
                     پذیرش ضمانتی
                   </button>
                 ) : <small>—</small>}
@@ -2882,15 +2894,17 @@ function DeliveryBoard({
               action: "warranty_case",
               originalCaseId: Number(warrantyReturn.caseId),
               declaredIssue: warrantyReturn.issue.trim(),
+              observedIdentifier: warrantyReturn.identifier,
               notes: warrantyReturn.notes.trim(),
               appearanceStates: [],
               idempotencyKey: `warranty:${warrantyReturn.caseId}:${crypto.randomUUID()}`,
             }), "پرونده مراجعه ضمانتی ایجاد شد.");
           }}>
+            <label className="grow"><span>سریال / IMEI مشاهده‌شده روی دستگاه مراجعه‌کننده *</span><input required dir="ltr" value={warrantyReturn.identifier} onChange={(e) => setWarrantyReturn({...warrantyReturn, identifier: e.target.value})}/></label>
             <label className="grow"><span>شرح ایراد ضمانتی *</span><textarea rows={3} value={warrantyReturn.issue} onChange={(event) => setWarrantyReturn({ ...warrantyReturn, issue: event.target.value })} /></label>
             <label className="grow"><span>یادداشت داخلی</span><input value={warrantyReturn.notes} onChange={(event) => setWarrantyReturn({ ...warrantyReturn, notes: event.target.value })} /></label>
-            <button disabled={busy || !warrantyReturn.issue.trim()}>ایجاد پرونده ضمانتی</button>
-            <button type="button" className="v2-mini-action" onClick={() => setWarrantyReturn({ caseId: "", issue: "", notes: "" })}>انصراف</button>
+            <button disabled={busy || !warrantyReturn.issue.trim() || !warrantyReturn.identifier.trim()}>ایجاد پرونده ضمانتی</button>
+            <button type="button" className="v2-mini-action" onClick={() => setWarrantyReturn({ caseId: "", issue: "", notes: "", identifier: "" })}>انصراف</button>
           </form>
         </section>
       )}

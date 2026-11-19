@@ -2,7 +2,7 @@
 
 سامانهٔ فارسی مدیریت تعمیرگاه با رابط راست‌به‌چپ، پذیرش، گردش تعمیر، انبار، کنترل کیفیت و امور مالی.
 
-نسخهٔ جاری قابل نصب: **2.0.0-php.4**. کد اصلی نسخهٔ PHP/MySQL در [hosting](hosting/README.md) قرار دارد و شامل رابط React/TypeScript قابل ویرایش، خروجی آمادهٔ `public_html`، APIهای PHP، SQL و نصب‌کننده است.
+نسخهٔ جاری قابل نصب: **2.0.0-php.5**. کد اصلی نسخهٔ PHP/MySQL در [hosting](hosting/README.md) قرار دارد و شامل رابط React/TypeScript قابل ویرایش، خروجی آمادهٔ `public_html`، APIهای PHP، SQL و نصب‌کننده است.
 
 برای پیدا کردن سریع بخش‌ها، از [فهرست مستندات](docs/README.md) و [ساختار پروژه](docs/project/STRUCTURE-FA.md) شروع کنید. گزارش‌ها و تصاویر تاریخی در `docs/reports` و `docs/history` دسته‌بندی شده‌اند.
 

@@ -12,7 +12,7 @@ import secrets
 import sys
 from urllib.parse import urlsplit
 
-from smoke import Client, Runner, SmokeFailure, expect
+from smoke import Client, Runner, SmokeFailure, expect, synthetic_imei
 
 
 def run(args):
@@ -54,7 +54,7 @@ def run(args):
         for index in range(251):
             response = manager.api("operations.php", "POST", {
                 "action": "create_case", "customerName": marker, "customerMobile": prefix + "03",
-                "deviceModelId": model_id, "identifier": marker + f"-DEVICE-{index}", "declaredIssue": marker,
+                "deviceModelId": model_id, "identifier": synthetic_imei(), "declaredIssue": marker,
                 "customerConsent": {"dataHandling": "no_erasure"}, "assignmentMode": "queue",
                 "idempotencyKey": marker + f"-CASE-{index}",
                 "receiptAcceptance": {"accepted": True, "publicId": terms["public_id"], "contentSha256": terms["content_sha256"]},

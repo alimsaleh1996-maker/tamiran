@@ -25,6 +25,12 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 
+def synthetic_imei():
+    base = '35' + ''.join(str(secrets.randbelow(10)) for _ in range(12))
+    total = sum((int(v)*2//10 + int(v)*2%10) if i%2 else int(v) for i,v in enumerate(base))
+    return base + str((-total)%10)
+
+
 class SmokeFailure(Exception):
     pass
 
@@ -263,7 +269,7 @@ def run(args):
     runner.check("owner discards matching draft version", lambda: reception.api("operations.php", "POST", {"action": "discard_reception_draft", "draftPublicId": discardable["publicId"], "expectedVersion": discardable["version"]}))
     case_request = {
         "action": "create_case", "customerName": marker + "-CUSTOMER", "customerMobile": mobile(20),
-        "deviceModelId": model_id, "identifier": marker + "-DEVICE", "declaredIssue": marker + "-ISSUE",
+        "deviceModelId": model_id, "identifier": synthetic_imei(), "declaredIssue": marker + "-ISSUE",
         "customerConsent": {"dataHandling": "no_erasure"}, "accessories": [], "appearanceStates": [],
         "assignedToUserId": technician_actor["id"], "assignmentMode": "automatic",
         "idempotencyKey": draft_key, "draftPublicId": saved["publicId"],
@@ -426,7 +432,7 @@ def run(args):
     runner.check("persisted invoice payment and financial ledger agree", check_ledger)
     current = manager.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]
     runner.check("settlement automatically advances to ready for delivery", lambda: expect(current["status"] == "ready_for_delivery", "settled case did not advance automatically"))
-    delivery_request = {"action": "complete", "caseId": case_id, "idempotencyKey": marker + "-DELIVERY",
+    delivery_request = {"deviceIdentifier": case_request["identifier"], "identityConfirmed": True, "action": "complete", "caseId": case_id, "idempotencyKey": marker + "-DELIVERY",
         "recipientType": "customer", "recipientFullName": marker + "-CUSTOMER", "recipientMobile": mobile(20),
         "verificationMethod": "identity_document", "verificationEvidence": {"syntheticDocumentCheck": marker}, "accessoriesConfirmed": []}
     runner.check("technician cannot complete delivery", lambda: technician.api("delivery-v2.php", "POST", delivery_request, expected=403))

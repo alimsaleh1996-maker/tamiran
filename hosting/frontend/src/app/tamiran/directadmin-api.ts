@@ -987,3 +987,6 @@ export const verifyCustomerPortalOtp = (
       }),
     },
   );
+
+export const importCatalogItems = (rows: {type: string; brand: string; model: string}[]) =>
+  request<{created: number; duplicates: number}>("/api/catalog.php", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: "import", rows})}, true);

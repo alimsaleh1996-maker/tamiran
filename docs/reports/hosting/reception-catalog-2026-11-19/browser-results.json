@@ -1,0 +1,59 @@
+{
+  "passed": 13,
+  "failed": 0,
+  "results": [
+    {
+      "name": "address opens inline without modal navigation",
+      "status": "PASS"
+    },
+    {
+      "name": "saved address has summary and explicit edit action",
+      "status": "PASS"
+    },
+    {
+      "name": "cancel leaves saved address unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "inline address reflows on mobile",
+      "status": "PASS"
+    },
+    {
+      "name": "download is a valid XLSX with empty data and separate guide",
+      "status": "PASS"
+    },
+    {
+      "name": "Excel preview reads type brand and model from same file",
+      "status": "PASS"
+    },
+    {
+      "name": "preview has not imported before confirmation",
+      "status": "PASS"
+    },
+    {
+      "name": "confirmed workbook persists both device types",
+      "status": "PASS"
+    },
+    {
+      "name": "duplicate workbook creates no new preview rows",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid row has row number and blocks entire import",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown serial disables identifier input",
+      "status": "PASS"
+    },
+    {
+      "name": "identity step has no horizontal overflow on mobile",
+      "status": "PASS"
+    },
+    {
+      "name": "no JavaScript runtime errors",
+      "status": "PASS"
+    }
+  ],
+  "scope": "Chromium synthetic loopback; real XLSX download upload and API writes; no hosted verification"
+}

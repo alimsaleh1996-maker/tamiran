@@ -1,0 +1,9 @@
+{
+  "passed": 3,
+  "failed": 0,
+  "checks": [
+    "final similarity-enabled UI imports a genuinely new model using existing type/brand spellings",
+    "final downloadable XLSX contains empty data sheet and separate examples",
+    "identity text reserves space beside fingerprint icon"
+  ]
+}

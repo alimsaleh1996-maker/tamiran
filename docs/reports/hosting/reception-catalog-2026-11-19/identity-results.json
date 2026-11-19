@@ -1,0 +1,147 @@
+{
+  "passed": 35,
+  "failed": 0,
+  "results": [
+    {
+      "name": "catalog import is manager-only",
+      "status": "PASS"
+    },
+    {
+      "name": "catalog import requires CSRF",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid bulk row rejects whole batch",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid batch creates no prefix records",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rejects catalog batch",
+      "status": "PASS"
+    },
+    {
+      "name": "failed batch rolls type brand and model back",
+      "status": "PASS"
+    },
+    {
+      "name": "one workbook imports multiple device types",
+      "status": "PASS"
+    },
+    {
+      "name": "retry skips duplicates without overwriting records",
+      "status": "PASS"
+    },
+    {
+      "name": "bulk size bounded at 500 rows",
+      "status": "PASS"
+    },
+    {
+      "name": "missing identifier requires explicit unavailable flag",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown identity requires reason",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown identity rejects conflicting identifier",
+      "status": "PASS"
+    },
+    {
+      "name": "phone rejects invalid IMEI",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit unknown identity is accepted",
+      "status": "PASS"
+    },
+    {
+      "name": "initial reason survives server readback",
+      "status": "PASS"
+    },
+    {
+      "name": "repaired delivery without identity is blocked",
+      "status": "PASS"
+    },
+    {
+      "name": "identity confirmation cannot be omitted",
+      "status": "PASS"
+    },
+    {
+      "name": "stale delivery version rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "cannot assign identity of another device",
+      "status": "PASS"
+    },
+    {
+      "name": "failed delivery preserves blank case identity",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rejects late identity and delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "failed late capture rolls identity and handover back",
+      "status": "PASS"
+    },
+    {
+      "name": "valid recovered identity allows repaired delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery retry is read-only",
+      "status": "PASS"
+    },
+    {
+      "name": "late identity and original unavailable reason both retained",
+      "status": "PASS"
+    },
+    {
+      "name": "staff cannot change an existing serial",
+      "status": "PASS"
+    },
+    {
+      "name": "manager change requires a reason",
+      "status": "PASS"
+    },
+    {
+      "name": "manager board replacement preserves audited old and new identities",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired device can be handed back without identity or invoice",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired physical handover is idempotent",
+      "status": "PASS"
+    },
+    {
+      "name": "physical return records recipient and timestamp",
+      "status": "PASS"
+    },
+    {
+      "name": "central admin cannot bypass tenant delivery scope",
+      "status": "PASS"
+    },
+    {
+      "name": "warranty cannot silently copy identity without observation",
+      "status": "PASS"
+    },
+    {
+      "name": "warranty rejects a different observed device identity",
+      "status": "PASS"
+    },
+    {
+      "name": "matching identity opens linked warranty case",
+      "status": "PASS"
+    }
+  ],
+  "scope": "synthetic loopback HTTP and SQL; delivery prerequisites seeded explicitly, not full workflow E2E"
+}

@@ -8,7 +8,7 @@ $smsService=tamiran_private_root().'/sms-service.php';if(is_file($smsService))re
 
 function delivery_payload(PDO $pdo,array $scope):array
 {
-    v2_require_permission($scope,'delivery.view',['reception','finance_cashier'],'مشاهده صف تحویل مجاز نیست.');$statement=$pdo->prepare("SELECT w.*,c.public_id AS case_public_id,c.receipt_number,c.accessories_json,c.customer_id,c.product_profile_snapshot,c.inventory_mode_snapshot,c.qc_mode_snapshot,c.feature_flags_snapshot_json,cu.full_name AS customer_name,cu.mobile AS customer_mobile,i.public_id AS invoice_public_id,i.invoice_number,i.total_amount,i.paid_amount,i.refunded_amount,(SELECT COUNT(*) FROM repair_warranties wa INNER JOIN repair_deliveries wd ON wd.id=wa.delivery_id WHERE wd.case_id=c.id AND wa.expires_at>=NOW()) AS active_warranty_count FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id INNER JOIN repair_customers cu ON cu.id=c.customer_id LEFT JOIN repair_invoices i ON i.case_id=c.id WHERE w.shop_id=:shop AND w.branch_id=:branch AND w.process_status IN ('finance_pending','ready_for_delivery','delivered') ORDER BY w.updated_at DESC LIMIT 500");$statement->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);$cases=$statement->fetchAll();foreach($cases as&$case){$case['blockers']=v2_case_blockers($pdo,$scope,$case);$case['balance']=$case['invoice_public_id']===null?null:(int)$case['total_amount']-((int)$case['paid_amount']-(int)$case['refunded_amount']);$case['active_warranty_count']=(int)$case['active_warranty_count'];}unset($case);$setting=$pdo->prepare("SELECT value_json FROM repair_shop_settings WHERE shop_id=:shop AND setting_key='delivery_verification' LIMIT 1");$setting->execute(['shop'=>$scope['shop_id']]);$json=$setting->fetchColumn();$settings=is_string($json)?json_decode($json,true):null;if(!is_array($settings))$settings=['enabledMethods'=>['digital_signature','identity_document','sms_otp','receipt_qr'],'minimumEvidenceCount'=>1];$warranty=tamiran_capability_find(tamiran_capability_snapshot($pdo,$scope['actor']),'warranty');return['cases'=>$cases,'verificationSettings'=>$settings,'warrantyEnabled'=>is_array($warranty)&&($warranty['access']??'')==='granted'];
+    v2_require_permission($scope,'delivery.view',['reception','finance_cashier'],'مشاهده صف تحویل مجاز نیست.');$statement=$pdo->prepare("SELECT w.*,c.public_id AS case_public_id,c.receipt_number,c.accessories_json,c.customer_id,c.identifier_snapshot,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.delivered_to_name,c.delivered_at,c.product_profile_snapshot,c.inventory_mode_snapshot,c.qc_mode_snapshot,c.feature_flags_snapshot_json,cu.full_name AS customer_name,cu.mobile AS customer_mobile,i.public_id AS invoice_public_id,i.invoice_number,i.total_amount,i.paid_amount,i.refunded_amount,(SELECT COUNT(*) FROM repair_warranties wa INNER JOIN repair_deliveries wd ON wd.id=wa.delivery_id WHERE wd.case_id=c.id AND wa.expires_at>=NOW()) AS active_warranty_count FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id INNER JOIN repair_customers cu ON cu.id=c.customer_id LEFT JOIN repair_invoices i ON i.case_id=c.id WHERE w.shop_id=:shop AND w.branch_id=:branch AND w.process_status IN ('finance_pending','ready_for_delivery','delivered','returned_unrepaired') ORDER BY w.updated_at DESC LIMIT 500");$statement->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);$cases=$statement->fetchAll();foreach($cases as&$case){$case['blockers']=v2_case_blockers($pdo,$scope,$case);$case['balance']=$case['invoice_public_id']===null?null:(int)$case['total_amount']-((int)$case['paid_amount']-(int)$case['refunded_amount']);$case['active_warranty_count']=(int)$case['active_warranty_count'];}unset($case);$setting=$pdo->prepare("SELECT value_json FROM repair_shop_settings WHERE shop_id=:shop AND setting_key='delivery_verification' LIMIT 1");$setting->execute(['shop'=>$scope['shop_id']]);$json=$setting->fetchColumn();$settings=is_string($json)?json_decode($json,true):null;if(!is_array($settings))$settings=['enabledMethods'=>['digital_signature','identity_document','sms_otp','receipt_qr'],'minimumEvidenceCount'=>1];$warranty=tamiran_capability_find(tamiran_capability_snapshot($pdo,$scope['actor']),'warranty');return['cases'=>$cases,'verificationSettings'=>$settings,'warrantyEnabled'=>is_array($warranty)&&($warranty['access']??'')==='granted'];
 }
 
 
@@ -32,8 +32,14 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
 
     $pdo->beginTransaction();
     try{
+        $mutex=$pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE');$mutex->execute(['shop'=>$scope['shop_id']]);
         $case=v2_case($pdo,$scope,$caseId,true);
-        if($case['process_status']!=='ready_for_delivery'||$case['locked_at']!==null){
+        $unrepaired=$case['process_status']==='returned_unrepaired';
+        if($unrepaired && $case['delivered_at']!==null){
+            $retry=$pdo->prepare('SELECT metadata_json FROM repair_case_stage_events WHERE workflow_id=:workflow AND idempotency_key=:key LIMIT 1');$retry->execute(['workflow'=>$case['id'],'key'=>'return:'.$idempotency]);$previous=$retry->fetchColumn();
+            if($previous!==false){$pdo->commit();return ['delivered'=>true,'replayed'=>true,'outcome'=>'unrepaired','receiptNumber'=>$case['receipt_number']];}
+        }
+        if((!$unrepaired&&($case['process_status']!=='ready_for_delivery'||$case['locked_at']!==null))||($unrepaired&&$case['delivered_at']!==null)){
             throw new TamiranApiException('پرونده آماده تحویل نیست یا قبلاً تحویل شده است.',409);
         }
         $duplicate=$pdo->prepare('SELECT public_id FROM repair_deliveries WHERE case_id=:case FOR UPDATE');
@@ -41,7 +47,7 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
         if($duplicate->fetchColumn()!==false)throw new TamiranApiException('تحویل این پرونده قبلاً ثبت شده است.',409);
 
         $blockers=v2_case_blockers($pdo,$scope,$case);
-        $allBlockers=array_merge($blockers['parts'],$blockers['qc'],$blockers['finance']);
+        $allBlockers=$unrepaired?array_merge(v2_open_part_blockers($pdo,$caseId),v2_terminal_finance_blockers($pdo,$caseId)):array_merge($blockers['parts'],$blockers['qc'],$blockers['finance']);
         if($allBlockers!==[])throw new TamiranApiException('پرونده شرایط تحویل ندارد: '.implode('، ',$allBlockers),409);
 
         $expectedRaw=json_decode((string)($case['accessories_json']??'[]'),true);
@@ -59,7 +65,7 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
         $invoice=$pdo->prepare("SELECT * FROM repair_invoices WHERE case_id=:case AND status IN ('issued','partially_paid','paid') FOR UPDATE");
         $invoice->execute(['case'=>$caseId]);
         $invoiceRow=$invoice->fetch();
-        if(!is_array($invoiceRow))throw new TamiranApiException('فاکتور نهایی پیدا نشد.',409);
+        if(!$unrepaired&&!is_array($invoiceRow))throw new TamiranApiException('فاکتور نهایی پیدا نشد.',409);
 
         $customerMobile=tamiran_mobile((string)$case['customer_mobile']);
         $setting=$pdo->prepare("SELECT value_json FROM repair_shop_settings WHERE shop_id=:shop AND setting_key='delivery_verification'");
@@ -97,6 +103,17 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
             if(count($evidence)<2)throw new TamiranApiException('در مسیر اضطراری حداقل دو مدرک جایگزین لازم است.',409);
         }
 
+        if(array_key_exists('expectedVersion',$input)&&(int)$input['expectedVersion']!==(int)$case['lock_version'])throw new TamiranApiException('پرونده هم‌زمان تغییر کرده است؛ اطلاعات را تازه‌سازی کنید.',409);
+        $identity=$unrepaired?['identifier'=>(string)($case['identifier_snapshot']??''),'outcome'=>'unrepaired']:v2_delivery_identity($pdo,$scope,$case,$input);
+        $evidence['deviceIdentity']=$identity;
+        if($unrepaired){
+            $public=tamiran_id();
+            $pdo->prepare('UPDATE repair_cases SET delivered_to_name=:name,delivered_by_user_id=:actor,delivered_at=NOW(),delivery_notes=:note,row_version=row_version+1 WHERE id=:case')->execute(['name'=>$recipientName,'actor'=>$scope['actor']['id'],'note'=>'عودت بدون تعمیر'.($identity['identifier']===''?' ـ شناسه ثبت نشده':''),'case'=>$caseId]);
+            $pdo->prepare('UPDATE repair_case_workflows SET lock_version=lock_version+1 WHERE id=:id')->execute(['id'=>$case['id']]);
+            $pdo->prepare("INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at,ended_at) VALUES(:public,:workflow,'returned_unrepaired','returned_unrepaired',:actor,'تحویل واقعی بدون تعمیر',:metadata,:key,NOW(),NOW())")->execute(['public'=>$public,'workflow'=>$case['id'],'actor'=>$scope['actor']['id'],'metadata'=>v2_json(['recipient'=>$recipientName,'mobile'=>$recipientMobile,'verificationMethod'=>$method,'evidence'=>$evidence,'identity'=>$identity]),'key'=>'return:'.$idempotency]);
+            tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'delivery.return_unrepaired','repair_case',$case['case_public_id'],null,['recipient'=>$recipientName,'identity'=>$identity,'verificationMethod'=>$method]);
+            $pdo->commit();return ['delivered'=>true,'replayed'=>false,'outcome'=>'unrepaired','publicId'=>$public,'receiptNumber'=>$case['receipt_number']];
+        }
         $deliveryPublic=tamiran_id();
         $hadSecret=!empty($case['temporary_device_secret_ciphertext']);
         $pdo->prepare('INSERT INTO repair_deliveries(public_id,shop_id,case_id,invoice_id,recipient_type,recipient_full_name,recipient_national_code,recipient_mobile,verification_method,verification_json,customer_otp_request_id,accessories_confirmed_json,warnings_acknowledged_json,delivered_by_user_id,idempotency_key) VALUES(:public,:shop,:case,:invoice,:recipient_type,:name,:national,:mobile,:method,:verification,:otp,:accessories,:warnings,:actor,:idempotency)')->execute([
@@ -117,7 +134,7 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
         $pdo->prepare("UPDATE repair_cases SET status='delivered',delivery_amount=:amount,delivered_to_name=:name,delivered_by_user_id=:actor,delivered_at=NOW(),row_version=row_version+1 WHERE id=:case")->execute(['amount'=>(int)$invoiceRow['total_amount'],'name'=>$recipientName,'actor'=>$scope['actor']['id'],'case'=>$caseId]);
         $pdo->prepare('UPDATE repair_invoices SET locked_at=NOW() WHERE id=:invoice')->execute(['invoice'=>$invoiceRow['id']]);
         $pdo->prepare('UPDATE repair_case_stage_events SET ended_at=NOW() WHERE workflow_id=:workflow AND ended_at IS NULL')->execute(['workflow'=>$case['id']]);
-        $pdo->prepare("INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at,ended_at) VALUES(:public,:workflow,'ready_for_delivery','delivered',:actor,'تحویل امن دستگاه',:metadata,:idempotency,NOW(),NOW())")->execute(['public'=>tamiran_id(),'workflow'=>$case['id'],'actor'=>$scope['actor']['id'],'metadata'=>v2_json(['deliveryPublicId'=>$deliveryPublic,'method'=>$method]),'idempotency'=>'delivery:'.$idempotency]);
+        $pdo->prepare("INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at,ended_at) VALUES(:public,:workflow,'ready_for_delivery','delivered',:actor,'تحویل امن دستگاه',:metadata,:idempotency,NOW(),NOW())")->execute(['public'=>tamiran_id(),'workflow'=>$case['id'],'actor'=>$scope['actor']['id'],'metadata'=>v2_json(['deliveryPublicId'=>$deliveryPublic,'method'=>$method,'identity'=>$identity]),'idempotency'=>'delivery:'.$idempotency]);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'delivery.complete','repair_delivery',$deliveryPublic,null,['case'=>$case['case_public_id'],'recipientType'=>$recipientType,'method'=>$method,'idempotencyKey'=>$idempotency],'تحویل نهایی و شروع ضمانت');
         if($hadSecret)tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'DEVICE_SECRET_DELETED','repair_case',(string)$case['case_public_id'],null,['reason'=>'delivery_completed']);
         $pdo->commit();
@@ -165,6 +182,8 @@ function delivery_warranty_case(PDO $pdo,array $scope,array $input):array
         $originalStatement->execute(['case'=>$originalId,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
         $original=$originalStatement->fetch();
         if(!is_array($original))throw new TamiranApiException('پرونده تحویل‌شده اصلی پیدا نشد.',404);
+        $observed=v2_identity_value((string)($input['observedIdentifier']??''),(string)$original['device_type_snapshot']);
+        if(v2_identity_normalized($observed)!==v2_identity_normalized((string)$original['identifier_snapshot']))throw new TamiranApiException('شناسه دستگاه مراجعه‌کننده با دستگاه تحویل‌شده یکسان نیست؛ ابتدا مغایرت را بررسی کنید.',409);
         $valid=$pdo->prepare('SELECT COUNT(*) FROM repair_warranties wa INNER JOIN repair_deliveries d ON d.id=wa.delivery_id WHERE d.case_id=:case AND wa.expires_at>=NOW()');
         $valid->execute(['case'=>$originalId]);
         if((int)$valid->fetchColumn()<1)throw new TamiranApiException('ضمانت فعالی برای پرونده اصلی ثبت نشده است.',409);

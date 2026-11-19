@@ -91,6 +91,7 @@ SELECT c.*, b.branch_code,
        customer.full_name AS customer_name, customer.mobile AS customer_mobile, customer.national_code,
        customer.province AS customer_province, customer.city AS customer_city, customer.address AS customer_address, customer.postal_code AS customer_postal_code,
        c.device_type_snapshot AS device_type_title, c.brand_snapshot AS brand_title,
+       (SELECT e.metadata_json FROM repair_case_stage_events e WHERE e.workflow_id=workflow.id AND e.from_status IS NULL ORDER BY e.id LIMIT 1) AS reception_identity_event,
        c.model_snapshot AS model_title, c.identifier_snapshot AS identifier_value, c.color_snapshot,
        workflow.id AS workflow_id, workflow.promised_at, workflow.customer_consent_json,
        final_invoice.total_amount AS invoice_total_amount,
@@ -177,6 +178,7 @@ function operations_case_to_api(array $row, string $role, array $events = []): a
         'brand' => $row['brand_title'],
         'model' => $row['model_title'],
         'identifier' => $row['identifier_value'] ?? '',
+        'identifierUnavailableReason' => (json_decode((string)($row['reception_identity_event']??'{}'),true)['identity']['unavailableReason']??''),
         'color' => $row['color_snapshot'] ?? '',
         'declaredIssue' => $row['declared_issue'],
         'accessories' => is_array($accessories) ? array_values($accessories) : [],
@@ -575,7 +577,12 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
     $model = $modelStatement->fetch();
     if (!is_array($model)) throw new TamiranApiException('نوع، برند و مدل باید از فهرست فعال تنظیمات انتخاب شود.', 409);
     $declaredIssue = operations_required($input, 'declaredIssue', 4000);
-    $identifier = operations_optional($input['identifier'] ?? '', 180);
+    $unavailable=($input['identifierUnavailable']??false)===true;
+    $unavailableReason=trim((string)($input['identifierUnavailableReason']??''));
+    if($unavailable && (trim((string)($input['identifier']??''))!=='' || !in_array($unavailableReason,['unreadable','missing_label','powered_off','other'],true)))throw new TamiranApiException('برای سریال ندارد، شناسه را خالی و علت را مشخص کنید.',422);
+    $unavailableNote=operations_optional($input['identifierUnavailableNote']??'',500);
+    if($unavailable&&$unavailableReason==='other'&&$unavailableNote===null)throw new TamiranApiException('علت در دسترس نبودن سریال را توضیح دهید.',422);
+    $identifier = $unavailable ? null : v2_identity_value((string)($input['identifier']??''),(string)$model['type']);
     $color = operations_optional($input['color'] ?? '', 80);
     $colorSetting=$pdo->prepare("SELECT value_json FROM repair_shop_settings WHERE shop_id=:shop AND setting_key='device_colors' LIMIT 1");
     $colorSetting->execute(['shop'=>$scope['shop_id']]);
@@ -585,7 +592,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         foreach($configuredColors as$configuredColor)if(is_array($configuredColor)&&($configuredColor['active']??true)!==false)$activeColorNames[]=trim((string)($configuredColor['name']??''));
         if(!in_array($color,$activeColorNames,true))throw new TamiranApiException('رنگ دستگاه باید از فهرست فعال تنظیمات انتخاب شود.',409);
     }
-    $normalizedIdentifier = $identifier === null ? null : strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $identifier) ?? '');
+    $normalizedIdentifier = $identifier === null ? null : v2_identity_normalized($identifier);
     $promisedAt = operations_optional($input['promisedAt'] ?? '', 40);
     if ($promisedAt !== null) {
         $parsedPromise = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $promisedAt, new DateTimeZone('UTC'));
@@ -617,6 +624,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
 
     $pdo->beginTransaction();
     try {
+        $identityMutex=$pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE');$identityMutex->execute(['shop'=>$scope['shop_id']]);
         $draftPublic=trim((string)($input['draftPublicId']??''));
         if($draftPublic!==''){
             $draftVersion=operations_version($input,'draftExpectedVersion');
@@ -719,7 +727,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         ]);
         $workflowId=(int)$pdo->lastInsertId();
         $pdo->prepare('INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at) VALUES(:public,:workflow,NULL,:status,:actor,:reason,:metadata,:idempotency,NOW())')->execute([
-            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile']],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
+            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
         ]);
         if ($assignedId !== null) {
             $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,created_by_user_id,started_at,accepted_at) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی تعمیر',:creator,NOW(),NOW())")

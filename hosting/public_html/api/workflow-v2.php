@@ -81,7 +81,7 @@ function workflow_v2_payload(PDO $pdo,array $scope,?int $caseId=null,?string $qu
         $params['query_customer']=$queryPattern;
     }
     if($scope['role']==='technician'){$where.=' AND (w.primary_technician_user_id=:actor OR EXISTS(SELECT 1 FROM repair_case_assignments a WHERE a.workflow_id=w.id AND a.technician_user_id=:actor2 AND a.ended_at IS NULL))';$params['actor']=$scope['actor']['id'];$params['actor2']=$scope['actor']['id'];}
-    $statement=$pdo->prepare("SELECT w.*,c.public_id AS case_public_id,c.receipt_number,c.declared_issue,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.identifier_snapshot,c.product_profile_snapshot,c.inventory_mode_snapshot,c.qc_mode_snapshot,c.feature_flags_snapshot_json,c.created_at AS accepted_at,cu.full_name AS customer_name,cu.mobile AS customer_mobile,u.display_name AS technician_name FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id INNER JOIN repair_customers cu ON cu.id=c.customer_id LEFT JOIN tamiran_users u ON u.id=w.primary_technician_user_id WHERE {$where} ORDER BY w.updated_at DESC LIMIT 500");
+    $statement=$pdo->prepare("SELECT w.*,(SELECT ie.metadata_json FROM repair_case_stage_events ie WHERE ie.workflow_id=w.id AND ie.from_status IS NULL ORDER BY ie.id LIMIT 1) AS reception_identity_event,c.public_id AS case_public_id,c.receipt_number,c.declared_issue,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.identifier_snapshot,c.product_profile_snapshot,c.inventory_mode_snapshot,c.qc_mode_snapshot,c.feature_flags_snapshot_json,c.created_at AS accepted_at,cu.full_name AS customer_name,cu.mobile AS customer_mobile,u.display_name AS technician_name FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id INNER JOIN repair_customers cu ON cu.id=c.customer_id LEFT JOIN tamiran_users u ON u.id=w.primary_technician_user_id WHERE {$where} ORDER BY w.updated_at DESC LIMIT 500");
     $statement->execute($params);$rows=$statement->fetchAll();$defaultPolicy=v2_product_policy($pdo,$scope);$maps=v2_workflow_maps($defaultPolicy);
     $manualPartsByCase=[];$latestEstimateByCase=[];
     $caseIds=array_values(array_unique(array_map(static fn(array $row):int=>(int)$row['case_id'],$rows)));
@@ -112,7 +112,7 @@ function workflow_v2_payload(PDO $pdo,array $scope,?int $caseId=null,?string $qu
             'isLocked'=>$row['locked_at']!==null,'customerName'=>$row['customer_name'],
             'customerMobile'=>in_array($scope['role'],['repair_manager','reception','finance_cashier'],true)?$row['customer_mobile']:'',
             'deviceTitle'=>trim($row['device_type_snapshot'].' '.$row['brand_snapshot'].' '.$row['model_snapshot']),
-            'identifier'=>$row['identifier_snapshot']??'','declaredIssue'=>$row['declared_issue'],'dataHandling'=>$dataHandling,'technicianName'=>$row['technician_name']??'',
+            'initialIdentityReason'=>(json_decode((string)($row['reception_identity_event']??'{}'),true)['identity']['unavailableReason']??''),'identifier'=>$row['identifier_snapshot']??'','declaredIssue'=>$row['declared_issue'],'dataHandling'=>$dataHandling,'technicianName'=>$row['technician_name']??'',
             'primaryTechnicianUserId'=>$row['primary_technician_user_id']===null?null:(int)$row['primary_technician_user_id'],
             'preapprovedAmount'=>(int)$row['preapproved_amount'],'promisedAt'=>$row['promised_at'],'acceptedAt'=>$row['accepted_at'],
             'allowedTransitions'=>$allowedTransitions,

@@ -53,7 +53,9 @@ import {
 import * as React from "react";
 import { useModalFocus } from "../shared/use-modal-focus";
 import { useEffect, useState } from "react";
-import { readSheet } from "./xlsx-reader";
+import { CustomerAddress } from "./customer-address";
+import { CatalogImport } from "./catalog-import";
+import "./reception-identity.css";
 import { ShopUserManagement } from "./shop-users";
 import type { WorkspaceProfile } from "./access";
 import { displayDeviceType, type DeviceCatalogItem } from "./catalog";
@@ -798,7 +800,6 @@ function ReceptionPage({
   const [customerProvince, setCustomerProvince] = useState("");
   const [customerCity, setCustomerCity] = useState("");
   const [customerPostalCode, setCustomerPostalCode] = useState("");
-  const [addressOpen, setAddressOpen] = useState(false);
   const [secondaryMobile, setSecondaryMobile] = useState("");
   const [preapprovedAmount, setPreapprovedAmount] = useState("");
   const [promisedAt, setPromisedAt] = useState("");
@@ -823,6 +824,9 @@ function ReceptionPage({
   const [declaredIssue, setDeclaredIssue] = useState("");
   const [receptionNotes, setReceptionNotes] = useState("");
   const [identifier, setIdentifier] = useState("");
+  const [identifierUnavailable, setIdentifierUnavailable] = useState(false);
+  const [identifierUnavailableReason, setIdentifierUnavailableReason] = useState("");
+  const [identifierUnavailableNote, setIdentifierUnavailableNote] = useState("");
   const [deviceColor, setDeviceColor] = useState("");
   const [assignedToUserId, setAssignedToUserId] = useState<
     number | "queue" | null
@@ -888,19 +892,8 @@ function ReceptionPage({
         formSettings.policies?.[`${profileKey}|${field.label}`]?.mode !==
           "پنهان",
     );
-  const identifierField = configuredFields.find(
-    (field) =>
-      field.label === "IMEI" ||
-      field.label.includes("سریال") ||
-      field.label === "پلاک" ||
-      field.label === "شناسه",
-  );
-  const identifierRequired = Boolean(
-    identifierField &&
-    (identifierField.required ||
-      formSettings.policies?.[`${profileKey}|${identifierField.label}`]
-        ?.mode === "الزامی"),
-  );
+  if (!configuredFields.some((field) => field.label === "IMEI" || field.label.includes("سریال") || ["پلاک", "شناسه"].includes(field.label))) configuredFields.unshift({label: "شناسه", placeholder: "سریال / IMEI دستگاه", required: true});
+  const identifierField = configuredFields.find((field) => field.label === "IMEI" || field.label.includes("سریال") || ["پلاک", "شناسه"].includes(field.label));
   const activeTechnicians = operations.users.filter(
     (user) => user.isActive && user.role === "technician",
   );
@@ -1005,6 +998,9 @@ function ReceptionPage({
     setCustomerAddress(String(draft.customerAddress ?? ""));
     setCustomerPostalCode(String(draft.customerPostalCode ?? ""));
     setIdentifier(String(draft.identifier ?? ""));
+    setIdentifierUnavailable(draft.identifierUnavailable === true);
+    setIdentifierUnavailableReason(String(draft.identifierUnavailableReason ?? ""));
+    setIdentifierUnavailableNote(String(draft.identifierUnavailableNote ?? ""));
     setDeviceColor(String(draft.color ?? ""));
     setDeclaredIssue(String(draft.declaredIssue ?? ""));
     setReceptionNotes(String(draft.receptionNotes ?? ""));
@@ -1044,7 +1040,7 @@ function ReceptionPage({
         previousDeviceId: selectedPreviousDevice?.id ?? restoredPreviousDeviceIdRef.current,
         customerChoice,
         assignedToUserId,
-        identifier,
+        identifier, identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
         color: deviceColor,
         accessories,
         appearanceStates,
@@ -1102,7 +1098,7 @@ function ReceptionPage({
     customerChoice,
     assignedToUserId,
     savingReceipt,
-    identifier,
+    identifier, identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
     deviceColor,
     accessories,
     appearanceStates,
@@ -1258,6 +1254,7 @@ function ReceptionPage({
     setDeclaredIssue("");
     setReceptionNotes("");
     setIdentifier(device.identifier);
+    setIdentifierUnavailable(false); setIdentifierUnavailableReason(""); setIdentifierUnavailableNote("");
     setDeviceColor(device.color || "");
     setSelectedCatalogItem(
       deviceCatalog.find(
@@ -1370,12 +1367,13 @@ function ReceptionPage({
       );
       return;
     }
-    if (identifierRequired && !identifier.trim()) {
+    if (!identifierUnavailable && !identifier.trim()) {
       showFormError(
         `${terminology?.identifierLabel || identifierField?.label || "شناسه محصول"} را کامل کنید.`,
       );
       return;
     }
+    if (identifierUnavailable && (!identifierUnavailableReason || (identifierUnavailableReason === "other" && !identifierUnavailableNote.trim()))) { showFormError("علت در دسترس نبودن سریال را مشخص کنید."); return; }
     const colorFieldVisible = configuredFields.some((field) => field.label.includes("رنگ"));
     if (colorFieldVisible && !deviceColor) {
       showFormError("رنگ دستگاه را از فهرست اطلاعات پایه انتخاب کنید.");
@@ -1469,7 +1467,7 @@ function ReceptionPage({
         customerCity: customerCity || undefined,
         customerPostalCode: customerPostalCode || undefined,
         deviceModelId: selectedCatalogItem.id,
-        identifier: identifier.trim() || undefined,
+        identifier: identifierUnavailable ? undefined : identifier.trim(), identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
         color: deviceColor,
         declaredIssue: declaredIssue.trim(),
         accessories,
@@ -1718,24 +1716,7 @@ function ReceptionPage({
                     maxLength={11}
                   />
                 </label>
-                <div className="field-block reception-address-field">
-                  <span>آدرس مشتری {addressPolicy.required && <b>*</b>}</span>
-                  <button
-                    type="button"
-                    className="address-open-button"
-                    onClick={() => setAddressOpen(true)}
-                  >
-                    <span>
-                      {customerProvince && customerCity
-                        ? `${customerProvince}، ${customerCity}${customerAddress ? ` · ${customerAddress}` : ""}`
-                        : "افزودن یا ویرایش آدرس"}
-                    </span>
-                    <ChevronLeft size={17} />
-                  </button>
-                  <small className="field-helper">
-                    استان، شهر، نشانی و کد پستی در یک پنجره جدا ثبت می‌شوند.
-                  </small>
-                </div>
+                <CustomerAddress value={{province: customerProvince, city: customerCity, address: customerAddress, postalCode: customerPostalCode}} required={Boolean(addressPolicy.required)} cities={iranProvinceCities} onSave={(value) => {setCustomerProvince(value.province); setCustomerCity(value.city); setCustomerAddress(value.address); setCustomerPostalCode(value.postalCode);}} />
               </div>
 
               {knownCustomer && customerChoice === null && (
@@ -1868,7 +1849,7 @@ function ReceptionPage({
                     </button>
                   </div>
                 )}
-                <div className="form-grid four-columns">
+                <div className="form-grid four-columns reception-device-grid">
                   <div className="catalog-select-with-create">
                     <SearchableCatalogSelect
                       items={deviceCatalog}
@@ -1910,18 +1891,16 @@ function ReceptionPage({
                       field.label.includes("سریال") ||
                       field.label === "پلاک" ||
                       field.label === "شناسه" ? (
-                      <label className="field-block" key={field.label}>
-                        <span>
+                      <div className="field-block reception-identity-field" key={field.label}>
+                        <label htmlFor="reception-device-identifier">
                           {terminology?.identifierLabel || field.label}{" "}
-                          {(formSettings.policies?.[
-                            `${profileKey}|${field.label}`
-                          ]?.mode === "الزامی" ||
-                            field.required) && <b>*</b>}
-                        </span>
+                          {!identifierUnavailable && <b>*</b>}
+                        </label>
                         <div className="input-with-icon">
                           <Fingerprint size={17} />
                           <input
-                            value={identifier}
+                            id="reception-device-identifier" disabled={identifierUnavailable} aria-required={!identifierUnavailable}
+                            value={identifierUnavailable ? "" : identifier}
                             onChange={(event) =>
                               setIdentifier(event.target.value)
                             }
@@ -1933,7 +1912,10 @@ function ReceptionPage({
                         {field.helper && (
                           <small className="field-helper">{field.helper}</small>
                         )}
-                      </label>
+                        <label className="identity-missing-choice"><input type="checkbox" checked={identifierUnavailable} onChange={(e) => {setIdentifierUnavailable(e.target.checked); if(e.target.checked) setIdentifier("");}}/><span>سریال ندارد</span></label>
+                        <small>اگر شناسه اکنون قابل خواندن نیست، علت را ثبت کنید. دستگاه تعمیرشده پیش از تحویل باید شناسه داشته باشد.</small>
+                        {identifierUnavailable && <><label><span>علت در دسترس نبودن سریال *</span><select value={identifierUnavailableReason} onChange={(e) => setIdentifierUnavailableReason(e.target.value)}><option value="">انتخاب علت</option><option value="unreadable">سریال ناخوانا است</option><option value="missing_label">برچسب سریال مفقود است</option><option value="powered_off">دستگاه خاموش است و شناسه قابل بررسی نیست</option><option value="other">سایر موارد</option></select></label>{identifierUnavailableReason === "other" && <label><span>توضیح علت *</span><input value={identifierUnavailableNote} maxLength={500} onChange={(e) => setIdentifierUnavailableNote(e.target.value)}/></label>}</>}
+                      </div>
                     ) : (
                       <Field
                         key={field.label}
@@ -2331,116 +2313,6 @@ function ReceptionPage({
           </div>
         </aside>
       </div>
-
-      {addressOpen && (
-        <Modal title="آدرس مشتری" onClose={() => setAddressOpen(false)}>
-          <div className="address-modal-form">
-            <p>
-              آدرس فقط در پرونده مشتری نگهداری می‌شود و در قبض چاپی نمایش داده
-              نمی‌شود.
-            </p>
-            <div className="form-grid two-columns">
-              <label className="field-block">
-                <span>استان {addressPolicy.required && <b>*</b>}</span>
-                <select
-                  value={customerProvince}
-                  onChange={(event) => {
-                    setCustomerProvince(event.target.value);
-                    setCustomerCity("");
-                  }}
-                >
-                  <option value="">انتخاب استان</option>
-                  {Object.keys(iranProvinceCities).map((province) => (
-                    <option key={province} value={province}>
-                      {province}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field-block">
-                <span>شهر {addressPolicy.required && <b>*</b>}</span>
-                <select
-                  value={customerCity}
-                  disabled={!customerProvince}
-                  onChange={(event) => setCustomerCity(event.target.value)}
-                >
-                  <option value="">انتخاب شهر</option>
-                  {(iranProvinceCities[customerProvince] ?? []).map((city) => (
-                    <option key={city} value={city}>
-                      {city}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field-block wide">
-                <span>نشانی</span>
-                <textarea
-                  className="no-resize"
-                  rows={3}
-                  maxLength={1000}
-                  value={customerAddress}
-                  onChange={(event) => setCustomerAddress(event.target.value)}
-                  placeholder="خیابان، کوچه، پلاک و واحد"
-                />
-              </label>
-              <label className="field-block">
-                <span>کد پستی</span>
-                <input
-                  dir="ltr"
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={customerPostalCode}
-                  onChange={(event) =>
-                    setCustomerPostalCode(
-                      normalizeDigits(event.target.value).slice(0, 10),
-                    )
-                  }
-                  placeholder="۱۰ رقم"
-                />
-                <small className="field-helper">
-                  {customerPostalCode
-                    ? `${operationalNumber.format(customerPostalCode.length)} از ۱۰ رقم`
-                    : "بدون خط تیره"}
-                </small>
-              </label>
-            </div>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="outline-action"
-                onClick={() => {
-                  setCustomerProvince("");
-                  setCustomerCity("");
-                  setCustomerAddress("");
-                  setCustomerPostalCode("");
-                }}
-              >
-                پاک‌کردن آدرس
-              </button>
-              <button
-                type="button"
-                className="primary-action"
-                onClick={() => {
-                  if (
-                    addressPolicy.required &&
-                    (!customerProvince ||
-                      !customerCity ||
-                      !customerAddress.trim() ||
-                      customerPostalCode.length !== 10)
-                  ) {
-                    showFormError("آدرس کامل و کد پستی ۱۰ رقمی را وارد کنید.");
-                    return;
-                  }
-                  setAddressOpen(false);
-                }}
-              >
-                <Check size={17} />
-                ثبت آدرس
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
 
       {catalogCreateOpen && (
         <Modal
@@ -3113,7 +2985,7 @@ function ReceiptDocument({
           </div>
           <div className="receipt-identifier">
             <span>شماره سریال / شناسه</span>
-            <strong dir="ltr">{identifier || "ثبت نشده"}</strong>
+            <strong dir="ltr">{identifier || "بدون شناسه در زمان پذیرش"}</strong>
           </div>
         </div>
         <div className="receipt-detail-grid">
@@ -3878,7 +3750,7 @@ function TechnicianPage({
               <div>
                 <span>شناسه دستگاه</span>
                 <strong dir="ltr">
-                  {selectedCase.identifier || "ثبت نشده"}
+                  {selectedCase.identifier || "بدون شناسه در زمان پذیرش"}
                 </strong>
               </div>
               <div>
@@ -7518,7 +7390,6 @@ function BaseDataSettings({
   const [newType, setNewType] = useState("");
   const [newBrand, setNewBrand] = useState("");
   const [newModel, setNewModel] = useState("");
-  const [importing, setImporting] = useState(false);
   const [colors, setColors] = useState<DeviceColorOption[]>(() =>
     normalizeDeviceColors(savedColors),
   );
@@ -7593,89 +7464,6 @@ function BaseDataSettings({
       );
     } catch (error) {
       notify(moduleErrorMessage(error, "افزودن مدل انجام نشد"));
-    }
-  };
-
-  const importExcel = async (file?: File) => {
-    if (!file) return;
-    const targetType = newType.trim() || activeType;
-    if (!targetType) {
-      notify("پیش از ورود Excel، نوع دستگاه را انتخاب یا وارد کنید");
-      return;
-    }
-    setImporting(true);
-    try {
-      const rows = await readSheet(file);
-      if (!rows.length) throw new Error("empty");
-      const firstRow = rows[0].map((cell) =>
-        String(cell ?? "")
-          .trim()
-          .toLocaleLowerCase("fa"),
-      );
-      const hasHeader =
-        ["برند", "مارک", "brand"].includes(firstRow[0]) &&
-        ["مدل", "model"].includes(firstRow[1]);
-      const dataRows = hasHeader ? rows.slice(1) : rows;
-      const existingKeys = new Set(
-        items.map(
-          (item) =>
-            `${item.deviceType.trim().toLocaleLowerCase("fa")}|${item.brand.trim().toLocaleLowerCase("fa")}|${item.model.trim().toLocaleLowerCase("fa")}`,
-        ),
-      );
-      const imported: DeviceCatalogItem[] = [];
-      let duplicates = 0;
-      dataRows.forEach((row, index) => {
-        const brand = String(row[0] ?? "").trim();
-        const model = String(row[1] ?? "").trim();
-        if (!brand || !model) return;
-        const key = `${targetType.toLocaleLowerCase("fa")}|${brand.toLocaleLowerCase("fa")}|${model.toLocaleLowerCase("fa")}`;
-        if (existingKeys.has(key)) {
-          duplicates += 1;
-          return;
-        }
-        existingKeys.add(key);
-        imported.push({
-          id: Date.now() + index,
-          deviceType: targetType,
-          brand,
-          model,
-          usageCount: 0,
-          isActive: true,
-        });
-      });
-      if (!imported.length) {
-        notify(
-          duplicates
-            ? "همه ردیف‌های فایل قبلاً در فهرست وجود داشتند"
-            : "ردیف معتبری در دو ستون برند و مدل پیدا نشد",
-        );
-      } else {
-        if (directAdminApiEnabled) {
-          for (const item of imported)
-            await createCatalogItem({
-              type: targetType,
-              brand: item.brand,
-              model: item.model,
-            });
-          await refreshCatalog();
-        } else {
-          setItems?.((current) => [...current, ...imported]);
-        }
-        setSelectedType(targetType);
-        setNewType("");
-        notify(
-          `${imported.length} مدل برای نوع «${displayDeviceType(targetType)}» وارد شد${duplicates ? `؛ ${duplicates} ردیف تکراری نادیده گرفته شد` : ""}`,
-        );
-      }
-    } catch (error) {
-      notify(
-        moduleErrorMessage(
-          error,
-          "فایل خوانده نشد؛ فایل باید XLSX و شامل دو ستون برند و مدل باشد",
-        ),
-      );
-    } finally {
-      setImporting(false);
     }
   };
 
@@ -7816,20 +7604,10 @@ function BaseDataSettings({
           title="تعریف نوع، برند و مدل"
           badge={`${items.length} مدل`}
         />
-        <label className={`excel-import-button ${importing ? "loading" : ""}`}>
-          <FileSpreadsheet size={17} />
-          {importing ? "در حال خواندن..." : "ورود از فایل Excel"}
-          <input
-            type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            disabled={importing}
-            onChange={(event) => {
-              void importExcel(event.target.files?.[0]);
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
+
       </div>
+
+      <CatalogImport items={items} onSaved={refreshCatalog} notify={notify} />
 
       <div className="catalog-policy-banner">
         <ShieldCheck size={20} />
@@ -7911,23 +7689,6 @@ function BaseDataSettings({
           افزودن به فهرست
         </button>
       </section>
-
-      <div className="excel-format-note">
-        <FileSpreadsheet size={18} />
-        <div>
-          <strong>ساختار فایل Excel</strong>
-          <span>
-            نوع دستگاه را از بالا انتخاب یا وارد کنید؛ فایل فقط دو ستون «برند» و
-            «مدل» دارد و همه ردیف‌ها به همان نوع افزوده می‌شوند.
-          </span>
-        </div>
-        <code>
-          <b>برند</b>
-          <b>مدل</b>
-          <span>سامسونگ گلکسی</span>
-          <span>A56</span>
-        </code>
-      </div>
 
       <div className="data-toolbar catalog-toolbar">
         <label className="module-search grow">

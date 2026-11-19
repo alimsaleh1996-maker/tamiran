@@ -1,5 +1,6 @@
 # بررسی‌ها و تصاویر نسخهٔ PHP
 
+- [پذیرش، شناسهٔ دستگاه و ورود اسامی مشابه از اکسل — php.5](2026-11-19-reception-identity-catalog-FA.md)
 - [اصلاح صفحهٔ کاربران و بررسی UI/UX Pro Max — ۱۹ نوامبر ۲۰۲۶](2026-11-19-user-interface-FA.md)
 - [مدیریت مستقل کاربران تعمیرگاه — php.3](2026-11-19-shop-user-management-FA.md)
 - [بررسی مجدد با ابزارهای نصب‌شده](2026-11-10-installed-tools-audit-FA.md)

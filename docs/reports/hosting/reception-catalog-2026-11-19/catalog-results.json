@@ -1,0 +1,75 @@
+{
+  "passed": 17,
+  "failed": 0,
+  "results": [
+    {
+      "name": "Persian English digit and word-order variants are skipped",
+      "status": "PASS"
+    },
+    {
+      "name": "canonical duplicates create zero models",
+      "status": "PASS"
+    },
+    {
+      "name": "duplicate report names the existing model",
+      "status": "PASS"
+    },
+    {
+      "name": "manual entry cannot bypass canonical duplicate check",
+      "status": "PASS"
+    },
+    {
+      "name": "manual entry cannot bypass fuzzy name check",
+      "status": "PASS"
+    },
+    {
+      "name": "similar row blocks entire batch with original Excel row number",
+      "status": "PASS"
+    },
+    {
+      "name": "earlier valid row is rolled back when similar row exists",
+      "status": "PASS"
+    },
+    {
+      "name": "different generation number remains distinct",
+      "status": "PASS"
+    },
+    {
+      "name": "two genuinely different models are created",
+      "status": "PASS"
+    },
+    {
+      "name": "duplicates within same workbook are matched before creation",
+      "status": "PASS"
+    },
+    {
+      "name": "same workbook creates just one canonical model",
+      "status": "PASS"
+    },
+    {
+      "name": "existing spelling reused for new model type and brand",
+      "status": "PASS"
+    },
+    {
+      "name": "inactive model still prevents duplicate definition",
+      "status": "PASS"
+    },
+    {
+      "name": "inactive duplicate is skipped without reactivating it",
+      "status": "PASS"
+    },
+    {
+      "name": "another shop can independently define same names",
+      "status": "PASS"
+    },
+    {
+      "name": "concurrent managers cannot create equivalent names twice",
+      "status": "PASS"
+    },
+    {
+      "name": "type brand and model codes do not merge different physical models",
+      "status": "PASS"
+    }
+  ],
+  "scope": "synthetic loopback HTTP; two independent manager accounts for race"
+}
