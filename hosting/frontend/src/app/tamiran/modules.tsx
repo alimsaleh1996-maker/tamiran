@@ -54,6 +54,7 @@ import * as React from "react";
 import { useModalFocus } from "../shared/use-modal-focus";
 import { useEffect, useState } from "react";
 import { readSheet } from "./xlsx-reader";
+import { ShopUserManagement } from "./shop-users";
 import type { WorkspaceProfile } from "./access";
 import { displayDeviceType, type DeviceCatalogItem } from "./catalog";
 import {
@@ -6212,6 +6213,7 @@ function SettingsPage({
   operations = emptyOperationalSnapshot,
   shopSettings = {},
   setShopSettings,
+  onRefreshOperations,
 }: Pick<
   PageProps,
   | "notify"
@@ -6221,6 +6223,7 @@ function SettingsPage({
   | "operations"
   | "shopSettings"
   | "setShopSettings"
+  | "onRefreshOperations"
 >) {
   const [tab, setTab] = useState("پروفایل تعمیرگاه");
   const tabs = [
@@ -6317,6 +6320,7 @@ function SettingsPage({
               users={operations.users}
               workspace={workspace}
               saved={shopSettings.assignment_policy}
+              onUsersChanged={() => { void onRefreshOperations?.(); }}
               onSaved={(value) =>
                 setShopSettings?.((current) => ({
                   ...current,
@@ -7288,12 +7292,14 @@ function UserSettings({
   workspace,
   saved,
   onSaved,
+  onUsersChanged,
 }: {
   users: OperationalUser[];
   notify: (message: string) => void;
   workspace?: WorkspaceProfile;
   saved?: unknown;
   onSaved: (value: Record<string, unknown>) => void;
+  onUsersChanged?: () => void;
 }) {
   const [selected, setSelected] = useState<OperationalUser | null>(null);
   const savedPolicy = (saved && typeof saved === "object" ? saved : {}) as {
@@ -7318,6 +7324,7 @@ function UserSettings({
     (user) =>
       user.isActive && ["technician", "repair_manager"].includes(user.role),
   );
+  const canManageUsers = directAdminApiEnabled && workspace?.role === "repair_manager";
   const defaultUnavailable = Boolean(
     defaultTechnicianId &&
     !assignmentCandidates.some((user) => user.id === defaultTechnicianId),
@@ -7353,6 +7360,7 @@ function UserSettings({
           badge={`${users.length} کاربر`}
         />
       </div>
+      {canManageUsers && <ShopUserManagement onChanged={onUsersChanged} />}
       <div className="settings-form assignment-policy-settings">
         <div className="settings-section-head">
           <div>
@@ -7417,7 +7425,7 @@ function UserSettings({
           </button>
         </div>
       </div>
-      <div className="responsive-table-wrap">
+      {!canManageUsers && <div className="responsive-table-wrap">
         <table className="data-table">
           <thead>
             <tr>
@@ -7461,7 +7469,7 @@ function UserSettings({
             description="به‌جز حساب مدیریتی جاری، کاربری برای این تعمیرگاه تعریف نشده است."
           />
         )}
-      </div>
+      </div>}
       <div className="settings-note">
         <ShieldEllipsis size={19} />
         <p>

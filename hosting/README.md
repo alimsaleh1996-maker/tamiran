@@ -1,10 +1,10 @@
 # Tamiran PHP hosting edition
 
-Release: **2.0.0-php.2**. Standalone shared-hosting distribution built from the preserved Tamiran PHP/MySQL business backend and an adapted browser build of the existing twenty-menu interface.
+Release: **2.0.0-php.3**. Standalone shared-hosting distribution built from the preserved Tamiran PHP/MySQL business backend and an adapted browser build of the existing twenty-menu interface.
 
 Start with [INSTALL-FA.md](INSTALL-FA.md). The install archive places `public_html/` and `private/` side by side. The server needs PHP 8.2+ and MySQL 8 / MariaDB 10.6+, with no Node, Cloudflare or ChatGPT runtime dependency. Domain-root deployment is required.
 
-For an existing `2.0.0-php.1` installation, use the application-only update ZIP and [UPGRADE-FA.md](UPGRADE-FA.md). It contains no SQL, installer, generated config or runtime keys. See [UI-FIXES-FA.md](UI-FIXES-FA.md) for the six interface fixes and the Persian audio CAPTCHA.
+For an existing `2.0.0-php.2` installation, use the application-only update ZIP and [UPGRADE-FA.md](UPGRADE-FA.md). It contains no SQL, installer, generated config or runtime keys. See [UI-FIXES-FA.md](UI-FIXES-FA.md) for the six interface fixes and the Persian audio CAPTCHA.
 
 The PHP edition has its own files here. The frozen reference in `migration/worker/baseline` and the Worker migration are preserved.
 
@@ -20,3 +20,5 @@ To rebuild the browser interface, use `npm ci --ignore-scripts`, `npm run typech
 The initial installer only accepts an empty dedicated database and does not upgrade existing installations. Do not overwrite an existing `private/config.php`, encryption key or runtime-secret directory during upgrades.
 
 Historical interface reviews and screenshots are grouped under [docs/reports/hosting](../docs/reports/hosting/README.md). Developer navigation starts at [docs/README.md](../docs/README.md).
+
+Shop managers can administer users from Settings → Users and roles within their managed branches. Built-in roles and explicit additive permissions are enforced server-side; central administration remains separate.

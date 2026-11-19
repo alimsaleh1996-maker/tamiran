@@ -145,8 +145,9 @@ def main() -> None:
         write_zip(output / f"tamiran-{VERSION}-install.zip", runtime),
         write_zip(output / f"tamiran-{VERSION}-source.zip", source_files(runtime)),
     ]
-    if VERSION == "2.0.0-php.2":
-        results.append(write_zip(output / f"tamiran-{VERSION}-update-from-php.1.zip", update_files(runtime)))
+    if VERSION in {"2.0.0-php.2", "2.0.0-php.3"}:
+        previous = "php.2" if VERSION == "2.0.0-php.3" else "php.1"
+        results.append(write_zip(output / f"tamiran-{VERSION}-update-from-{previous}.zip", update_files(runtime)))
     (output / f"tamiran-{VERSION}-artifacts.json").write_text(json.dumps(results, indent=2) + "\n")
     for result in results:
         print(f"{result['file']}  {result['bytes']} bytes  SHA256 {result['sha256']}")

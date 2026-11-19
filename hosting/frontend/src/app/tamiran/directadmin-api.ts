@@ -567,6 +567,15 @@ export const loadAdminUsers = () =>
   request<{ users: AdminUser[]; branches: AdminBranch[] }>(
     "/api/admin-users.php",
   );
+export type ShopUser = {
+  id: number; displayName: string; phone: string; email: string; role: string;
+  isActive: boolean; branchIds: number[]; permissions: string[]; canEdit: boolean;
+};
+export type ShopUserData = {
+  users: ShopUser[]; branches: { id: number; name: string; isDefault: boolean }[];
+  permissionCatalog: Record<string, string>; maxUsers: number; usedUsers: number;
+};
+export const loadShopUsers = () => request<ShopUserData>("/api/admin-users.php");
 export const createAdminUser = (input: Record<string, unknown>) =>
   request<{ created: boolean }>(
     "/api/admin-users.php",

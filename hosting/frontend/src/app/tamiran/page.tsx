@@ -199,9 +199,14 @@ const pageRequiredPermission: Record<string, string> = {
 };
 
 function permissionAllows(profile: WorkspaceProfile, page: string) {
+  if (rolePageAccess[profile.role]?.has(page)) return true;
   const required = pageRequiredPermission[page];
-  if (!required || profile.permissions.length === 0) return true;
-  return profile.permissions.includes("*") || profile.permissions.includes(required);
+  const grants = page === "گردش‌ها" ? [required, "inventory.control.view"] : [required];
+  return Boolean(required && (profile.permissions.includes("*") || grants.some(grant => profile.permissions.includes(grant))));
+}
+
+function pagesForProfile(profile: WorkspaceProfile) {
+  return new Set(navGroups.flatMap(group => group.items.map(item => item.label)).filter(page => permissionAllows(profile, page)));
 }
 
 const v2Pages = new Set([
@@ -411,7 +416,7 @@ export default function Home() {
     const requested = pageFromLocation();
     const fallback =
       workspaceProfile.role === "technician" ? "کارهای من" : "نبض تعمیرگاه";
-    const allowed = rolePageAccess[workspaceProfile.role] ?? new Set<string>();
+    const allowed = pagesForProfile(workspaceProfile);
     setActivePage(requested && allowed.has(requested) ? requested : fallback);
   }, [
     workspaceProfile?.actorId,
@@ -423,7 +428,7 @@ export default function Home() {
     if (!workspaceProfile || workspaceProfile.isCentralAdmin) return;
     const onHistory = () => {
       const requested = pageFromLocation();
-      const allowed = rolePageAccess[workspaceProfile.role] ?? new Set<string>();
+      const allowed = pagesForProfile(workspaceProfile);
       const fallback = workspaceProfile.role === "technician" ? "کارهای من" : "نبض تعمیرگاه";
       setActivePage(requested && allowed.has(requested) ? requested : fallback);
       setContentRevision((current) => current + 1);
@@ -434,8 +439,6 @@ export default function Home() {
 
   const selectPage = (label: string) => {
     if (workspaceProfile && !workspaceProfile.isCentralAdmin) {
-      const roleAllowed =
-        rolePageAccess[workspaceProfile.role] ?? new Set<string>();
       const requiredModule = pageRequiredModule[label];
       const capability = capabilities?.modules.find(
         (item) => item.module === requiredModule,
@@ -447,7 +450,6 @@ export default function Home() {
           : !workspaceProfile.modules.includes(requiredModule)),
       );
       if (
-        !roleAllowed.has(label) ||
         moduleBlocked ||
         !permissionAllows(workspaceProfile, label)
       ) {
@@ -918,8 +920,7 @@ export default function Home() {
       </>
     );
   }
-  const allowedPages =
-    rolePageAccess[workspaceProfile.role] ?? rolePageAccess.repair_manager;
+  const allowedPages = pagesForProfile(workspaceProfile);
   const visibleNavGroups = navGroups
     .map((group) => ({
       ...group,

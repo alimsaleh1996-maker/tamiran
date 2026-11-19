@@ -1,36 +1,18 @@
 {
-  "passed": 21,
-  "failed": 0,
+  "date": "2026-11-19",
+  "graph_nodes": 4493,
+  "typed_relationships": 10861,
   "checks": [
-    "Default scope is the active PHP edition",
-    "Default overview contains eight modules instead of thousands of nodes",
-    "All source graph nodes embedded",
-    "All typed source graph relationships embedded",
-    "RTL diagram labels remain inside their cards",
-    "Module opens with keyboard",
-    "File listing is bounded to 24 items",
-    "File drill-down opens bootstrap",
-    "Symbol listing is bounded to 24 items",
-    "Search distinguishes editions with paths",
-    "Search opens actual selected node",
-    "Selected node exposes actual typed relationships",
-    "Confidence filter hides inferred rows",
-    "Search also finds inventory files without modeled symbols",
-    "Escape closes search results",
-    "Frozen reference has a separate scoped view",
-    "Evidence paths point to the organized documentation",
-    "Mobile view has no horizontal page overflow",
-    "Mobile overview uses a readable single column",
-    "No JavaScript runtime errors",
-    "Standalone viewer makes no network requests"
+    {
+      "file": "graph.html",
+      "external_requests": 0,
+      "javascript_errors": 0
+    },
+    {
+      "file": "graph-full.html",
+      "external_requests": 0,
+      "javascript_errors": 0
+    }
   ],
-  "page_errors": [],
-  "network_requests": [],
-  "scope": "Generated graph viewer only; no application/database/model execution",
-  "source_commit": "642701bafbfc46de53de514d95adfa7708039c73",
-  "full_viewer_offline_smoke": {
-    "canvas_present": true,
-    "page_errors": 0,
-    "external_requests": 0
-  }
+  "scope": "self-contained viewers served on loopback; file scheme blocked by browser policy; not hosted app acceptance"
 }

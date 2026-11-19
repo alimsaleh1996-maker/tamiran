@@ -109,8 +109,193 @@ function admin_user_payload(PDO $pdo): array
     ];
 }
 
+/** Explicit additive permissions; a shop manager cannot grant central privileges. */
+function shop_user_permission_catalog(): array
+{
+    return [
+        'case.assign'=>'تخصیص پرونده', 'case.collaborator.manage'=>'مدیریت همکار پرونده',
+        'case.promise.update'=>'تغییر موعد تحویل', 'case.part.record'=>'ثبت قطعات پرونده',
+        'estimate.manage'=>'مدیریت برآورد', 'estimate.send'=>'ارسال برآورد',
+        'estimate.record_customer_decision'=>'ثبت تصمیم مشتری',
+        'qc.view'=>'مشاهده کنترل کیفیت', 'qc.perform'=>'انجام کنترل کیفیت',
+        'qc.conditional'=>'ثبت کنترل کیفیت مشروط', 'qc.record_customer_ack'=>'ثبت تأیید مشتری برای کیفیت',
+        'finance.view'=>'مشاهده مالی', 'finance.issue'=>'صدور صورتحساب', 'finance.payment'=>'ثبت پرداخت',
+        'delivery.view'=>'مشاهده تحویل', 'delivery.complete'=>'ثبت تحویل',
+        'part.request'=>'درخواست قطعه', 'inventory.issue'=>'تحویل قطعه',
+        'inventory.request.decide'=>'تأیید درخواست قطعه', 'inventory.reserve'=>'رزرو قطعه',
+        'inventory.control.view'=>'مشاهده کنترل انبار', 'inventory.adjustment.create'=>'اصلاح موجودی',
+        'inventory.stocktake.create'=>'ایجاد انبارگردانی', 'inventory.stocktake.count'=>'شمارش انبار',
+        'procurement.view'=>'مشاهده خرید', 'procurement.create'=>'ایجاد خرید',
+        'procurement.receive'=>'دریافت خرید', 'procurement.supplier.manage'=>'مدیریت تأمین‌کنندگان',
+    ];
+}
+
+function shop_user_branches(PDO $pdo, array $actor): array
+{
+    $query = $pdo->prepare("SELECT b.id,b.shop_id,b.branch_code,b.name,b.is_default,b.is_active
+        FROM repair_branches b INNER JOIN tamiran_user_branches ub ON ub.branch_id=b.id AND ub.shop_id=b.shop_id
+        WHERE b.shop_id=:shop AND ub.user_id=:actor AND ub.is_active=1
+          AND ub.branch_role_code='repair_manager' AND b.is_active=1 ORDER BY b.id");
+    $query->execute(['shop'=>$actor['shop']['id'], 'actor'=>$actor['id']]);
+    return $query->fetchAll();
+}
+
+function shop_user_memberships(PDO $pdo, int $shopId, int $id): array
+{
+    $query = $pdo->prepare('SELECT branch_id,permissions_json,is_active FROM tamiran_user_branches WHERE shop_id=:shop AND user_id=:id');
+    $query->execute(['shop'=>$shopId, 'id'=>$id]);
+    return $query->fetchAll();
+}
+
+function shop_user_assert_managed(array $links, array $managed): void
+{
+    if ($links === []) throw new TamiranApiException('کاربر در شعب تحت مدیریت شما نیست.', 403);
+    foreach ($links as $link) {
+        if (!in_array((int)$link['branch_id'], $managed, true))
+            throw new TamiranApiException('ویرایش این حساب به مدیریت همه شعب آن نیاز دارد.', 403);
+    }
+}
+
+function shop_user_payload(PDO $pdo, array $actor, array $branches): array
+{
+    $shopId = (int)$actor['shop']['id'];
+    $managed = array_map(static fn(array $b): int => (int)$b['id'], $branches);
+    $query = $pdo->prepare('SELECT id,display_name,phone,email,role_code,is_active FROM tamiran_users WHERE shop_id=:shop ORDER BY display_name,id');
+    $query->execute(['shop'=>$shopId]);
+    $users = [];
+    foreach ($query->fetchAll() as $user) {
+        $links = shop_user_memberships($pdo, $shopId, (int)$user['id']);
+        try { shop_user_assert_managed($links, $managed); } catch (TamiranApiException) { continue; }
+        $sets = array_map(static fn(array $link): array => json_decode((string)$link['permissions_json'], true) ?: [], $links);
+        $common = array_values(array_intersect(...$sets));
+        $users[] = [
+            'id'=>(int)$user['id'], 'displayName'=>$user['display_name'], 'phone'=>$user['phone'] ?? '',
+            'email'=>$user['email'] ?? '', 'role'=>$user['role_code'], 'isActive'=>(bool)$user['is_active'],
+            'branchIds'=>array_map(static fn(array $link): int => (int)$link['branch_id'], $links),
+            'permissions'=>$common, 'canEdit'=>(int)$user['id'] !== (int)$actor['id'],
+        ];
+    }
+    $count = $pdo->prepare('SELECT max_users,(SELECT COUNT(*) FROM tamiran_users WHERE shop_id=:count_shop) AS used FROM repair_shops WHERE id=:shop');
+    $count->execute(['count_shop'=>$shopId,'shop'=>$shopId]);
+    $capacity = $count->fetch();
+    return [
+        'users'=>$users, 'branches'=>array_map(static fn(array $b): array => [
+            'id'=>(int)$b['id'], 'name'=>$b['name'], 'isDefault'=>(bool)$b['is_default'],
+        ], $branches), 'permissionCatalog'=>shop_user_permission_catalog(),
+        'maxUsers'=>(int)$capacity['max_users'], 'usedUsers'=>(int)$capacity['used'],
+    ];
+}
+
+function shop_user_request(PDO $pdo, array $actor): array
+{
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $branches = shop_user_branches($pdo, $actor);
+    if ($method === 'GET') return shop_user_payload($pdo, $actor, $branches);
+    if (!in_array($method, ['POST','PATCH'], true)) throw new TamiranApiException('روش درخواست مجاز نیست.', 405);
+    tamiran_require_csrf();
+    tamiran_require_writable_actor($actor);
+    $input = tamiran_json_body();
+    $shopId = (int)$actor['shop']['id'];
+    foreach (['displayName','mobile','email','role','password','newPassword'] as $field)
+        if (array_key_exists($field,$input) && !is_string($input[$field])) throw new TamiranApiException('اطلاعات کاربر معتبر نیست.');
+    if (isset($input['shopId']) && (int)$input['shopId'] !== $shopId)
+        throw new TamiranApiException('مدیریت کاربران تعمیرگاه دیگر مجاز نیست.', 403);
+    $pdo->beginTransaction();
+    try {
+        // Serialize quota and manager changes for this shop; recheck revoked access after waiting.
+        $lock = $pdo->prepare('SELECT max_users FROM repair_shops WHERE id=:shop FOR UPDATE');
+        $lock->execute(['shop'=>$shopId]);
+        $limit = (int)$lock->fetchColumn();
+        $fresh = tamiran_require_actor();
+        if ($fresh['role'] !== 'repair_manager' || (int)($fresh['shop']['id'] ?? 0) !== $shopId)
+            throw new TamiranApiException('دسترسی مدیریت معتبر نیست.', 403);
+        tamiran_require_writable_actor($fresh);
+        $managed = array_map(static fn(array $b): int => (int)$b['id'], shop_user_branches($pdo, $fresh));
+        $current = null; $links = [];
+        if ($method === 'PATCH') {
+            $id = filter_var($input['id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+            if (!$id) throw new TamiranApiException('شناسه کاربر معتبر نیست.');
+            $query = $pdo->prepare('SELECT * FROM tamiran_users WHERE id=:id AND shop_id=:shop FOR UPDATE');
+            $query->execute(['id'=>$id,'shop'=>$shopId]); $current = $query->fetch();
+            if (!is_array($current)) throw new TamiranApiException('کاربر پیدا نشد.', 404);
+            if ((int)$id === (int)$actor['id']) throw new TamiranApiException('تغییر حساب خودتان از مدیریت کاربران مجاز نیست.', 403);
+            $links = shop_user_memberships($pdo, $shopId, (int)$id);
+            shop_user_assert_managed($links, $managed);
+        } else {
+            $count = $pdo->prepare('SELECT COUNT(*) FROM tamiran_users WHERE shop_id=:shop');
+            $count->execute(['shop'=>$shopId]);
+            if ((int)$count->fetchColumn() >= $limit) throw new TamiranApiException('ظرفیت کاربران اشتراک تکمیل شده است.', 409);
+        }
+        $role = $input['role'] ?? $current['role_code'] ?? '';
+        if (!is_string($role) || !in_array($role, TAMIRAN_SHOP_ROLES, true)) throw new TamiranApiException('نقش کاربر معتبر نیست.');
+        $branchIds = $input['branchIds'] ?? array_column($links, 'branch_id');
+        if (!is_array($branchIds) || $branchIds === [] || count($branchIds) > 100) throw new TamiranApiException('حداقل یک شعبه مجاز انتخاب کنید.');
+        foreach ($branchIds as $branchId) {
+            if (!filter_var($branchId, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]) || !in_array((int)$branchId, $managed, true))
+                throw new TamiranApiException('شعبه انتخاب‌شده تحت مدیریت شما نیست.', 403);
+        }
+        $branchIds = array_values(array_unique(array_map('intval', $branchIds)));
+        $permissions = $input['permissions'] ?? null;
+        if (array_key_exists('permissions', $input)) {
+            if (!is_array($permissions) || count($permissions)>count(shop_user_permission_catalog())) throw new TamiranApiException('دسترسی‌ها معتبر نیستند.');
+            foreach ($permissions as $permission) if (!is_string($permission) || !array_key_exists($permission, shop_user_permission_catalog()))
+                throw new TamiranApiException('دسترسی انتخاب‌شده قابل واگذاری نیست.', 403);
+            $permissions = array_values(array_unique($permissions));
+        }
+        if ($current !== null && $role !== $current['role_code'] && $permissions === null) $permissions = [];
+        $name = admin_user_display_name($input['displayName'] ?? $current['display_name'] ?? '');
+        $mobile = admin_user_mobile((string)($input['mobile'] ?? $current['phone'] ?? ''));
+        $email = admin_user_clean_email((string)($input['email'] ?? $current['email'] ?? ''));
+        $active = $input['isActive'] ?? ($current === null ? true : (bool)$current['is_active']);
+        if (!is_bool($active)) throw new TamiranApiException('وضعیت کاربر معتبر نیست.');
+        $password = $input[$current === null ? 'password' : 'newPassword'] ?? '';
+        if (!is_string($password)) throw new TamiranApiException('رمز معتبر نیست.');
+        if ($current === null || $password !== '') {
+            tamiran_validate_new_password($password);
+            if (strlen($password)>72 || str_contains($password,"\0")) throw new TamiranApiException('رمز باید حداکثر ۷۲ بایت باشد.');
+        }
+        admin_user_assert_mobile_available($pdo, $mobile, (int)($current['id'] ?? 0));
+        if ($current !== null) {
+            // Moving or disabling an assigned technician needs the existing formal handover flow.
+            if (!$active || $role !== $current['role_code'] || array_diff(array_column($links,'branch_id'), $branchIds)) {
+                $open = $pdo->prepare("SELECT COUNT(*) FROM repair_case_workflows w WHERE w.shop_id=:shop AND w.locked_at IS NULL AND
+                    (w.primary_technician_user_id=:user OR EXISTS(SELECT 1 FROM repair_case_assignments a WHERE a.workflow_id=w.id AND a.technician_user_id=:collaborator AND a.ended_at IS NULL))");
+                $open->execute(['shop'=>$shopId,'user'=>$current['id'],'collaborator'=>$current['id']]);
+                if ((int)$open->fetchColumn()>0) throw new TamiranApiException('ابتدا مسئولیت پرونده‌های فعال را از مسیر تحویل رسمی منتقل کنید.',409);
+            }
+            $params = ['id'=>$current['id'],'shop'=>$shopId,'name'=>$name,'mobile'=>$mobile,'email'=>$email,'role'=>$role,'active'=>$active?1:0];
+            $sql = 'UPDATE tamiran_users SET display_name=:name,username=:mobile,phone=:mobile,email=:email,role_code=:role,is_active=:active,active_session_hash=NULL';
+            if ($password !== '') { $sql.=',password_hash=:password,must_change_password=1'; $params['password']=tamiran_password_hash($password); }
+            $pdo->prepare($sql.' WHERE id=:id AND shop_id=:shop')->execute($params);
+            $id = (int)$current['id'];
+            $pdo->prepare('DELETE FROM tamiran_user_branches WHERE shop_id=:shop AND user_id=:id')->execute(['shop'=>$shopId,'id'=>$id]);
+        } else {
+            $pdo->prepare('INSERT INTO tamiran_users(shop_id,username,display_name,phone,email,password_hash,role_code,is_active,must_change_password) VALUES(:shop,:mobile,:name,:mobile,:email,:password,:role,:active,1)')
+                ->execute(['shop'=>$shopId,'mobile'=>$mobile,'name'=>$name,'email'=>$email,'password'=>tamiran_password_hash($password),'role'=>$role,'active'=>$active?1:0]);
+            $id = (int)$pdo->lastInsertId();
+        }
+        $insert = $pdo->prepare('INSERT INTO tamiran_user_branches(shop_id,user_id,branch_id,branch_role_code,permissions_json,is_active) VALUES(:shop,:id,:branch,:role,:permissions,1)');
+        $oldPermissions = array_column($links, 'permissions_json', 'branch_id');
+        foreach ($branchIds as $branchId) $insert->execute([
+            'shop'=>$shopId,'id'=>$id,'branch'=>$branchId,'role'=>$role,
+            'permissions'=>$permissions === null ? ($oldPermissions[$branchId] ?? '[]') : json_encode($permissions,JSON_THROW_ON_ERROR),
+        ]);
+        $safe = ['role'=>$role,'isActive'=>$active,'branchIds'=>$branchIds,'permissions'=>$permissions ?? '[preserved]'];
+        tamiran_audit($pdo,$shopId,(int)$actor['branch']['id'],(int)$actor['id'],$current===null?'user.create':'user.update','tamiran_user',(string)$id,
+            $current===null?null:['role'=>$current['role_code'],'isActive'=>(bool)$current['is_active']],$safe);
+        $pdo->commit();
+        return [$current===null?'created':'updated'=>true];
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($error instanceof PDOException && $error->getCode()==='23000') throw new TamiranApiException('اطلاعات کاربر با حساب موجود تداخل دارد.',409);
+        throw $error;
+    }
+}
+
 tamiran_api(static function (): array {
-    $actor = tamiran_require_central_admin();
+    $actor = tamiran_require_actor();
+    if (($actor['role'] ?? '') === 'repair_manager') return shop_user_request(tamiran_db(), $actor);
+    if (($actor['role'] ?? '') !== 'central_admin') throw new TamiranApiException('مدیریت کاربران برای نقش فعلی مجاز نیست.',403);
     $pdo = tamiran_db();
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
@@ -141,6 +326,11 @@ tamiran_api(static function (): array {
 
         $pdo->beginTransaction();
         try {
+            $capacityLock = $pdo->prepare('SELECT max_users FROM repair_shops WHERE id=:shop FOR UPDATE');
+            $capacityLock->execute(['shop'=>$shopId]);
+            $lockedLimit = (int)$capacityLock->fetchColumn();
+            $countStatement->execute(['shop_id'=>$shopId]);
+            if ((int)$countStatement->fetchColumn() >= $lockedLimit) throw new TamiranApiException('ظرفیت کاربران این تعمیرگاه تکمیل شده است.',409);
             $statement = $pdo->prepare('INSERT INTO tamiran_users (shop_id, username, display_name, phone, email, password_hash, role_code, is_active) VALUES (:shop_id, :username, :display_name, :phone, :email, :password_hash, :role, :is_active)');
             $statement->execute([
                 'shop_id' => $shopId,
