@@ -1,0 +1,10 @@
+{
+  "version": "2.0.0-php.4",
+  "passed": 3,
+  "failed": 0,
+  "checks": [
+    "Arabic/Persian name matching",
+    "edit cancel restores focus to same user",
+    "LTR password reserves space beside RTL eye button"
+  ]
+}

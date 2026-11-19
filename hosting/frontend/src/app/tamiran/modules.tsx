@@ -7353,14 +7353,16 @@ function UserSettings({
 
   return (
     <div className="settings-section">
-      <div className="settings-section-head">
+      {!canManageUsers && <div className="settings-section-head">
         <SectionTitle
           icon={<UsersRound size={19} />}
           title="کاربران و نقش‌ها"
           badge={`${users.length} کاربر`}
         />
-      </div>
+      </div>}
       {canManageUsers && <ShopUserManagement onChanged={onUsersChanged} />}
+      <details className="shop-user-assignment">
+      <summary>قواعد تخصیص تکنسین در پذیرش</summary>
       <div className="settings-form assignment-policy-settings">
         <div className="settings-section-head">
           <div>
@@ -7425,6 +7427,7 @@ function UserSettings({
           </button>
         </div>
       </div>
+      </details>
       {!canManageUsers && <div className="responsive-table-wrap">
         <table className="data-table">
           <thead>

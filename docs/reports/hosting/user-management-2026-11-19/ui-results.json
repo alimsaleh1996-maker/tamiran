@@ -1,0 +1,95 @@
+{
+  "passed": 22,
+  "failed": 0,
+  "results": [
+    {
+      "name": "form has three clear sections",
+      "status": "PASS"
+    },
+    {
+      "name": "optional permissions start collapsed",
+      "status": "PASS"
+    },
+    {
+      "name": "required error is beside its field",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid submit focuses first field",
+      "status": "PASS"
+    },
+    {
+      "name": "email validation is local and explicit",
+      "status": "PASS"
+    },
+    {
+      "name": "password masked by default",
+      "status": "PASS"
+    },
+    {
+      "name": "show password toggle works",
+      "status": "PASS"
+    },
+    {
+      "name": "permissions split into six business groups",
+      "status": "PASS"
+    },
+    {
+      "name": "selected state and count are clear",
+      "status": "PASS"
+    },
+    {
+      "name": "native checkbox and label have spacing",
+      "status": "PASS"
+    },
+    {
+      "name": "no page overflow at 1024",
+      "status": "PASS"
+    },
+    {
+      "name": "no page overflow at 768",
+      "status": "PASS"
+    },
+    {
+      "name": "no page overflow at 390",
+      "status": "PASS"
+    },
+    {
+      "name": "no page overflow at 320",
+      "status": "PASS"
+    },
+    {
+      "name": "real form creates normalized mobile and permissions",
+      "status": "PASS"
+    },
+    {
+      "name": "changing role preserves explicitly displayed extra permissions",
+      "status": "PASS"
+    },
+    {
+      "name": "manager role explains inherited permissions",
+      "status": "PASS"
+    },
+    {
+      "name": "no misleading disabled permission list for manager",
+      "status": "PASS"
+    },
+    {
+      "name": "cancel returns keyboard focus",
+      "status": "PASS"
+    },
+    {
+      "name": "roster search normalizes Persian digits",
+      "status": "PASS"
+    },
+    {
+      "name": "hashed component CSS survives stale shared CSS",
+      "status": "PASS"
+    },
+    {
+      "name": "no JavaScript runtime errors",
+      "status": "PASS"
+    }
+  ],
+  "scope": "synthetic local PHP/MariaDB; actual browser test runner; shared interactive browser unavailable; screenshot and interaction checks, not screen reader certification"
+}

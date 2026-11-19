@@ -1,0 +1,129 @@
+{
+  "passed": 30,
+  "failed": 0,
+  "results": [
+    {
+      "name": "manager lists own users and capacity",
+      "status": "PASS"
+    },
+    {
+      "name": "create user without trusting a supplied shop ID",
+      "status": "PASS"
+    },
+    {
+      "name": "new user must change initial password",
+      "status": "PASS"
+    },
+    {
+      "name": "ordinary staff cannot manage users",
+      "status": "PASS"
+    },
+    {
+      "name": "shop manager cannot read central dashboard",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign shop injection rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign branch rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign user patch rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "central role cannot be granted",
+      "status": "PASS"
+    },
+    {
+      "name": "wildcard permission cannot be granted",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown permission cannot be granted",
+      "status": "PASS"
+    },
+    {
+      "name": "missing CSRF rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "self deactivation rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "long bcrypt password rejected before mutation",
+      "status": "PASS"
+    },
+    {
+      "name": "role and additive permission can be edited",
+      "status": "PASS"
+    },
+    {
+      "name": "previous staff session revoked on access change",
+      "status": "PASS"
+    },
+    {
+      "name": "additive finance permission enforced by real endpoint",
+      "status": "PASS"
+    },
+    {
+      "name": "profile edit preserves omitted permissions",
+      "status": "PASS"
+    },
+    {
+      "name": "preserved permission visible in roster",
+      "status": "PASS"
+    },
+    {
+      "name": "deactivation succeeds",
+      "status": "PASS"
+    },
+    {
+      "name": "reactivation succeeds",
+      "status": "PASS"
+    },
+    {
+      "name": "password reset succeeds",
+      "status": "PASS"
+    },
+    {
+      "name": "reset password requires rotation",
+      "status": "PASS"
+    },
+    {
+      "name": "unmanaged own-shop branch absent from manager choices",
+      "status": "PASS"
+    },
+    {
+      "name": "partially managed account hidden",
+      "status": "PASS"
+    },
+    {
+      "name": "partially managed account cannot be modified",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rejects user creation",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rolls user and membership back",
+      "status": "PASS"
+    },
+    {
+      "name": "concurrent creation in independent manager sessions respects quota",
+      "status": "PASS"
+    },
+    {
+      "name": "other shop remains unchanged",
+      "status": "PASS"
+    }
+  ],
+  "limits": [
+    "local synthetic HTTP and SQL; no hosted acceptance"
+  ]
+}

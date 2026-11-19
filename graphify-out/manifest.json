@@ -102,9 +102,9 @@
     "semantic_hash": "0cd09652a9623c0e2d7c2fb170a41217"
   },
   "hosting/frontend/src/app/tamiran/modules.tsx": {
-    "mtime": 1795104321.707911,
-    "seen": 1795104580.0739927,
-    "ast_hash": "be5d05bea542d902c5798f5ff680f712",
+    "mtime": 1795106365.7483387,
+    "seen": 1795107053.0064654,
+    "ast_hash": "45fc282f6737c99fe428e70c00c03dd1",
     "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/operations.ts": {
@@ -156,10 +156,10 @@
     "semantic_hash": "34922e31d4f3a7e3d2d25b18ce9dcc2c"
   },
   "hosting/frontend/src/app/tamiran/version.ts": {
-    "mtime": 1792838441.361251,
-    "seen": 1793901389.2493556,
-    "ast_hash": "9a24b28c75aedd6afc86033c046de2b9",
-    "semantic_hash": "9a24b28c75aedd6afc86033c046de2b9"
+    "mtime": 1795106868.3566854,
+    "seen": 1795107053.0064683,
+    "ast_hash": "96a3a1b2efecaab4062538b48c15de44",
+    "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/xlsx-reader.ts": {
     "mtime": 1792583573.133141,
@@ -282,9 +282,9 @@
     "semantic_hash": "c059514e389cf127f878065c2199324f"
   },
   "hosting/public_html/api/bootstrap.php": {
-    "mtime": 1795104349.029396,
-    "seen": 1795104580.0739872,
-    "ast_hash": "eb28f7d41df9f5183b271b60da7ea378",
+    "mtime": 1795106868.3565326,
+    "seen": 1795107053.006459,
+    "ast_hash": "6320692ae6c853aadb30dcbc7c1c5863",
     "semantic_hash": ""
   },
   "hosting/public_html/api/capabilities.php": {
@@ -348,9 +348,9 @@
     "semantic_hash": "be1ed4569f36a2a7219d1907e7d94bf9"
   },
   "hosting/public_html/api/health.php": {
-    "mtime": 1795104349.029723,
-    "seen": 1795104580.0739899,
-    "ast_hash": "54d978a519281c2d1cc9f316e6391c0a",
+    "mtime": 1795106868.3565996,
+    "seen": 1795107053.006463,
+    "ast_hash": "30c51d166e375d7cac56ab63e13cc875",
     "semantic_hash": ""
   },
   "hosting/public_html/api/inventory-control-v2.php": {
@@ -546,9 +546,9 @@
     "semantic_hash": "27393e922aceb7747d5a41af085c6882"
   },
   "hosting/scripts/package.py": {
-    "mtime": 1795104349.0301974,
-    "seen": 1795104580.0739992,
-    "ast_hash": "e436652663520fe0b5c4ae95d0886dfc",
+    "mtime": 1795106868.3567576,
+    "seen": 1795107053.0064695,
+    "ast_hash": "fda2624bf5b7f5b705abd9e14c3c6c95",
     "semantic_hash": ""
   },
   "hosting/tests/captcha_audio.py": {
@@ -2604,9 +2604,9 @@
     "semantic_hash": "15a5a706166160f6fb466a033b498eeb"
   },
   "hosting/frontend/src/app/tamiran/shop-users.tsx": {
-    "mtime": 1795104496.4800274,
-    "seen": 1795104580.0739965,
-    "ast_hash": "b27ef3a6e1d6f8d71cadbe52f9aff4d5",
+    "mtime": 1795106869.145286,
+    "seen": 1795107053.006467,
+    "ast_hash": "b598e58bd59c2d39415dac9a412039f7",
     "semantic_hash": ""
   },
   "hosting/tests/shop_users.py": {

@@ -119,14 +119,6 @@ summary:focus-visible { outline: 3px solid #146b66; outline-offset: 3px; }
   font: inherit;
 }
 .v2-qc-test-item label input::placeholder { color: #536c69; opacity: 1; }
-.shop-user-management { margin-block: 20px; }
-.shop-user-management .settings-form { display: grid; gap: 18px; }
-.shop-user-management fieldset { min-width: 0; display: grid; gap: 12px; border: 1px solid #b8cecb; border-radius: 12px; padding: 16px; }
-.shop-user-management legend { padding-inline: 8px; font-weight: 700; }
-.shop-user-management .field-block input { min-height: 44px; width: 100%; box-sizing: border-box; border: 1px solid #b8cecb; border-radius: 8px; padding: 10px; font: inherit; }
-.shop-user-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; }
-.shop-user-choice { display: flex; align-items: center; gap: 8px; min-height: 44px; }
-.shop-user-choice input { width: 20px; height: 20px; flex-shrink: 0; }
 @media (max-width: 720px) {
   .v2-card-form .v2-queue-card { grid-template-columns: minmax(0, 1fr); }
   .v2-card-form .v2-queue-card > * { min-width: 0; overflow-wrap: anywhere; }

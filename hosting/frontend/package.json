@@ -1,6 +1,6 @@
 {
   "name": "tamiran-php-frontend",
-  "version": "2.0.0-php.3",
+  "version": "2.0.0-php.4",
   "private": true,
   "type": "module",
   "scripts": {
