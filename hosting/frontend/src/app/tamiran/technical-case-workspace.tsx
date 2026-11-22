@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowLeftRight, Check, CircleX, Clock3, ClipboardList, Coins, ImagePlus, Layers3, Package, PenLine, Plus, RefreshCw, Wrench } from "lucide-react";
 import { MoneyInput, formatToman } from "./money-input";
 import { moneyDigits } from "./money";
 import { directAdminRequest } from "./directadmin-api";
@@ -624,54 +625,44 @@ export function TechnicalCaseWorkspace({
     <>
       <ol className="tech-report-list">
         {data?.activities.activities.map((a: TechnicalActivity) => (
-          <li key={a.id}>
-            <div className="tech-report-meta">
-              <time>{date(a.createdAt)}</time>
-              <span>{a.actorName}</span>
-              {allowCorrection && data.permissions.activity && (
-                <button
-                  disabled={!!busy}
-                  className="tech-text-button"
-                  onClick={() => {
+          <li key={a.id} className="tech-report-row">
+            <div className="tech-report-surface">
+              <div className="tech-report-body">
+                <strong>{["گزارش فنی", "فعالیت فنی"].includes(a.title) ? "گزارش فنی" : a.title}</strong>
+                {a.correctsActivityId && (
+                  <small>اصلاح گزارش شماره {a.correctsActivityId.toLocaleString("fa-IR")}</small>
+                )}
+                <p>{a.description}</p>
+                {a.observation && <p>{a.observation}</p>}
+                <div className="tech-report-attachments">
+                  {a.attachments.map((id, i) => (
+                    <a href={`/api/files-v2.php?id=${encodeURIComponent(id)}`} target="_blank" rel="noreferrer" key={id}>
+                      پیوست {(i + 1).toLocaleString("fa-IR")}
+                    </a>
+                  ))}
+                </div>
+                {allowCorrection && data.permissions.activity && (
+                  <button disabled={!!busy} className="tech-text-button tech-correction" onClick={() => {
                     change({ correctionOf: a.id });
                     composer.current?.focus();
-                  }}
-                >
-                  اصلاح گزارش
-                </button>
-              )}
+                  }}>
+                    اصلاح گزارش
+                  </button>
+                )}
+              </div>
+              <div className="tech-report-meta">
+                <time><Clock3 size={14} aria-hidden="true" />{date(a.createdAt)}</time>
+                <span>{a.actorName}</span>
+              </div>
             </div>
-            {a.correctsActivityId && (
-              <small>
-                اصلاح گزارش شمارهٔ{" "}
-                {a.correctsActivityId.toLocaleString("fa-IR")}
-              </small>
-            )}
-            {!["گزارش فنی", "فعالیت فنی"].includes(a.title) && (
-              <strong>{a.title}</strong>
-            )}
-            <p>{a.description}</p>
-            {a.observation && <p>{a.observation}</p>}
-            {a.attachments.map((id, i) => (
-              <a
-                href={`/api/files-v2.php?id=${encodeURIComponent(id)}`}
-                target="_blank"
-                rel="noreferrer"
-                key={id}
-              >
-                پیوست {(i + 1).toLocaleString("fa-IR")}
-              </a>
-            ))}
           </li>
         ))}
       </ol>
       {!data?.activities.activities.length && (
-        <p className="tech-hint">هنوز گزارشی ثبت نشده است.</p>
+        <p className="tech-hint tech-empty-history">هنوز گزارشی ثبت نشده است. اولین اقدام روی دستگاه را ثبت کنید.</p>
       )}
       {data?.activities.nextBeforeId && (
-        <button disabled={!!busy} onClick={() => void older()}>
-          مشاهده گزارش‌های قدیمی‌تر
-        </button>
+        <button disabled={!!busy} onClick={() => void older()}>مشاهده گزارش‌های قدیمی‌تر</button>
       )}
       {alert("history")}
     </>
@@ -701,54 +692,49 @@ export function TechnicalCaseWorkspace({
   return (
     <article className="tech-case" aria-busy={disabled}>
       <div className="tech-page-nav">
-        <button
-          data-tech-exit
-          disabled={disabled}
-          onClick={() =>
-            screen === "overview" || screen === "work" ? onExit() : go(returnTo)
-          }
-        >
-          {screen === "overview" || screen === "work"
-            ? exitLabel
-            : "بازگشت به میز کار"}
-        </button>
-        {onManage && (
-          <button
-            className="tech-management-link"
-            disabled={disabled}
-            onClick={onManage}
-          >
-            مدیریت پرونده
+        <div className="tech-screen-heading">
+          <Wrench size={20} aria-hidden="true" />
+          <span>{screen === "work" ? "فضای کاری تکنسین" : screen === "overview" ? "پرونده دستگاه" : titles[screen]}</span>
+        </div>
+        <div className="tech-page-nav-actions">
+          {onManage && (
+            <button className="tech-management-link" disabled={disabled} onClick={onManage}>
+              مدیریت پرونده
+            </button>
+          )}
+          <button className="tech-refresh-button" disabled={disabled} onClick={() => void run("refresh", async () => {})}>
+            <RefreshCw size={16} aria-hidden="true" /> تازه‌سازی
           </button>
-        )}
-        <button
-          disabled={disabled}
-          onClick={() => void run("refresh", async () => {})}
-        >
-          تازه‌سازی
-        </button>
+          <button
+            className="tech-back-button"
+            data-tech-exit
+            disabled={disabled}
+            onClick={() => screen === "overview" || screen === "work" ? onExit() : go(returnTo)}
+          >
+            <ArrowLeft size={17} aria-hidden="true" />
+            {screen === "overview" || screen === "work" ? exitLabel : "بازگشت به میز کار"}
+          </button>
+        </div>
       </div>
       <header className="tech-device-summary">
-        <p>
-          پرونده <bdi>{item?.receiptNumber ?? caseId}</bdi>
-        </p>
-        <h2 ref={heading} tabIndex={-1}>
-          {item?.deviceTitle ?? "در حال دریافت دستگاه…"}
-        </h2>
-        {item && (
-          <>
-            <p className="tech-device-issue">{item.declaredIssue}</p>
-            {!waiting() && (
-              <p className="tech-status">
-                {unstarted
-                  ? "آمادهٔ بررسی"
-                  : canWrite
-                    ? "در حال بررسی و تعمیر"
-                    : "پایان مسئولیت فنی"}
-              </p>
-            )}
-          </>
-        )}
+        <div className="tech-summary-issue">
+          <span className="tech-summary-kicker">مشکل اعلام‌شده توسط مشتری</span>
+          <p className="tech-device-issue">{item?.declaredIssue || "ایراد دستگاه در حال دریافت است…"}</p>
+        </div>
+        <div className="tech-summary-facts">
+          <div className="tech-summary-fact">
+            <span>شماره پذیرش</span>
+            <bdi dir="ltr">{item?.receiptNumber ?? caseId}</bdi>
+          </div>
+          <div className="tech-summary-fact">
+            <span>مدل دستگاه</span>
+            <h2 ref={heading} tabIndex={-1}>{item?.deviceTitle ?? "در حال دریافت دستگاه…"}</h2>
+          </div>
+          <div className="tech-summary-fact">
+            <span>مرحله فعلی</span>
+            <strong className="tech-summary-state">{unstarted ? "آماده بررسی" : canWrite ? item?.technicianView.statusLabel || "در دست اقدام" : "پایان مسئولیت فنی"}</strong>
+          </div>
+        </div>
       </header>
       <p className="tech-save" role="status">
         {busy
@@ -762,7 +748,8 @@ export function TechnicalCaseWorkspace({
         <>
           {waiting() && (
             <p className="tech-wait" role="status">
-              {waiting()}
+              <span className="tech-wait-dot" aria-hidden="true" />
+              <span>{waiting()}</span>
             </p>
           )}
           {screen === "overview" ? (
@@ -857,6 +844,13 @@ export function TechnicalCaseWorkspace({
                     void record();
                   }}
                 >
+                  <div className="tech-compose-heading">
+                    <PenLine size={21} aria-hidden="true" />
+                    <div>
+                      <h3>گزارش اقدام انجام‌شده</h3>
+                      <p>جزئیات اقدام فعلی روی دستگاه را ثبت کنید.</p>
+                    </div>
+                  </div>
                   <fieldset disabled={disabled}>
                     {draft.correctionOf && (
                       <p>
@@ -872,7 +866,7 @@ export function TechnicalCaseWorkspace({
                         </button>
                       </p>
                     )}
-                    <label htmlFor="technical-report">
+                    <label htmlFor="technical-report" className="tech-sr-only">
                       گزارش اقدام انجام‌شده
                     </label>
                     <textarea
@@ -880,8 +874,8 @@ export function TechnicalCaseWorkspace({
                       ref={composer}
                       required
                       maxLength={4000}
-                      rows={4}
-                      placeholder="چه کاری روی دستگاه انجام دادید؟"
+                      rows={3}
+                      placeholder="مثلاً: بررسی اولیه انجام شد؛ دستگاه روشن نشد…"
                       value={draft.description}
                       onChange={(e) => change({ description: e.target.value })}
                     />
@@ -898,8 +892,8 @@ export function TechnicalCaseWorkspace({
                         </button>
                       </p>
                     )}
-                    <button className="tech-primary" type="submit">
-                      ثبت گزارش
+                    <button className="tech-primary tech-save-report" type="submit">
+                      <Plus size={18} aria-hidden="true" /> ثبت گزارش
                     </button>
                     {alert("report")}
                   </fieldset>
@@ -915,58 +909,37 @@ export function TechnicalCaseWorkspace({
                   نتیجهٔ ثبت‌شده: {data.report}
                 </p>
               )}
-              <h3>گزارش‌های ثبت‌شده</h3>
+              <div className="tech-history-heading"><Layers3 size={20} aria-hidden="true" /><h3>سوابق و گزارش‌های ثبت‌شده</h3></div>
               {timeline(true)}
-              <nav className="tech-tools" aria-label="ابزارهای دستگاه">
-                <button disabled={disabled} onClick={() => go("parts")}>
-                  قطعات
-                </button>
+              <div className="tech-work-action-row">
+                <nav className="tech-tools" aria-label="ابزارهای دستگاه">
+                  <button disabled={disabled} onClick={() => go("parts")}><Package size={17} aria-hidden="true" /> قطعات</button>
+                  {canWrite && <button disabled={disabled} onClick={() => go("estimate")}><Coins size={17} aria-hidden="true" /> اعلام هزینه</button>}
+                  <button disabled={disabled} onClick={() => go("photos")}><ImagePlus size={17} aria-hidden="true" /> افزودن عکس</button>
+                </nav>
                 {canWrite && (
-                  <button disabled={disabled} onClick={() => go("estimate")}>
-                    اعلام هزینه
-                  </button>
+                  <div className="tech-outcome-actions">
+                    {data.permissions.finish && (
+                      <button className="tech-finish-button" disabled={disabled} onClick={() => go("repaired")}>
+                        <Check size={18} aria-hidden="true" /> پایان کار روی دستگاه
+                      </button>
+                    )}
+                    {data.permissions.refer && (
+                      <button disabled={disabled || !!pending} onClick={() => go("refer")}>
+                        <ArrowLeftRight size={17} aria-hidden="true" /> ارجاع به همکار
+                      </button>
+                    )}
+                    {data.permissions.finish && (
+                      <button disabled={disabled} onClick={() => go("unrepaired")}>
+                        <CircleX size={17} aria-hidden="true" /> اعلام عدم امکان تعمیر
+                      </button>
+                    )}
+                  </div>
                 )}
-                <button disabled={disabled} onClick={() => go("photos")}>
-                  افزودن عکس و مشاهده تصاویر
-                </button>
-              </nav>
-              {pending && (
-                <p className="tech-hint">
-                  ارجاع به {pending.to_user_name} منتظر پذیرش است.
-                </p>
-              )}
+              </div>
+              {pending && <p className="tech-hint">ارجاع به {pending.to_user_name} منتظر پذیرش است.</p>}
               {item.status === "finance_pending" && (
-                <button
-                  disabled={disabled}
-                  onClick={() => go("finance", "work")}
-                >
-                  پیگیری مالی
-                </button>
-              )}
-              {canWrite && (
-                <div className="tech-outcome-actions">
-                  {data.permissions.finish && (
-                    <button disabled={disabled} onClick={() => go("repaired")}>
-                      تعمیر شد
-                    </button>
-                  )}
-                  {data.permissions.refer && (
-                    <button
-                      disabled={disabled || !!pending}
-                      onClick={() => go("refer")}
-                    >
-                      ارجاع به تکنسین دیگر
-                    </button>
-                  )}
-                  {data.permissions.finish && (
-                    <button
-                      disabled={disabled}
-                      onClick={() => go("unrepaired")}
-                    >
-                      اعلام عدم امکان تعمیر
-                    </button>
-                  )}
-                </div>
+                <button disabled={disabled} onClick={() => go("finance", "work")}>پیگیری مالی</button>
               )}
             </section>
           ) : null}
