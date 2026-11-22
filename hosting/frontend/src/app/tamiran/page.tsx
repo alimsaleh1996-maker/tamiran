@@ -462,6 +462,14 @@ export default function Home() {
     setContentRevision((current) => current + 1);
     const url = new URL(window.location.href);
     url.searchParams.set("view", pageSlugs[label] ?? "home");
+    // Menu navigation is a fresh entry point, not a request to reopen an old case.
+    // Explicit deep links still work when opened directly or via browser history.
+    url.searchParams.delete("techCase");
+    url.searchParams.delete("techTask");
+    url.searchParams.delete("techReturn");
+    if (label === "کارهای من") {
+      window.sessionStorage.removeItem("tamiran:focused-tech-case");
+    }
     window.history.pushState({ view: pageSlugs[label] }, "", url);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "auto" });
