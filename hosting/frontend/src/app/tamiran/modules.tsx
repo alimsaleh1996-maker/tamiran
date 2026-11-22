@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
+  ChevronRight,
   CircleAlert,
   ClipboardCheck,
   ClipboardList,
@@ -53,6 +54,9 @@ import {
 import * as React from "react";
 import { useModalFocus } from "../shared/use-modal-focus";
 import { useEffect, useState } from "react";
+import { CompactReceipt, printCompactReceipt } from "./compact-receipt";
+import { MoneyInput } from "./money-input";
+import "./iteration-six.css";
 import { CustomerAddress } from "./customer-address";
 import { CatalogImport } from "./catalog-import";
 import "./reception-identity.css";
@@ -85,9 +89,6 @@ import { SecureQr } from "./secure-qr";
 import {
   buildDraftSubmissionSelection,
   buildPreviousDeviceSelection,
-  buildReceiptAcceptance,
-  parseActiveReceiptTerms,
-  receiptTermsKey,
 } from "../software/reception-ui-contract";
 import {
   buildDraftDiscardSelection,
@@ -747,12 +748,6 @@ function ReceptionPage({
     clauses?: Array<{ enabled: boolean; text: string }>;
     appearanceOptions?: string[];
   };
-  const activeReceiptTerms = parseActiveReceiptTerms(
-    shopSettings.__activeReceiptTerms,
-  );
-  const activeReceiptTermsKey = activeReceiptTerms
-    ? receiptTermsKey(activeReceiptTerms)
-    : "";
   const assignmentSettings = (shopSettings.assignment_policy ?? {}) as {
     branches?: Record<
       string,
@@ -793,8 +788,6 @@ function ReceptionPage({
   const [appearanceStates, setAppearanceStates] = useState<string[]>([]);
   const [customerMobile, setCustomerMobile] = useState("");
   const [customerName, setCustomerName] = useState("");
-  const [acceptedReceiptTermsContextKey, setAcceptedReceiptTermsContextKey] =
-    useState("");
   const [nationalCode, setNationalCode] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerProvince, setCustomerProvince] = useState("");
@@ -835,12 +828,6 @@ function ReceptionPage({
   const [customerLookup, setCustomerLookup] =
     useState<CustomerLookupResult | null>(null);
   const [customerLoading, setCustomerLoading] = useState(false);
-  const receiptAcceptanceContextKey = activeReceiptTermsKey
-    ? `${activeReceiptTermsKey}:${customerMobile}:${customerName.trim()}`
-    : "";
-  const receiptTermsAccepted =
-    receiptAcceptanceContextKey !== "" &&
-    acceptedReceiptTermsContextKey === receiptAcceptanceContextKey;
   const errorRef = React.useRef<HTMLDivElement>(null);
   const addressPolicy = (shopSettings.customer_address_policy ?? {}) as {
     required?: boolean;
@@ -1432,18 +1419,13 @@ function ReceptionPage({
       showFormError("امکان ثبت پذیرش در این نسخه فعال نیست.");
       return;
     }
-    let receiptAcceptance;
     let versionedDraft;
     let versionedDevice;
     try {
-      receiptAcceptance = buildReceiptAcceptance(
-        activeReceiptTerms,
-        receiptTermsAccepted ? activeReceiptTermsKey : "",
-      );
       versionedDevice = buildPreviousDeviceSelection(selectedPreviousDevice);
     } catch (error) {
       showFormError(
-        moduleErrorMessage(error, "تأیید شرایط پذیرش انجام نشده است."),
+        moduleErrorMessage(error, "اطلاعات دستگاه قبلی معتبر نیست."),
       );
       return;
     }
@@ -1483,7 +1465,7 @@ function ReceptionPage({
           dataHandling,
           acceptanceMethod: "recorded_consent",
         },
-        receiptAcceptance,
+        receiptMode: "issue_only",
       });
       submitted = true;
       setCreatedCase(saved);
@@ -1912,9 +1894,12 @@ function ReceptionPage({
                         {field.helper && (
                           <small className="field-helper">{field.helper}</small>
                         )}
-                        <label className="identity-missing-choice"><input type="checkbox" checked={identifierUnavailable} onChange={(e) => {setIdentifierUnavailable(e.target.checked); if(e.target.checked) setIdentifier("");}}/><span>سریال ندارد</span></label>
+                        <div className="identity-availability-row">
+                          <label className="identity-missing-choice"><input type="checkbox" checked={identifierUnavailable} onChange={(e) => {setIdentifierUnavailable(e.target.checked); if(e.target.checked) setIdentifier("");}}/><span>سریال ندارد</span></label>
+                          {identifierUnavailable && <label className="identity-reason"><span>علت در دسترس نبودن سریال *</span><select value={identifierUnavailableReason} onChange={(e) => setIdentifierUnavailableReason(e.target.value)}><option value="">انتخاب علت</option><option value="unreadable">سریال ناخوانا است</option><option value="missing_label">برچسب سریال مفقود است</option><option value="powered_off">دستگاه خاموش است</option><option value="other">سایر موارد</option></select></label>}
+                        </div>
                         <small>اگر شناسه اکنون قابل خواندن نیست، علت را ثبت کنید. دستگاه تعمیرشده پیش از تحویل باید شناسه داشته باشد.</small>
-                        {identifierUnavailable && <><label><span>علت در دسترس نبودن سریال *</span><select value={identifierUnavailableReason} onChange={(e) => setIdentifierUnavailableReason(e.target.value)}><option value="">انتخاب علت</option><option value="unreadable">سریال ناخوانا است</option><option value="missing_label">برچسب سریال مفقود است</option><option value="powered_off">دستگاه خاموش است و شناسه قابل بررسی نیست</option><option value="other">سایر موارد</option></select></label>{identifierUnavailableReason === "other" && <label><span>توضیح علت *</span><input value={identifierUnavailableNote} maxLength={500} onChange={(e) => setIdentifierUnavailableNote(e.target.value)}/></label>}</>}
+                        {identifierUnavailable && identifierUnavailableReason === "other" && <label><span>توضیح علت *</span><input value={identifierUnavailableNote} maxLength={500} onChange={(e) => setIdentifierUnavailableNote(e.target.value)}/></label>}
                       </div>
                     ) : (
                       <Field
@@ -2037,17 +2022,8 @@ function ReceptionPage({
                 </label>
                 <div className="form-grid three-columns reception-v2-terms">
                   <label className="field-block">
-                    <span>سقف تأیید هزینه در پذیرش</span>
-                    <input
-                      inputMode="numeric"
-                      value={preapprovedAmount}
-                      onChange={(event) =>
-                        setPreapprovedAmount(
-                          normalizeDigits(event.target.value),
-                        )
-                      }
-                      placeholder="ریال · صفر یعنی نیاز به تأیید"
-                    />
+                    <span>سقف تأیید هزینه در پذیرش (تومان)</span>
+                    <MoneyInput value={preapprovedAmount} onChange={setPreapprovedAmount}/>
                     <small className="field-helper">
                       فقط مبلغ بالاتر از این سقف به تأیید جداگانه مشتری نیاز
                       دارد.
@@ -2120,55 +2096,6 @@ function ReceptionPage({
                       <strong>مشتری اجازه پاک‌کردن می‌دهد</strong>
                       <small>فقط در صورت ضرورت فنی و در محدوده خدمت.</small>
                     </button>
-                  </div>
-                </div>
-                <div className="summary-note">
-                  <ShieldCheck size={22} />
-                  <div>
-                    {activeReceiptTerms ? (
-                      <>
-                        <strong>
-                          {activeReceiptTerms.title} · نسخه {" "}
-                          {operationalNumber.format(
-                            activeReceiptTerms.versionNumber,
-                          )}
-                        </strong>
-                        <p style={{ whiteSpace: "pre-wrap" }}>
-                          {activeReceiptTerms.bodyText}
-                        </p>
-                        <small>
-                          شناسه نسخه: {activeReceiptTerms.publicId}
-                        </small>
-                        <label className="field-block">
-                          <span>
-                            <input
-                              type="checkbox"
-                              checked={receiptTermsAccepted}
-                              disabled={
-                                customerMobile.length !== 11 ||
-                                !customerName.trim()
-                              }
-                              onChange={(event) =>
-                                setAcceptedReceiptTermsContextKey(
-                                  event.target.checked
-                                    ? receiptAcceptanceContextKey
-                                    : "",
-                                )
-                              }
-                            />{" "}
-                            تأیید می‌کنم متن همین نسخه به مشتری نمایش داده شد و
-                            مشتری آن را حضوری پذیرفت.
-                          </span>
-                        </label>
-                      </>
-                    ) : (
-                      <>
-                        <strong>شرایط پذیرش فعال در دسترس نیست</strong>
-                        <p>
-                          تا تعریف و بارگذاری نسخه فعال، ثبت پذیرش مجاز نیست.
-                        </p>
-                      </>
-                    )}
                   </div>
                 </div>
               </section>
@@ -2286,7 +2213,7 @@ function ReceptionPage({
                   setStep((step - 1) as 1 | 2);
                 }}
               >
-                <ChevronLeft size={17} />
+                <ChevronRight size={17} />
                 مرحله قبل
               </button>
             )}
@@ -2296,7 +2223,7 @@ function ReceptionPage({
                 className="large-primary"
                 onClick={continueReception}
               >
-                ثبت مرحله و ادامه
+                ادامه
                 <ChevronLeft size={18} />
               </button>
             ) : (
@@ -2307,7 +2234,7 @@ function ReceptionPage({
                 disabled={savingReceipt}
               >
                 <ClipboardCheck size={19} />
-                {savingReceipt ? "در حال ثبت پذیرش..." : "ثبت پذیرش و صدور قبض"}
+                {savingReceipt ? "در حال ثبت پذیرش..." : "صدور قبض"}
               </button>
             )}
           </div>
@@ -2415,6 +2342,9 @@ function ReceptionPage({
             <ReceiptDocument
               workspace={workspace}
               receiptNumber={createdCase.receiptNumber}
+              preapprovedAmount={createdCase.preapprovedAmount}
+              issuedAt={createdCase.createdAt}
+              acceptedByName={createdCase.createdByName}
               customerName={customerName}
               customerMobile={customerMobile}
               catalogItem={selectedCatalogItem}
@@ -2443,8 +2373,7 @@ function ReceptionPage({
                 type="button"
                 className="outline-action"
                 onClick={() => {
-                  window.print();
-                  notify(
+                  if (printCompactReceipt()) notify(
                     `نسخه ${receiptTemplate.printSize ?? "A5"} به پنجره چاپ ارسال شد`,
                   );
                 }}
@@ -2456,8 +2385,7 @@ function ReceptionPage({
                 type="button"
                 className="outline-action"
                 onClick={() => {
-                  window.print();
-                  notify(
+                  if (printCompactReceipt()) notify(
                     "در پنجره چاپ، گزینه ذخیره به‌صورت PDF را انتخاب کنید",
                   );
                 }}
@@ -2840,216 +2768,7 @@ function SearchableCatalogSelect({
   );
 }
 
-function ReceiptDocument({
-  workspace,
-  receiptNumber,
-  customerName,
-  customerMobile,
-  catalogItem,
-  accessories,
-  appearanceStates,
-  declaredIssue,
-  dataHandling,
-  previousReceipt,
-  identifier,
-  color,
-  printSize,
-  title,
-  phone,
-  portal,
-  trackingUrl,
-  conditions,
-  issuedAt,
-  promisedAt,
-  acceptedByName,
-}: {
-  workspace?: WorkspaceProfile;
-  receiptNumber: string;
-  customerName: string;
-  customerMobile: string;
-  catalogItem: Pick<DeviceCatalogItem, "brand" | "model"> | null;
-  accessories: string[];
-  appearanceStates: string[];
-  declaredIssue?: string;
-  dataHandling?: "no_erasure" | "coordinate_first" | "erase_authorized" | string;
-  previousReceipt?: string;
-  identifier?: string;
-  color?: string;
-  printSize?: string;
-  title?: string;
-  phone?: string;
-  portal?: string;
-  trackingUrl?: string;
-  conditions?: string[];
-  issuedAt?: string;
-  promisedAt?: string | null;
-  acceptedByName?: string;
-}) {
-  const dataHandlingLabel =
-    dataHandling === "coordinate_first"
-      ? "قبل از پاک‌کردن هماهنگ شود"
-      : dataHandling === "erase_authorized"
-        ? "مشتری اجازه پاک‌کردن می‌دهد"
-        : dataHandling === "no_erasure"
-          ? "نیازی به پاک‌کردن اطلاعات نیست"
-          : "ثبت نشده";
-  const printClass =
-    printSize === "A4"
-      ? "receipt-size-a4"
-      : printSize === "حرارتی"
-        ? "receipt-size-thermal"
-        : "receipt-size-a5";
-  const secureTrackingUrl = trackingUrl
-    ? typeof window === "undefined"
-      ? trackingUrl
-      : new URL(trackingUrl, window.location.origin).toString()
-    : "";
-  const visibleConditions = (
-    conditions?.length
-      ? conditions
-      : [
-          "تحویل دستگاه با ارائه رسید یا احراز هویت مشتری انجام می‌شود.",
-          "تعمیر و هزینه خارج از سقف توافق‌شده پس از تأیید مشتری انجام خواهد شد.",
-          "ضمانت فقط شامل خدمت و قطعات درج‌شده در فاکتور نهایی است.",
-        ]
-  ).slice(0, 4);
-  return (
-    <article
-      className={`receipt-document receipt-document-v4 ${printClass}`}
-      data-print-size={printSize ?? "A5"}
-      aria-label="رسید پذیرش تعمیر"
-    >
-      <header className="receipt-document-head">
-        <div className="receipt-identity">
-          <div className="receipt-shop-mark">
-            <Wrench size={23} />
-          </div>
-          <div>
-            <h2>{workspace?.shopName ?? "تعمیرگاه"}</h2>
-            <p>{title || "رسید پذیرش تعمیر"}</p>
-            <small>
-              {workspace?.branch ?? "شعبه مرکزی"}
-              {phone ? ` · ${phone}` : ""}
-            </small>
-          </div>
-        </div>
-        <div className="receipt-number">
-          <span>شماره رسید</span>
-          <strong dir="ltr">{receiptNumber}</strong>
-          <small>
-            تاریخ پذیرش: {operationalDate(issuedAt ?? new Date().toISOString())}
-          </small>
-        </div>
-      </header>
-
-      <section className="receipt-document-section receipt-customer-row">
-        <h3>
-          <span>۰۱</span>مشخصات مشتری
-        </h3>
-        <div className="receipt-facts three compact">
-          <div>
-            <span>نام مشتری</span>
-            <strong>{customerName}</strong>
-          </div>
-          <div>
-            <span>شماره موبایل</span>
-            <strong className="receipt-ltr" dir="ltr">
-              {customerMobile}
-            </strong>
-          </div>
-          <div>
-            <span>پذیرش‌کننده</span>
-            <strong>
-              {acceptedByName ?? workspace?.displayName ?? "کاربر جاری"}
-            </strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="receipt-document-section">
-        <h3>
-          <span>۰۲</span>مشخصات دستگاه
-        </h3>
-        <div className="receipt-facts three device">
-          <div>
-            <span>برند</span>
-            <strong>{catalogItem?.brand ?? "ثبت نشده"}</strong>
-          </div>
-          <div>
-            <span>مدل</span>
-            <strong>{catalogItem?.model ?? "ثبت نشده"}</strong>
-          </div>
-          <div>
-            <span>رنگ</span>
-            <strong>{color || "ثبت نشده"}</strong>
-          </div>
-          <div className="receipt-identifier">
-            <span>شماره سریال / شناسه</span>
-            <strong dir="ltr">{identifier || "بدون شناسه در زمان پذیرش"}</strong>
-          </div>
-        </div>
-        <div className="receipt-detail-grid">
-          <div className="receipt-issue">
-            <span>ایراد اعلامی مشتری</span>
-            <p>{declaredIssue?.trim() || "ثبت نشده"}</p>
-          </div>
-          <div className="receipt-issue">
-            <span>مجوز حذف اطلاعات دستگاه</span>
-            <p>{dataHandlingLabel}</p>
-          </div>
-          <div className="receipt-issue">
-            <span>وضعیت ظاهری هنگام تحویل</span>
-            <p>{appearanceStates.join("، ") || "موردی ثبت نشده است"}</p>
-          </div>
-          <div className="receipt-issue">
-            <span>لوازم همراه</span>
-            <p>{accessories.join("، ") || "بدون لوازم"}</p>
-          </div>
-          {promisedAt && (
-            <div className="receipt-issue">
-              <span>برآورد تاریخ آماده‌شدن</span>
-              <p>{operationalDate(promisedAt)}</p>
-            </div>
-          )}
-          {previousReceipt && (
-            <div className="receipt-issue">
-              <span>سابقه مرتبط</span>
-              <p className="receipt-ltr">{previousReceipt}</p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="receipt-document-section receipt-conditions">
-        <h3>
-          <span>۰۳</span>شرایط پذیرش و تحویل
-        </h3>
-        <ol>
-          {visibleConditions.map((condition) => (
-            <li key={condition}>{condition}</li>
-          ))}
-        </ol>
-      </section>
-
-      <footer className="receipt-document-foot">
-        <div>
-          <span>امضای پذیرش‌کننده</span>
-          <i />
-        </div>
-        <div>
-          <span>امضا و تأیید مشتری</span>
-          <i />
-        </div>
-        {secureTrackingUrl && (
-          <div className="receipt-tracking">
-            <SecureQr value={secureTrackingUrl} label="پیگیری امن پرونده" />
-            <strong dir="ltr">{secureTrackingUrl}</strong>
-          </div>
-        )}
-      </footer>
-    </article>
-  );
-}
+const ReceiptDocument = CompactReceipt;
 
 function ReceiptsPage({
   onNavigate,
@@ -3182,6 +2901,7 @@ function ReceiptsPage({
             <ReceiptDocument
               workspace={workspace}
               receiptNumber={selected.receiptNumber}
+              preapprovedAmount={selected.preapprovedAmount}
               customerName={selected.customerName}
               customerMobile={selected.customerMobile}
               catalogItem={{ brand: selected.brand, model: selected.model }}
@@ -3205,7 +2925,7 @@ function ReceiptsPage({
               <button
                 type="button"
                 className="outline-action"
-                onClick={() => window.print()}
+                onClick={() => printCompactReceipt()}
               >
                 <Printer size={17} />
                 چاپ رسید
@@ -3214,8 +2934,7 @@ function ReceiptsPage({
                 type="button"
                 className="outline-action"
                 onClick={() => {
-                  window.print();
-                  notify(
+                  if (printCompactReceipt()) notify(
                     "در پنجره چاپ، گزینه ذخیره به‌صورت PDF را انتخاب کنید.",
                   );
                 }}
@@ -4364,6 +4083,7 @@ function DeliveryPage({
             <ReceiptDocument
               workspace={workspace}
               receiptNumber={delivering.receiptNumber}
+              preapprovedAmount={delivering.preapprovedAmount}
               customerName={delivering.customerName}
               customerMobile={delivering.customerMobile}
               catalogItem={{ brand: delivering.brand, model: delivering.model }}
@@ -4397,7 +4117,7 @@ function DeliveryPage({
               <button
                 type="button"
                 className="outline-action"
-                onClick={() => window.print()}
+                onClick={() => printCompactReceipt()}
               >
                 <Printer size={16} />
                 چاپ رسید
@@ -7098,7 +6818,7 @@ function ReceiptSettings({
               <button
                 type="button"
                 className="outline-action"
-                onClick={() => window.print()}
+                onClick={() => printCompactReceipt()}
               >
                 <Printer size={16} />
                 چاپ پیش‌نمایش {printSize}

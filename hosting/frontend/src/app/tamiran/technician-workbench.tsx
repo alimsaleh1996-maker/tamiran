@@ -1,15 +1,15 @@
 "use client";
+import { MoneyInput, formatToman } from "./money-input";
+import { CaseTools } from "./case-tools";
+import "./iteration-six.css";
 
 import {
   AlertTriangle,
-  Camera,
   CheckCircle2,
   ChevronLeft,
   Clock3,
   FileSearch,
-  History,
   LoaderCircle,
-  MoreHorizontal,
   PackageOpen,
   QrCode,
   RefreshCw,
@@ -46,6 +46,11 @@ const flagLabels: Record<string, string> = {
   sla_overdue: "SLA گذشته",
   waiting_part: "منتظر قطعه",
 };
+const partStatusLabels: Record<string, string> = {
+  pending:"منتظر انبار", reserved:"رزرو شده", partially_delivered:"تحویل ناقص",
+  needs_supply:"نیازمند خرید", delivered:"تحویل به تکنسین", consumed:"مصرف‌شده",
+  returned:"مرجوع‌شده", rejected:"ردشده", cancelled:"لغوشده",
+};
 const dataHandlingLabels: Record<V2Case["dataHandling"], { title: string; detail: string }> = {
   no_erasure: {
     title: "نیازی به پاک‌کردن اطلاعات نیست",
@@ -80,6 +85,7 @@ export function TechnicianWorkbench({
   profile,
   legacyCases,
   onUpdateRepairCase,
+  onRefreshOperations,
   onNavigate,
   notify,
 }: {
@@ -96,6 +102,7 @@ export function TechnicianWorkbench({
     deliveredToName?: string;
     deliveryNotes?: string;
   }) => Promise<RepairCaseRecord>;
+  onRefreshOperations: () => Promise<void>;
   onNavigate: (page: string) => void;
   notify: (message: string) => void;
 }) {
@@ -117,8 +124,8 @@ export function TechnicianWorkbench({
     purchase: "",
     sale: "",
   });
-  const [moreOpen, setMoreOpen] = useState(false);
   const scanInput = useRef<HTMLInputElement>(null);
+  const draftCase = useRef<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerQuery(query.trim()), 300);
@@ -132,8 +139,6 @@ export function TechnicianWorkbench({
       setCases(payload.cases);
       if (serverQuery && payload.cases.length === 0)
         setError("پرونده‌ای با دسترسی مجاز برای شما پیدا نشد.");
-      if (payload.cases[0])
-        setSelectedId((current) => current || payload.cases[0].id);
       if (profile.inventoryMode && profile.inventoryMode !== "off") {
         try {
           setInventory(await loadV2Inventory());
@@ -163,7 +168,7 @@ export function TechnicianWorkbench({
     [cases, tab],
   );
   const selected =
-    filtered.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
+    filtered.find((item) => item.id === selectedId) ?? null;
   const legacy = selected
     ? legacyCases.find((item) => item.receiptNumber === selected.receiptNumber)
     : undefined;
@@ -173,15 +178,18 @@ export function TechnicianWorkbench({
 
   useEffect(() => {
     if (!selected) {
+      draftCase.current = null;
       setDraft("");
       return;
     }
+    // A server refresh of the same case must not replace unsaved editor text.
+    if (draftCase.current === selected.publicId) return;
+    draftCase.current = selected.publicId;
     const stored = window.localStorage.getItem(
       `tamiran-tech-draft:${selected.publicId}`,
     );
     setDraft(stored ?? legacy?.operationReport ?? "");
     setEstimateAmount("");
-    setMoreOpen(false);
   }, [legacy?.operationReport, selected?.publicId]);
   useEffect(() => {
     if (!selected) return;
@@ -258,9 +266,11 @@ export function TechnicianWorkbench({
         );
         notify(`${action.label} با موفقیت ثبت شد.`);
       } else if (action.key === "close_parts") {
+        window.sessionStorage.setItem("tamiran:part-request-case", String(selected.id));
         onNavigate("درخواست‌های قطعه");
       }
       window.localStorage.removeItem(`tamiran-tech-draft:${selected.publicId}`);
+      await onRefreshOperations();
       await reload();
     } catch (cause) {
       setError(errorText(cause));
@@ -269,6 +279,14 @@ export function TechnicianWorkbench({
     }
   };
 
+  const openCase = async (item: V2Case) => {
+    if(busy)return;setError("");setBusy(true);
+    try {
+      if(item.technicianView.primaryAction?.key === "start_diagnosis") await transitionV2Case(item.id,"diagnosing",item.lockVersion,"شروع بررسی از کارهای من");
+      await onRefreshOperations();
+      setSelectedId(item.id);await reload();
+    }catch(cause){setError(errorText(cause));}finally{setBusy(false);}
+  };
   const scan = async (file: File | undefined) => {
     if (!file) return;
     try {
@@ -444,14 +462,12 @@ export function TechnicianWorkbench({
           <span>در حال خواندن کارهای شما...</span>
         </div>
       ) : (
-        <div className="tech-master-detail">
+        <div className={`tech-master-detail ${selected ? "has-open-case" : "is-list-only"}`}>
           <aside className="tech-case-list">
             {filtered.map((item) => (
-              <button
-                type="button"
+              <article
                 className={`tech-case-card ${selected?.id === item.id ? "selected" : ""} ${item.technicianView.flags.includes("qc_rework") ? "priority" : ""}`}
                 key={item.id}
-                onClick={() => setSelectedId(item.id)}
               >
                 <div className="tech-card-kicker">
                   <span dir="ltr">#{item.receiptNumber}</span>
@@ -481,14 +497,8 @@ export function TechnicianWorkbench({
                     </b>
                   ))}
                 </div>
-                {item.technicianView.primaryAction && (
-                  <span className="tech-next-action">
-                    <small>اقدام بعدی</small>
-                    <strong>{item.technicianView.primaryAction.label}</strong>
-                    <ChevronLeft size={16} />
-                  </span>
-                )}
-              </button>
+                <button type="button" className="tech-open-case" disabled={busy} onClick={() => void openCase(item)}>{item.technicianView.primaryAction?.key === "start_diagnosis" ? "شروع بررسی" : "بازکردن پرونده"}<ChevronLeft size={17}/></button>
+              </article>
             ))}
             {!filtered.length && (
               <div className="tech-empty">
@@ -503,6 +513,7 @@ export function TechnicianWorkbench({
           <section className="tech-case-detail">
             {selected ? (
               <>
+                <button type="button" className="outline-action tech-close-case" onClick={() => setSelectedId(0)}>بازگشت به کارهای من</button>
                 <div className="tech-case-context" aria-label="مشخصات ثابت پرونده">
                   <div><small>پرونده</small><strong dir="ltr">{selected.receiptNumber}</strong></div>
                   <div><small>مشتری</small><strong>{selected.customerName}</strong></div>
@@ -524,6 +535,7 @@ export function TechnicianWorkbench({
                     </p>
                   </div>
                 </div>
+                <details className="tech-case-information"><summary><FileSearch size={17}/> مشخصات دستگاه، وضعیت ظاهری و لوازم</summary>
                 <section className="tech-detail-section">
                   <header>
                     <h3>دستگاه و ایراد</h3>
@@ -575,6 +587,7 @@ export function TechnicianWorkbench({
                     </details>
                   )}
                 </section>
+                </details>
                 {selected.isLocked && (
                   <div className="tech-locked-note">
                     <ShieldCheck size={18} />
@@ -603,19 +616,7 @@ export function TechnicianWorkbench({
                     </label>
                     {selected.technicianView.primaryAction.key ===
                       "create_estimate" && (
-                      <label>
-                        <span>مبلغ برآورد (ریال)</span>
-                        <input
-                          dir="ltr"
-                          inputMode="numeric"
-                          value={estimateAmount}
-                          onChange={(event) =>
-                            setEstimateAmount(
-                              event.target.value.replace(/\D/g, ""),
-                            )
-                          }
-                        />
-                      </label>
+                      <div className="tech-estimate-card"><p>سقف تأییدشده در پذیرش: <strong>{formatToman(selected.preapprovedAmount)} تومان</strong></p><label><span>مبلغ نهایی پیشنهادی تعمیر (تومان)</span><MoneyInput value={estimateAmount} onChange={setEstimateAmount}/></label><small>برآورد بالاتر از سقف پذیرش برای تأیید مشتری ارسال می‌شود.</small></div>
                     )}
                     <small>
                       <Save size={14} />
@@ -631,7 +632,7 @@ export function TechnicianWorkbench({
                     {inventory && (
                       <button
                         type="button"
-                        onClick={() => onNavigate("درخواست‌های قطعه")}
+                        onClick={() => {window.sessionStorage.setItem("tamiran:part-request-case",String(selected.id));onNavigate("درخواست‌های قطعه");}}
                       >
                         <PackageOpen size={15} />
                         درخواست قطعه
@@ -644,7 +645,7 @@ export function TechnicianWorkbench({
                         <div key={item.id}>
                           <strong>{item.item_title}</strong>
                           <span>{item.quantity} عدد</span>
-                          <em>{item.status}</em>
+                          <em>{partStatusLabels[item.status] ?? item.status}</em>
                         </div>
                       ))}
                       {!partRequests.length && (
@@ -676,47 +677,7 @@ export function TechnicianWorkbench({
                   )}
                 </section>
                 )}
-                <details className="tech-timeline">
-                  <summary>
-                    <History size={17} />
-                    مشاهده تاریخچه پرونده
-                  </summary>
-                  <div>
-                    {(legacy?.events ?? []).map((event) => (
-                      <div key={event.id}>
-                        <span>{localDate(event.createdAt)}</span>
-                        <p>
-                          <strong>{event.actorName}</strong>
-                          {event.description}
-                        </p>
-                      </div>
-                    ))}
-                    {!legacy?.events.length && (
-                      <p>رویدادی برای نمایش وجود ندارد.</p>
-                    )}
-                  </div>
-                </details>
-                <div className="tech-secondary">
-                  <button
-                    type="button"
-                    onClick={() => setMoreOpen((value) => !value)}
-                  >
-                    <MoreHorizontal size={18} />
-                    بیشتر
-                  </button>
-                  {moreOpen && (
-                    <div>
-                      <button type="button">
-                        <Camera size={16} />
-                        ثبت عکس
-                      </button>
-                      <button type="button">
-                        <FileSearch size={16} />
-                        گزارش مشکل
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <CaseTools key={selected.id} caseId={selected.id} locked={selected.isLocked} notify={notify}/>
                 {selected.technicianView.primaryAction && (
                   <div className="tech-sticky-action">
                     <button

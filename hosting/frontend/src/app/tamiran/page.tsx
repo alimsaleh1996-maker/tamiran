@@ -1187,6 +1187,7 @@ export default function Home() {
               key={`${activePage}-${contentRevision}`}
               profile={workspaceProfile}
               legacyCases={operations.cases}
+              onRefreshOperations={refreshOperations}
               onUpdateRepairCase={changeRepairCase}
               onNavigate={selectPage}
               notify={notify}

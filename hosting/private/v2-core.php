@@ -487,3 +487,14 @@ function v2_delivery_identity(PDO $pdo,array $scope,array $case,array $input): a
     }
     return ['identifier'=>$value,'previousIdentifier'=>$old,'changeReason'=>$reason,'confirmed'=>true];
 }
+
+
+/** File and note access must enforce technician assignment, not just shop membership. */
+function v2_require_case_access(PDO $pdo,array $scope,array $case): void
+{
+    if($scope['role']!=='technician')return;
+    if((int)$case['primary_technician_user_id']===(int)$scope['actor']['id'])return;
+    $statement=$pdo->prepare('SELECT COUNT(*) FROM repair_case_assignments WHERE workflow_id=:workflow AND technician_user_id=:user AND ended_at IS NULL');
+    $statement->execute(['workflow'=>$case['id'],'user'=>$scope['actor']['id']]);
+    if((int)$statement->fetchColumn()<1)throw new TamiranApiException('این پرونده به شما تخصیص ندارد.',403);
+}

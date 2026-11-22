@@ -93,7 +93,7 @@ SELECT c.*, b.branch_code,
        c.device_type_snapshot AS device_type_title, c.brand_snapshot AS brand_title,
        (SELECT e.metadata_json FROM repair_case_stage_events e WHERE e.workflow_id=workflow.id AND e.from_status IS NULL ORDER BY e.id LIMIT 1) AS reception_identity_event,
        c.model_snapshot AS model_title, c.identifier_snapshot AS identifier_value, c.color_snapshot,
-       workflow.id AS workflow_id, workflow.promised_at, workflow.customer_consent_json,
+       workflow.id AS workflow_id, workflow.preapproved_amount, workflow.promised_at, workflow.customer_consent_json,
        final_invoice.total_amount AS invoice_total_amount,
        assignee.display_name AS assigned_to_name, creator.display_name AS created_by_name, deliverer.display_name AS delivered_by_name
 FROM repair_cases c
@@ -177,6 +177,7 @@ function operations_case_to_api(array $row, string $role, array $events = []): a
         'deviceType' => $row['device_type_title'],
         'brand' => $row['brand_title'],
         'model' => $row['model_title'],
+        'preapprovedAmount' => (int)($row['preapproved_amount']??0),
         'identifier' => $row['identifier_value'] ?? '',
         'identifierUnavailableReason' => (json_decode((string)($row['reception_identity_event']??'{}'),true)['identity']['unavailableReason']??''),
         'color' => $row['color_snapshot'] ?? '',
@@ -614,8 +615,9 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
     if($caseIdempotency===null)$caseIdempotency=hash('sha256',implode('|',[$scope['shop_id'],$scope['actor']['id'],$mobile,$normalizedIdentifier??'',trim((string)($input['declaredIssue']??'')),(string)floor(time()/30)]));
     $fingerprint=hash('sha256',json_encode(operations_canonical_value($input),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
     $replay=operations_replay_case($pdo,$scope,$caseIdempotency,$fingerprint);if($replay!==null)return $replay;
+    $issueOnly=($input['receiptMode']??'')==='issue_only';
     $acceptance=$input['receiptAcceptance']??null;
-    if(!is_array($acceptance)||($acceptance['accepted']??false)!==true||!is_string($acceptance['publicId']??null)||!is_string($acceptance['contentSha256']??null)||!preg_match('/^[a-f0-9]{64}$/',$acceptance['contentSha256']))throw new TamiranApiException('پذیرش نسخه نمایش‌داده‌شده شرایط الزامی است.',400);
+    if(!$issueOnly&&(!is_array($acceptance)||($acceptance['accepted']??false)!==true||!is_string($acceptance['publicId']??null)||!is_string($acceptance['contentSha256']??null)||!preg_match('/^[a-f0-9]{64}$/',$acceptance['contentSha256'])))throw new TamiranApiException('پذیرش نسخه نمایش‌داده‌شده شرایط الزامی است.',400);
     $policy=v2_product_policy($pdo,$scope);
     $requestedAssigneeId = isset($input['assignedToUserId']) && (int)$input['assignedToUserId'] > 0 ? (int)$input['assignedToUserId'] : null;
     $assignmentMode = (string)($input['assignmentMode'] ?? 'automatic');
@@ -702,6 +704,8 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         $term=$pdo->prepare('SELECT id,public_id,title,body_text,content_sha256 FROM repair_receipt_term_versions WHERE shop_id=:shop AND is_active=1 AND effective_from<=NOW() AND (effective_to IS NULL OR effective_to>NOW()) ORDER BY version_number DESC LIMIT 1 FOR UPDATE');
         $term->execute(['shop'=>$scope['shop_id']]);
         $termRow=$term->fetch();
+        $receiptTermsSnapshot=is_array($termRow)?['publicId'=>$termRow['public_id'],'title'=>$termRow['title'],'contentSha256'=>$termRow['content_sha256']]:null;
+        if(!$issueOnly){
         if(!is_array($termRow))throw new TamiranApiException('نسخه فعال شرایط پذیرش تنظیم نشده است.',409);
         if(!hash_equals((string)$termRow['public_id'],$acceptance['publicId'])||!hash_equals((string)$termRow['content_sha256'],$acceptance['contentSha256'])||!hash_equals((string)$termRow['content_sha256'],hash('sha256',(string)$termRow['body_text'])))throw new TamiranApiException('شرایط پذیرش تغییر کرده است؛ متن فعال را دوباره تأیید کنید.',409);
         $acceptanceMethod=(string)($consent['acceptanceMethod']??'recorded_consent');
@@ -711,6 +715,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
             'public'=>tamiran_id(),'case'=>$caseId,'term'=>$termRow['id'],'name'=>$customerName,'method'=>$acceptanceMethod,
             'evidence'=>json_encode(['termTitle'=>$termRow['title'],'contentSha256'=>$termRow['content_sha256'],'details'=>$consent['evidence']??new stdClass()],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),
         ]);
+        }
         $workflowCode = preg_match('/(کامپیوتر|رایانه|لپ.?تاپ|computer|laptop)/iu', (string)$model['type']) ? 'computer_laptop' : 'mobile_tablet';
         $processStatus = $policy['profile']==='solo' ? 'diagnosing' : ($assignedId === null ? 'awaiting_assignment' : 'assigned');
         $temporarySecret = trim((string)($input['temporaryDeviceSecret'] ?? ''));
@@ -727,7 +732,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         ]);
         $workflowId=(int)$pdo->lastInsertId();
         $pdo->prepare('INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at) VALUES(:public,:workflow,NULL,:status,:actor,:reason,:metadata,:idempotency,NOW())')->execute([
-            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
+            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
         ]);
         if ($assignedId !== null) {
             $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,created_by_user_id,started_at,accepted_at) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی تعمیر',:creator,NOW(),NOW())")

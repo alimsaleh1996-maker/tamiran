@@ -70,6 +70,7 @@ export type RepairCaseRecord = {
   deliveredAt: string | null;
   deliveredByName: string;
   promisedAt?: string | null;
+  preapprovedAmount?: number;
   dataHandling?: "no_erasure" | "coordinate_first" | "erase_authorized";
   events: RepairCaseEvent[];
 };
@@ -185,7 +186,8 @@ export type CreateRepairCaseInput = {
   promisedAt?: string;
   temporaryDeviceSecret?: string;
   customerConsent?: Record<string, unknown>;
-  receiptAcceptance: {
+  receiptMode?: "issue_only";
+  receiptAcceptance?: {
     publicId: string;
     contentSha256: string;
     accepted: true;

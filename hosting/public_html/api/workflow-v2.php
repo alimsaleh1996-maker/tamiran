@@ -332,12 +332,37 @@ function workflow_v2_estimate_decide(PDO $pdo,array $scope,array $input): array
     return ['decided'=>true,'decision'=>$decision,'approvalPublicId'=>$approvalPublic,'case'=>$transitionedCase];
 }
 
+
+function workflow_v2_activity(PDO $pdo,array $scope,int $caseId): array
+{
+    $case=v2_case($pdo,$scope,$caseId);v2_require_case_access($pdo,$scope,$case);
+    $statement=$pdo->prepare("SELECT e.id,e.event_type,e.description,e.created_at,u.display_name AS actorName FROM repair_case_events e INNER JOIN tamiran_users u ON u.id=e.actor_user_id WHERE e.case_id=:case ORDER BY e.id DESC LIMIT 100");
+    $statement->execute(['case'=>$caseId]);$events=$statement->fetchAll();
+    $stages=$pdo->prepare("SELECT -CAST(e.id AS SIGNED) AS id,'workflow' AS event_type,e.reason AS description,e.created_at,u.display_name AS actorName FROM repair_case_stage_events e INNER JOIN tamiran_users u ON u.id=e.actor_user_id WHERE e.workflow_id=:workflow ORDER BY e.id DESC LIMIT 100");
+    $stages->execute(['workflow'=>$case['id']]);$events=array_merge($events,$stages->fetchAll());usort($events,static fn($a,$b)=>strcmp($b['created_at'],$a['created_at']));return ['events'=>array_slice($events,0,100)];
+}
+function workflow_v2_problem_report(PDO $pdo,array $scope,array $input): array
+{
+    v2_require_permission($scope,'case.note',['technician','reception'],'ثبت گزارش مشکل مجاز نیست.');
+    $caseId=(int)($input['caseId']??0);$text=v2_text($input['message']??'','شرح مشکل',4000);$key=v2_text($input['idempotencyKey']??'','شناسه گزارش',160);
+    $pdo->beginTransaction();
+    try{
+        $case=v2_case($pdo,$scope,$caseId,true);v2_require_case_access($pdo,$scope,$case);
+        $existing=$pdo->prepare("SELECT description FROM repair_case_events WHERE case_id=:case AND event_type='problem_report' AND JSON_UNQUOTE(JSON_EXTRACT(metadata_json,'$.idempotencyKey'))=:key LIMIT 1");$existing->execute(['case'=>$caseId,'key'=>$key]);$old=$existing->fetchColumn();
+        if($old!==false){if($old!==$text)throw new TamiranApiException('شناسه گزارش قبلاً با متن دیگری ثبت شده است.',409);$pdo->commit();return ['recorded'=>true,'replayed'=>true];}
+        if($case['locked_at']!==null)throw new TamiranApiException('پرونده مختومه قابل ویرایش نیست.',409);
+        $pdo->prepare("INSERT INTO repair_case_events(case_id,actor_user_id,event_type,description,metadata_json) VALUES(:case,:actor,'problem_report',:message,:metadata)")->execute(['case'=>$caseId,'actor'=>$scope['actor']['id'],'message'=>$text,'metadata'=>v2_json(['idempotencyKey'=>$key])]);
+        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'case.problem_report','repair_case',$case['case_public_id'],null,['message'=>$text]);$pdo->commit();return ['recorded'=>true,'replayed'=>false];
+    }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+}
 tamiran_api(static function():array{
     $pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';
+    if($method==='GET'&&($_GET['activity']??'')==='1')return workflow_v2_activity($pdo,$scope,(int)($_GET['caseId']??0));
     if($method==='GET')return workflow_v2_payload($pdo,$scope,isset($_GET['caseId'])?(int)$_GET['caseId']:null,isset($_GET['q'])?(string)$_GET['q']:null);
     if($method!=='POST')throw new TamiranApiException('روش درخواست مجاز نیست.',405);
     tamiran_require_csrf();$input=tamiran_json_body();$action=(string)($input['action']??'');
     return match($action){
+        'problem_report'=>workflow_v2_problem_report($pdo,$scope,$input),
         'transition'=>['case'=>v2_transition($pdo,$scope,(int)($input['caseId']??0),(string)($input['target']??''),v2_text($input['reason']??'','علت',1000,false),(int)($input['lockVersion']??-1),v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه یکتا',160))],
         'assign'=>['case'=>workflow_v2_assign($pdo,$scope,$input)],
         'collaborator_add'=>workflow_v2_add_collaborator($pdo,$scope,$input),

@@ -11,7 +11,9 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text().strip()
-STAMP = (2026, 10, 24, 0, 0, 0)
+# A new release timestamp lets PHP OPcache detect replaced sources when ZIP
+# extractors preserve file mtimes. Keep it deterministic within this release.
+STAMP = (2026, 11, 22, 0, 0, 0)
 PRIVATE = (
     ".htaccess", "install.php", "config.example.php", "v2-core.php",
     "product-service.php", "capability-service.php", "catalog-similarity.php", "backup-engine.php",
@@ -145,8 +147,8 @@ def main() -> None:
         write_zip(output / f"tamiran-{VERSION}-install.zip", runtime),
         write_zip(output / f"tamiran-{VERSION}-source.zip", source_files(runtime)),
     ]
-    if VERSION in {"2.0.0-php.2", "2.0.0-php.3", "2.0.0-php.4", "2.0.0-php.5"}:
-        previous = {"2.0.0-php.2": "php.1", "2.0.0-php.3": "php.2", "2.0.0-php.4": "php.3", "2.0.0-php.5": "php.4"}[VERSION]
+    if VERSION in {"2.0.0-php.2", "2.0.0-php.3", "2.0.0-php.4", "2.0.0-php.5", "2.0.0-php.6"}:
+        previous = {"2.0.0-php.2": "php.1", "2.0.0-php.3": "php.2", "2.0.0-php.4": "php.3", "2.0.0-php.5": "php.4", "2.0.0-php.6": "php.5"}[VERSION]
         results.append(write_zip(output / f"tamiran-{VERSION}-update-from-{previous}.zip", update_files(runtime)))
     (output / f"tamiran-{VERSION}-artifacts.json").write_text(json.dumps(results, indent=2) + "\n")
     for result in results:

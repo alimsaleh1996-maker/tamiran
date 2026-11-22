@@ -1,5 +1,7 @@
 "use client";
 import { printHandoverReceipt } from "./handover-receipt";
+import { MoneyInput, formatToman } from "./money-input";
+import "./iteration-six.css";
 
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -382,12 +384,12 @@ function WorkflowBoard({
     return Number.isInteger(value) && value > 0 ? value : 0;
   });
   const [queue, setQueue] = useState<"critical" | "unassigned" | "waiting" | "all">(
-    focusedCaseId ? "all" : "critical",
+    focusedCaseId ? "all" : "unassigned",
   );
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [selectedId, setSelectedId] = useState(
-    focusedCaseId || data.cases[0]?.id || 0,
+    focusedCaseId || 0,
   );
   const [reason, setReason] = useState("");
   const [technician, setTechnician] = useState("");
@@ -403,6 +405,11 @@ function WorkflowBoard({
     amount: "",
     tax: "0",
   });
+  useEffect(() => {
+    setTechnician(""); setReason("");
+    setEstimate({title:"اجرت تعمیر",amount:"",tax:"0"});
+    setCollaborator({technicianId:"",task:"",fixedFee:"",laborPercent:"0",partPercent:"0"});
+  }, [selectedId]);
   const criticalCases = data.cases.filter(
     (item) =>
       item.technicianView.flags.includes("sla_overdue") ||
@@ -433,7 +440,7 @@ function WorkflowBoard({
     ]),
   );
   const selected =
-    visibleCases.find((item) => item.id === selectedId) ?? visibleCases[0];
+    visibleCases.find((item) => item.id === selectedId);
   const openHandovers = data.handovers.filter(
     (item) => item.status === "requested",
   );
@@ -462,15 +469,15 @@ function WorkflowBoard({
         (roleTargets[profile.role] ?? []).includes(target),
     ) ?? [];
   return (
-    <div className="v2-stack">
+    <div className="v2-stack operations-board">
       <div className="v2-summary-cards operations-exception-cards">
         {[
-          { key: "critical" as const, label: "بحرانی / SLA", count: criticalCases.length },
           { key: "unassigned" as const, label: "نیازمند تخصیص", count: unassignedCases.length },
+          { key: "critical" as const, label: "نیازمند پیگیری", count: criticalCases.length },
           { key: "waiting" as const, label: "صف‌های انتظار", count: waitingCases.length },
           { key: "all" as const, label: "همه پرونده‌ها", count: data.cases.length },
         ].map((item) => (
-          <button key={item.key} type="button" aria-pressed={queue === item.key} className={queue === item.key ? "active" : ""} onClick={() => { setQueue(item.key); setSelectedId(0); }}>
+          <button key={item.key} type="button" aria-pressed={queue === item.key} className={queue === item.key ? "active" : ""} onClick={() => { setQueue(item.key); setStatus(""); setSelectedId(0); }}>
             <span>{item.label}</span><strong>{toman.format(item.count)}</strong>
           </button>
         ))}
@@ -485,7 +492,8 @@ function WorkflowBoard({
         </select></label>
         {(search || status) && <button type="button" className="outline-action" onClick={() => { setSearch(""); setStatus(""); }}>پاک‌کردن فیلترها</button>}
       </div>
-      <div className="v2-master-detail">
+      {queue === "waiting" && <div className="operations-waiting-filters" aria-label="نوع انتظار">{[["","همه انتظارها"],["awaiting_parts","قطعه"],["awaiting_customer_approval","پاسخ مشتری"],["qc_pending","کنترل کیفیت"],["finance_pending","مالی"]].map(([value,label])=><button key={value} type="button" aria-pressed={status===value} onClick={()=>{setStatus(value);setSelectedId(0);}}>{label}</button>)}</div>}
+      <div className={`v2-master-detail ${selected ? "has-selection" : "is-list-only"}`}>
         <section className="v2-list-panel">
           <div className="v2-panel-title">
             <div>
@@ -525,6 +533,7 @@ function WorkflowBoard({
         <section className="v2-detail-panel">
           {selected ? (
             <>
+              <button type="button" className="outline-action operations-close-detail" onClick={()=>setSelectedId(0)}>بستن جزئیات پرونده</button>
               <div className="v2-detail-title">
                 <div>
                   <span className="v2-chip">
@@ -550,7 +559,7 @@ function WorkflowBoard({
                 </span>
                 <span>
                   <small>سقف پذیرش</small>
-                  <strong>{formatMoney(selected.preapprovedAmount)}</strong>
+                  <strong>{formatToman(selected.preapprovedAmount)} تومان</strong>
                 </span>
               </div>
               <div className="v2-issue">
@@ -665,8 +674,8 @@ function WorkflowBoard({
                   </button>
                 </div>
               )}
-              {!selected.isLocked && profile.role === "repair_manager" && (
-                <div className="v2-collaborator-form">
+              {!selected.isLocked && selected.primaryTechnicianUserId !== null && profile.role === "repair_manager" && (
+                <details key={`collaborator-${selected.id}`} className="operations-disclosure"><summary>افزودن همکار و تعیین اجرت</summary><div className="v2-collaborator-form">
                   <strong>افزودن همکار با وظیفه و اجرت مستقل</strong>
                   <div className="v2-grid-form">
                     <label>
@@ -779,9 +788,9 @@ function WorkflowBoard({
                       افزودن همکار
                     </button>
                   </div>
-                </div>
+                </div></details>
               )}
-              {!selected.isLocked && <div className="v2-transition-box">
+              {!selected.isLocked && <details key={`transition-${selected.id}`} className="operations-disclosure"><summary>تغییر مرحله و اقدامات استثنایی</summary><div className="v2-transition-box">
                 <strong>انتقال‌های مجاز همین مرحله</strong>
                 {transitions.some((target) => ["returned_unrepaired", "cancelled"].includes(target)) && (
                   <div className="v2-reason-presets" aria-label="دلایل رایج مختومه‌کردن پرونده">
@@ -832,7 +841,7 @@ function WorkflowBoard({
                     </small>
                   )}
                 </div>
-              </div>}
+              </div></details>}
               {selected.status === "awaiting_customer_approval" &&
                 selected.latestEstimate &&
                 ["sent", "explanation_requested"].includes(
@@ -934,17 +943,8 @@ function WorkflowBoard({
                         />
                       </label>
                       <label>
-                        <span>مبلغ ریال</span>
-                        <input
-                          inputMode="numeric"
-                          value={estimate.amount}
-                          onChange={(e) =>
-                            setEstimate({
-                              ...estimate,
-                              amount: e.target.value.replace(/\D/g, ""),
-                            })
-                          }
-                        />
+                        <span>مبلغ برآورد (تومان)</span>
+                        <MoneyInput value={estimate.amount} onChange={(amount)=>setEstimate({...estimate,amount})}/>
                       </label>
                       <label>
                         <span>مالیات ٪</span>
@@ -1055,11 +1055,12 @@ function InventoryBoard({
   run: Run;
 }) {
   const [request, setRequest] = useState({
-    caseId: "",
+    caseId: typeof window === "undefined" ? "" : window.sessionStorage.getItem("tamiran:part-request-case") ?? "",
     itemId: "",
     quantity: "1",
     notes: "",
   });
+  const requestForm = React.useRef<HTMLFormElement>(null);
   const [stocktakeCounts, setStocktakeCounts] = useState<
     Record<number, string>
   >({});
@@ -1108,6 +1109,14 @@ function InventoryBoard({
   const selectedRequestCase = requestableCases.find(
     (item) => item.id === Number(request.caseId),
   );
+  useEffect(() => {
+    const incoming=window.sessionStorage.getItem("tamiran:part-request-case");
+    window.sessionStorage.removeItem("tamiran:part-request-case");
+    if(incoming && selectedRequestCase){
+      requestForm.current?.scrollIntoView({block:"center"});
+      requestForm.current?.querySelector("select")?.focus({preventScroll:true});
+    }
+  }, []);
   const canRequestPart =
     ["repair_manager", "technician"].includes(profile.role) ||
     profile.permissions.includes("*") ||
@@ -1135,7 +1144,7 @@ function InventoryBoard({
         ))}
       </div>
       {canRequestPart && (
-        <section className="v2-card-form v2-queue">
+        <details key={selectedRequestCase ? "selected" : "choose"} open={selectedRequestCase ? undefined : true} className="v2-card-form v2-queue operations-disclosure"><summary>{selectedRequestCase ? "تغییر پروندهٔ درخواست قطعه" : "انتخاب پروندهٔ درخواست قطعه"}</summary>
           <div className="v2-queue-head">
             <div>
               <strong>پرونده‌های قابل درخواست قطعه</strong>
@@ -1160,7 +1169,7 @@ function InventoryBoard({
             ))}
             {!requestableCases.length && <small>پرونده فعالی برای درخواست قطعه وجود ندارد.</small>}
           </div>
-        </section>
+        </details>
       )}
       <section className="v2-table-panel">
         <div className="v2-panel-title">
@@ -1174,6 +1183,7 @@ function InventoryBoard({
         </div>
         {canRequestPart && selectedRequestCase && <CaseContextHeader item={selectedRequestCase} branch={profile.branch} />}
         {canRequestPart && <form
+          ref={requestForm}
           className="v2-grid-form"
           onSubmit={(event) => {
             event.preventDefault();

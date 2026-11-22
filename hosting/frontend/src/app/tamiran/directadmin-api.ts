@@ -830,7 +830,7 @@ export const createRepairCase = (input: CreateRepairCaseInput) =>
     },
     true,
   );
-export const saveReceptionDraft = (idempotencyKey: string, payload: Record<string, unknown>, expectedVersion?: number) =>
+export const saveReceptionDraft = (idempotencyKey: string, payload: Record<string, unknown>, expectedVersion: number = 0) =>
   request<{ saved: boolean; publicId: string; expiresAt: string; version: number }>("/api/operations.php", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "save_reception_draft", idempotencyKey, payload, ...(expectedVersion === undefined ? {} : { expectedVersion }) }),

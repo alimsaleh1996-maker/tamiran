@@ -188,8 +188,8 @@ export function PersianDatePicker({
             <header>
               <button
                 type="button"
-                onClick={() => moveMonth(1)}
-                aria-label="ماه بعد"
+                onClick={() => moveMonth(-1)}
+                aria-label="ماه قبل"
               >
                 <ChevronRight size={18} />
               </button>
@@ -201,8 +201,8 @@ export function PersianDatePicker({
               </strong>
               <button
                 type="button"
-                onClick={() => moveMonth(-1)}
-                aria-label="ماه قبل"
+                onClick={() => moveMonth(1)}
+                aria-label="ماه بعد"
               >
                 <ChevronLeft size={18} />
               </button>
