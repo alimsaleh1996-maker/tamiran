@@ -1,18 +1,18 @@
 {
-  "graph_sha256": "843169870484a0d56a9e3a1abc9e34d7da13b8bbe61fb896db72c6bf082da543",
-  "source_commit": "457b0ea6efe029931efe1ef40ad757f89d1f4a39",
-  "nodes_embedded": 4582,
-  "typed_relationships_embedded": 11184,
+  "graph_sha256": "64a953be5d2733e83a00d64051bdaa4d736a6ac382179502971977f038177e7d",
+  "source_commit": "0c90c280cb3f3b6b38575ccd54c0ce9884de1b80",
+  "nodes_embedded": 4632,
+  "typed_relationships_embedded": 11388,
   "default_scope": "hosting",
   "default_level": "modules",
   "max_rendered_items": 24,
   "editions": {
     "worker": 1892,
-    "hosting": 1395,
+    "hosting": 1443,
     "tools": 131,
     "reference": 493,
-    "docs": 532,
-    "external": 139
+    "external": 141,
+    "docs": 532
   },
   "offline": true,
   "external_dependencies": [],

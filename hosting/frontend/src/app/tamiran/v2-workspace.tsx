@@ -2282,7 +2282,7 @@ function FinanceBoard({
             <div className="v2-finance-preview grow">
               <strong>پیش‌نویس خودکار از عملیات پرونده</strong>
               {selectedDraft.items.length ? selectedDraft.items.map((item, index) => (
-                <span key={`${item.type}-${item.referenceId ?? index}`}>
+                <span key={item.sourceKey ?? `${item.type}-${item.referenceId ?? index}`}>
                   {item.title} × {String(item.quantity)}
                   <b>{formatMoney(Number(item.quantity) * Number(item.saleUnitPrice))}</b>
                 </span>

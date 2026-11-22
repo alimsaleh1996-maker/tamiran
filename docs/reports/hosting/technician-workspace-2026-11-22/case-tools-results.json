@@ -1,0 +1,189 @@
+{
+  "suite": "PHP/MariaDB real HTTP synthetic smoke",
+  "results": [
+    {
+      "name": "issue-only reception needs no fabricated customer acceptance",
+      "status": "PASS"
+    },
+    {
+      "name": "issue-only retry returns same case",
+      "status": "PASS"
+    },
+    {
+      "name": "issue-only amount reads back as integer rials",
+      "status": "PASS"
+    },
+    {
+      "name": "issue-only never writes a consent record",
+      "status": "PASS"
+    },
+    {
+      "name": "issue-only event preserves terms snapshot without claiming consent",
+      "status": "PASS"
+    },
+    {
+      "name": "reception retry rejects changed amount",
+      "status": "PASS"
+    },
+    {
+      "name": "upload requires genuine CSRF",
+      "status": "PASS"
+    },
+    {
+      "name": "technician upload requires case association",
+      "status": "PASS"
+    },
+    {
+      "name": "unassigned technician cannot upload to same-shop case",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign shop cannot upload to case",
+      "status": "PASS"
+    },
+    {
+      "name": "HTML disguised as PNG is rejected by actual MIME",
+      "status": "PASS"
+    },
+    {
+      "name": "technician cannot upload identity documents",
+      "status": "PASS"
+    },
+    {
+      "name": "assigned technician uploads a private case photo",
+      "status": "PASS"
+    },
+    {
+      "name": "assigned technician lists own photo",
+      "status": "PASS"
+    },
+    {
+      "name": "assigned technician downloads actual image bytes",
+      "status": "PASS"
+    },
+    {
+      "name": "unassigned technician cannot list photos",
+      "status": "PASS"
+    },
+    {
+      "name": "unassigned technician cannot download known photo ID",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign shop cannot download known photo ID",
+      "status": "PASS"
+    },
+    {
+      "name": "identity document is absent from technician list",
+      "status": "PASS"
+    },
+    {
+      "name": "identity document cannot be fetched by technician",
+      "status": "PASS"
+    },
+    {
+      "name": "manager can fetch scoped identity document",
+      "status": "PASS"
+    },
+    {
+      "name": "problem report requires CSRF",
+      "status": "PASS"
+    },
+    {
+      "name": "unassigned technician cannot report a problem",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign shop cannot report a problem",
+      "status": "PASS"
+    },
+    {
+      "name": "assigned technician records a problem",
+      "status": "PASS"
+    },
+    {
+      "name": "same report retry is read-only",
+      "status": "PASS"
+    },
+    {
+      "name": "changed report with same key is rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "only one immutable problem event exists",
+      "status": "PASS"
+    },
+    {
+      "name": "server timeline includes problem and workflow events",
+      "status": "PASS"
+    },
+    {
+      "name": "unassigned technician cannot read timeline",
+      "status": "PASS"
+    },
+    {
+      "name": "active collaborator can list scoped photos",
+      "status": "PASS"
+    },
+    {
+      "name": "ended collaborator immediately loses photo access",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rejects file upload",
+      "status": "PASS"
+    },
+    {
+      "name": "failed upload rolls metadata back",
+      "status": "PASS"
+    },
+    {
+      "name": "failed upload deletes newly moved private file",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rejects problem event",
+      "status": "PASS"
+    },
+    {
+      "name": "failed problem event is rolled back",
+      "status": "PASS"
+    },
+    {
+      "name": "same-shop foreign branch cannot list photos",
+      "status": "PASS"
+    },
+    {
+      "name": "known photo ID cannot bypass linked case branch",
+      "status": "PASS"
+    },
+    {
+      "name": "same-shop foreign branch cannot read timeline",
+      "status": "PASS"
+    },
+    {
+      "name": "same-shop foreign branch cannot append problem event",
+      "status": "PASS"
+    },
+    {
+      "name": "closed case rejects new technician photo",
+      "status": "PASS"
+    },
+    {
+      "name": "closed case rejects new problem report",
+      "status": "PASS"
+    },
+    {
+      "name": "closed case still allows read-only photo history",
+      "status": "PASS"
+    }
+  ],
+  "passed": 44,
+  "failed": 0,
+  "seconds": 3.31,
+  "limits": [
+    "Loopback development HTTP, not shared-host HTTPS",
+    "No browser visual/E2E",
+    "No real SMS or payment gateway requests"
+  ]
+}

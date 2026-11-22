@@ -100,6 +100,7 @@ function v2_product_policy(PDO $pdo, array $scope, ?array $case = null): array
         'profile'=>$profile,'inventoryMode'=>$inventory,'qcMode'=>$qc,
         'assignmentRequired'=>$profile==='pro',
         'inventoryEnabled'=>$inventory!=='off'&&$enabled('module.inventory.simple'),
+        'stockPartsAvailable'=>$enabled('module.inventory.simple'),
         'inventoryPro'=>$inventory==='pro'&&$enabled('module.inventory.pro'),
         'qcEnabled'=>$qc!=='off'&&$enabled('module.qc.simple'),
         'independentQc'=>$qc==='independent'&&$profile==='pro'&&$enabled('module.qc.independent'),
@@ -136,10 +137,10 @@ function v2_workflow_maps(array $policy=[]): array
             'estimate_pending'=>['awaiting_customer_approval','repairing','awaiting_parts','returned_unrepaired','cancelled'],
             'awaiting_customer_approval'=>['repairing','awaiting_parts','returned_unrepaired','cancelled'],
             'awaiting_parts'=>['repairing','returned_unrepaired','cancelled'],
-            'repairing'=>array_values(array_unique([$afterRepair,'awaiting_parts','cancelled'])),
+            'repairing'=>array_values(array_unique([$afterRepair,'awaiting_parts','awaiting_customer_approval','cancelled'])),
             'parts_closeout'=>[$afterParts,'repairing'],
             'qc_pending'=>['qc_rework','qc_conditional','finance_pending'],
-            'qc_rework'=>['repairing'],'qc_conditional'=>['finance_pending'],'finance_pending'=>['ready_for_delivery'],
+            'qc_rework'=>['repairing'],'qc_conditional'=>['finance_pending'],'finance_pending'=>['ready_for_delivery','returned_unrepaired'],
             'ready_for_delivery'=>[],'returned_unrepaired'=>[],'delivered'=>['closed'],'cancelled'=>[],'closed'=>[],
         ];
     }else{
@@ -149,10 +150,10 @@ function v2_workflow_maps(array $policy=[]): array
             'estimate_pending'=>['awaiting_customer_approval','repairing','awaiting_parts','returned_unrepaired','cancelled'],
             'awaiting_customer_approval'=>['repairing','awaiting_parts','returned_unrepaired','cancelled'],
             'awaiting_parts'=>['repairing','returned_unrepaired','cancelled'],
-            'repairing'=>array_values(array_unique([$afterRepair,'awaiting_parts','cancelled'])),
+            'repairing'=>array_values(array_unique([$afterRepair,'awaiting_parts','awaiting_customer_approval','cancelled'])),
             'parts_closeout'=>[$afterParts,'repairing'],
             'qc_pending'=>['qc_rework','qc_conditional','finance_pending'],'qc_rework'=>['repairing'],
-            'qc_conditional'=>['finance_pending'],'finance_pending'=>['ready_for_delivery'],'ready_for_delivery'=>[],
+            'qc_conditional'=>['finance_pending'],'finance_pending'=>['ready_for_delivery','returned_unrepaired'],'ready_for_delivery'=>[],
             'returned_unrepaired'=>[],'delivered'=>['closed'],'cancelled'=>[],'closed'=>[],
         ];
     }
@@ -241,8 +242,9 @@ function v2_route_after_parts(PDO $pdo,array $scope,int $caseId,string $idempote
     $case=v2_case($pdo,$scope,$caseId);
     if(v2_open_part_blockers($pdo,$caseId)!==[])return false;
     $target=null;
-    if($case['process_status']==='awaiting_parts')$target='repairing';
+    if($case['process_status']==='awaiting_parts'){if(!technician_cost_state($pdo,$case)['authorized'])return false;$target='repairing';}
     if($case['process_status']==='parts_closeout'){
+        if(($case['result']??'')!=='repaired'||trim((string)($case['operation_report']??''))===''||!technician_cost_state($pdo,$case)['authorized'])return false;
         $policy=v2_product_policy($pdo,$scope,$case);
         $targets=v2_workflow_maps($policy)[(string)$case['workflow_code']]['parts_closeout']??[];
         foreach($targets as$candidate)if($candidate!=='repairing'){$target=$candidate;break;}
@@ -297,8 +299,8 @@ function v2_case_blockers(PDO $pdo, array $scope, array $row): array
     $caseId=(int)$row['case_id'];
     $policy=v2_product_policy($pdo,$scope,$row);
     return [
-        'parts'=>$policy['inventoryPro']?v2_open_part_blockers($pdo,$caseId):[],
-        'qc'=>$policy['qcEnabled']?v2_qc_blockers($pdo,$caseId):[],
+        'parts'=>v2_open_part_blockers($pdo,$caseId),
+        'qc'=>$policy['qcEnabled']&&!technician_unrepaired($pdo,$row)?v2_qc_blockers($pdo,$caseId):[],
         'finance'=>v2_finance_blockers($pdo,$caseId),
     ];
 }
@@ -322,9 +324,11 @@ function v2_transition_role_allowed(PDO $pdo, array $scope, array $row, string $
     }
 }
 
-function v2_transition(PDO $pdo, array $scope, int $caseId, string $target, ?string $reason, int $expectedVersion, ?string $idempotencyKey=null, bool $automatic=false): array
+function v2_transition(PDO $pdo, array $scope, int $caseId, string $target, ?string $reason, int $expectedVersion, ?string $idempotencyKey=null, bool $automatic=false, bool $technicalFinish=false): array
 {
-    $pdo->beginTransaction();
+    if($technicalFinish&&!$pdo->inTransaction())throw new LogicException('Technical finish requires its enclosing transaction');
+    $ownsTransaction=!$technicalFinish;
+    if($ownsTransaction)$pdo->beginTransaction();
     try {
         $row=v2_case($pdo,$scope,$caseId,true);
         $policy=v2_product_policy($pdo,$scope,$row);
@@ -334,27 +338,31 @@ function v2_transition(PDO $pdo, array $scope, int $caseId, string $target, ?str
         $existing=$pdo->prepare('SELECT to_status FROM repair_case_stage_events WHERE workflow_id=:workflow AND idempotency_key=:idempotency LIMIT 1');
         $existing->execute(['workflow'=>$row['id'],'idempotency'=>$idempotencyKey]);
         $existingTarget=$existing->fetchColumn();
-        if($existingTarget!==false){if((string)$existingTarget!==$target)throw new TamiranApiException('شناسه یکتا قبلاً برای انتقال دیگری استفاده شده است.',409);$pdo->commit();return v2_case($pdo,$scope,$caseId);}
+        if($existingTarget!==false){if((string)$existingTarget!==$target)throw new TamiranApiException('شناسه یکتا قبلاً برای انتقال دیگری استفاده شده است.',409);if($ownsTransaction)$pdo->commit();return v2_case($pdo,$scope,$caseId);}
         if((int)$row['lock_version']!==$expectedVersion) throw new TamiranApiException('پرونده هم‌زمان تغییر کرده است؛ اطلاعات را تازه‌سازی کنید.',409);
         if($row['locked_at']!==null || in_array($row['process_status'],['returned_unrepaired','cancelled','closed'],true)) {
             throw new TamiranApiException('پرونده بسته قابل بازگشایی یا ویرایش مستقیم نیست؛ پرونده مرتبط یا سند اصلاحی بسازید.',409);
         }
         $maps=v2_workflow_maps($policy);
-        if(!in_array($target,$maps[$row['workflow_code']][$row['process_status']]??[],true)) throw new TamiranApiException('این انتقال در گردش صنف پرونده مجاز نیست.',409);
+        if(!$technicalFinish&&!in_array($target,$maps[$row['workflow_code']][$row['process_status']]??[],true)) throw new TamiranApiException('این انتقال در گردش صنف پرونده مجاز نیست.',409);
         if(in_array($target,['cancelled','returned_unrepaired'],true) && $reason===null) throw new TamiranApiException('علت بستن پرونده الزامی است.');
         if($policy['assignmentRequired']&&!in_array($target,['awaiting_assignment','cancelled','returned_unrepaired'],true)) {
             if((int)$row['primary_technician_user_id']<1) throw new TamiranApiException('پرونده باید تکنسین مسئول فعال داشته باشد.',409);
             $activeTechnician=$pdo->prepare("SELECT COUNT(*) FROM tamiran_users u INNER JOIN tamiran_user_branches ub ON ub.user_id=u.id AND ub.shop_id=u.shop_id WHERE u.id=:user AND u.shop_id=:shop AND u.is_active=1 AND ub.branch_id=:branch AND ub.is_active=1 AND ub.branch_role_code IN ('technician','repair_manager')");$activeTechnician->execute(['user'=>$row['primary_technician_user_id'],'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);if((int)$activeTechnician->fetchColumn()<1)throw new TamiranApiException('مسئول فنی پرونده فعال یا مجاز در این شعبه نیست.',409);
         }
 
-        if(in_array($target,['repairing','awaiting_parts'],true)) {
-            $estimate=$pdo->prepare("SELECT total_amount,status FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1");
-            $estimate->execute(['case'=>$caseId]); $estimateRow=$estimate->fetch();
-            if(is_array($estimateRow) && (int)$estimateRow['total_amount']>(int)$row['preapproved_amount'] && $estimateRow['status']!=='approved') {
-                throw new TamiranApiException('هزینه بالاتر از سقف پذیرش است و تأیید معتبر مشتری لازم دارد.',409);
-            }
+        $unrepaired=technician_unrepaired($pdo,$row);
+        if(in_array($target,['qc_pending','finance_pending'],true)&&in_array($row['process_status'],['repairing','parts_closeout','qc_rework'],true)){
+            if($scope['role']==='technician'&&(int)$row['primary_technician_user_id']!==(int)$scope['actor']['id'])throw new TamiranApiException('ثبت نتیجه نهایی فقط برای تکنسین مسئول مجاز است.',403);
+            if(!$unrepaired&&(($row['result']??'')!=='repaired'||trim((string)($row['operation_report']??''))===''))throw new TamiranApiException('ابتدا نتیجه و گزارش نهایی تعمیر را ثبت کنید.',409);
         }
-        if($policy['inventoryPro']&&in_array($target,['qc_pending','finance_pending','ready_for_delivery','cancelled','returned_unrepaired'],true)) {
+        if($target==='repairing' || (!$unrepaired&&in_array($target,['qc_pending','finance_pending'],true)&&in_array($row['process_status'],['repairing','parts_closeout','qc_rework'],true)))technician_require_cost($pdo,$row);
+        if($target==='returned_unrepaired'){
+            $amount=technician_unrepaired_amount($pdo,$caseId);
+            $invoice=$pdo->prepare('SELECT id FROM repair_invoices WHERE case_id=:case');$invoice->execute(['case'=>$caseId]);
+            if($amount>0&&!$invoice->fetchColumn())throw new TamiranApiException('ابتدا هزینه عیب‌یابی و قطعات مصرف‌شده در مالی تعیین تکلیف شود.',409);
+        }
+        if(in_array($target,['qc_pending','finance_pending','ready_for_delivery','cancelled','returned_unrepaired'],true)) {
             $partBlockers=v2_open_part_blockers($pdo,$caseId);
             if($partBlockers!==[]) throw new TamiranApiException('قطعات پرونده تعیین‌تکلیف نشده‌اند: '.implode('، ',$partBlockers),409);
         }
@@ -362,10 +370,11 @@ function v2_transition(PDO $pdo, array $scope, int $caseId, string $target, ?str
             $terminalFinance=v2_terminal_finance_blockers($pdo,$caseId);
             if($terminalFinance!==[]) throw new TamiranApiException('تعیین تکلیف مالی پیش از بستن پرونده الزامی است: '.implode('، ',$terminalFinance),409);
         }
-        if($policy['qcEnabled']&&in_array($target,['finance_pending','ready_for_delivery'],true)) {
+        if($policy['qcEnabled']&&!$unrepaired&&in_array($target,['finance_pending','ready_for_delivery'],true)) {
             $qcBlockers=v2_qc_blockers($pdo,$caseId);
             if($qcBlockers!==[]) throw new TamiranApiException('کنترل کیفیت تکمیل نیست: '.implode('، ',$qcBlockers),409);
         }
+        if($target==='ready_for_delivery'&&$unrepaired)throw new TamiranApiException('پرونده تعمیرنشده باید از مسیر برگشت بدون تعمیر تحویل شود.',409);
         if($target==='ready_for_delivery') {
             $financeBlockers=v2_finance_blockers($pdo,$caseId);
             if($financeBlockers!==[]) throw new TamiranApiException('مالی پرونده تکمیل نیست: '.implode('، ',$financeBlockers),409);
@@ -384,9 +393,9 @@ function v2_transition(PDO $pdo, array $scope, int $caseId, string $target, ?str
         ]);
         $pdo->prepare('UPDATE repair_cases SET status=:legacy,row_version=row_version+1 WHERE id=:case')->execute(['legacy'=>v2_legacy_status($target),'case'=>$caseId]);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'workflow.transition','repair_case',(string)$row['case_public_id'],['status'=>$row['process_status'],'version'=>$row['lock_version']],['status'=>$target,'version'=>$expectedVersion+1],$reason);
-        $pdo->commit();
+        if($ownsTransaction)$pdo->commit();
     } catch(Throwable $error) {
-        if($pdo->inTransaction()) $pdo->rollBack();
+        if($ownsTransaction&&$pdo->inTransaction()) $pdo->rollBack();
         throw $error;
     }
     return v2_case($pdo,$scope,$caseId);
@@ -498,3 +507,5 @@ function v2_require_case_access(PDO $pdo,array $scope,array $case): void
     $statement->execute(['workflow'=>$case['id'],'user'=>$scope['actor']['id']]);
     if((int)$statement->fetchColumn()<1)throw new TamiranApiException('این پرونده به شما تخصیص ندارد.',403);
 }
+
+require_once __DIR__.'/technician-service.php';

@@ -16,7 +16,7 @@ class UpgradePackageTests(unittest.TestCase):
         update = package.update_files(runtime)
         for name, data in runtime.items():
             if name.startswith('public_html/api/') or name in (
-                'private/v2-core.php', 'private/product-service.php', 'private/capability-service.php',
+                'private/v2-core.php', 'private/technician-service.php', 'private/product-service.php', 'private/capability-service.php',
                 'private/backup-engine.php', 'private/sms-service.php', 'private/captcha-audio.php'):
                 self.assertEqual(update.get(name), data, name)
 

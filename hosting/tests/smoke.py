@@ -270,7 +270,7 @@ def run(args):
     case_request = {
         "action": "create_case", "customerName": marker + "-CUSTOMER", "customerMobile": mobile(20),
         "deviceModelId": model_id, "identifier": synthetic_imei(), "declaredIssue": marker + "-ISSUE",
-        "customerConsent": {"dataHandling": "no_erasure"}, "accessories": [], "appearanceStates": [],
+        "customerConsent": {"dataHandling": "no_erasure"}, "preapprovedAmount": 100000, "accessories": [], "appearanceStates": [],
         "assignedToUserId": technician_actor["id"], "assignmentMode": "automatic",
         "idempotencyKey": draft_key, "draftPublicId": saved["publicId"],
         "draftExpectedVersion": saved.get("version", saved.get("expectedVersion", 1)),
@@ -294,7 +294,9 @@ def run(args):
     runner.check("existing device stale version rejected", lambda: reception.api("operations.php", "POST", {**second_request, "expectedDeviceVersion": device["expectedDeviceVersion"] + 1}, expected=409))
     second = runner.check("existing device accepted with authoritative version", lambda: reception.api("operations.php", "POST", second_request))
     runner.check("repeat visit preserves customer and device IDs", lambda: expect(second["repairCase"]["deviceId"] == case["deviceId"] and second["repairCase"]["customerId"] == case["customerId"], "repeat visit duplicated device or customer"))
+    runner.check("first case estimate stays within reception authorization", lambda: technician.api("workflow-v2.php", "POST", estimate_input))
     estimate_input["caseId"] = second["repairCase"]["id"]
+    estimate_input["items"][0]["unitPrice"] = 1000000
     estimate = runner.check("manager creates estimate above customer limit", lambda: manager.api("workflow-v2.php", "POST", estimate_input)["estimate"])
     runner.check("unassigned technician cannot send estimate", lambda: unassigned.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}, expected=403))
     runner.check("foreign shop cannot send estimate", lambda: other.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}, expected=404))
@@ -303,8 +305,8 @@ def run(args):
         runner.check("other branch cannot decide estimate", lambda: branch_reception.api("workflow-v2.php", "POST", {"action": "estimate_decide", "estimatePublicId": estimate["publicId"], "decision": "approved", "channel": "recorded_phone"}, expected=(403, 404)))
     runner.check("manager sends estimate", lambda: manager.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": estimate["publicId"]}))
     decision = {"action": "estimate_decide", "estimatePublicId": estimate["publicId"], "decision": "approved", "channel": "recorded_phone"}
-    runner.check("reception records customer approval", lambda: reception.api("workflow-v2.php", "POST", decision))
-    runner.check("customer decision cannot be repeated", lambda: reception.api("workflow-v2.php", "POST", decision, expected=409))
+    runner.check("undocumented customer decision is rejected", lambda: reception.api("workflow-v2.php", "POST", decision, expected=400))
+    runner.check("technician cannot fabricate phone consent", lambda: technician.api("workflow-v2.php", "POST", {**decision, "reason": marker}, expected=403))
     rejected_estimate = runner.check("manager creates a new estimate revision", lambda: manager.api("workflow-v2.php", "POST", estimate_input)["estimate"])
     runner.check("manager sends revised estimate", lambda: manager.api("workflow-v2.php", "POST", {"action": "estimate_send", "estimatePublicId": rejected_estimate["publicId"]}))
     def advance_second(target):
@@ -315,8 +317,8 @@ def run(args):
     runner.check("second case enters estimate stage", lambda: advance_second("estimate_pending"))
     runner.check("second case waits for customer decision", lambda: advance_second("awaiting_customer_approval"))
     reject = {"action": "estimate_decide", "estimatePublicId": rejected_estimate["publicId"], "decision": "rejected", "channel": "recorded_phone", "reason": marker}
-    runner.check("reception records customer rejection", lambda: reception.api("workflow-v2.php", "POST", reject))
-    runner.check("rejected estimate closes case without repair", lambda: expect(manager.api("workflow-v2.php?caseId=" + str(second["repairCase"]["id"]))["cases"][0]["status"] == "returned_unrepaired", "rejected case not closed"))
+    runner.check("technician explicitly records unrepaired result", lambda: technician.api("workflow-v2.php", "POST", {"action":"technical_finish","caseId":second["repairCase"]["id"],"result":"not_repaired","report":marker,"reason":marker,"lockVersion":technician.api("workflow-v2.php?caseId="+str(second["repairCase"]["id"]))["cases"][0]["lockVersion"],"idempotencyKey":marker+"-UNREPAIRED"}))
+    runner.check("unrepaired result closes a case without charges", lambda: expect(manager.api("workflow-v2.php?caseId=" + str(second["repairCase"]["id"]))["cases"][0]["status"] == "returned_unrepaired", "rejected case not closed"))
     patch = {"id": case_id, "expectedVersion": case["expectedVersion"], "operationReport": marker + "-DIAGNOSIS"}
     runner.check("assigned technician writes versioned case report", lambda: technician.api("operations.php", "PATCH", patch))
     runner.check("stale case patch cannot overwrite report", lambda: technician.api("operations.php", "PATCH", patch, expected=409))
@@ -377,6 +379,8 @@ def run(args):
         current = technician.api("workflow-v2.php?caseId=" + str(case_id))["cases"][0]
         if current["status"] != "repairing":
             runner.check("technician resumes repair after parts", lambda: advance("repairing"))
+        fresh_legacy=next(c for c in technician.api("operations.php")["cases"] if c["id"]==case_id)
+        runner.check("legacy client saves final repair report and result",lambda:technician.api("operations.php","PATCH",{"id":case_id,"expectedVersion":fresh_legacy["expectedVersion"],"result":"repaired","operationReport":marker}))
         runner.check("repair enters parts closeout", lambda: advance("parts_closeout"))
         runner.check("parts closeout enters independent QC", lambda: advance("qc_pending"))
         if args.quality_browser_output:

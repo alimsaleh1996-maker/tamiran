@@ -1,0 +1,86 @@
+{
+  "results": [
+    {
+      "name": "case opens inline without modal",
+      "status": "PASS"
+    },
+    {
+      "name": "case heading receives keyboard focus",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit start enters diagnosis",
+      "status": "PASS"
+    },
+    {
+      "name": "activity is a separate server record",
+      "status": "PASS"
+    },
+    {
+      "name": "lost response keeps editor text",
+      "status": "PASS"
+    },
+    {
+      "name": "retry after committed response loss creates no duplicate",
+      "status": "PASS"
+    },
+    {
+      "name": "refresh restores active case and unsaved draft",
+      "status": "PASS"
+    },
+    {
+      "name": "manual part saved inside inventory-enabled case",
+      "status": "PASS"
+    },
+    {
+      "name": "Persian Toman input crosses API as exact Rial",
+      "status": "PASS"
+    },
+    {
+      "name": "stock request stays in same case",
+      "status": "PASS"
+    },
+    {
+      "name": "issued part consumed inside same workspace",
+      "status": "PASS"
+    },
+    {
+      "name": "expanded workspace has no horizontal overflow at 1440px",
+      "status": "PASS"
+    },
+    {
+      "name": "expanded workspace has no horizontal overflow at 768px",
+      "status": "PASS"
+    },
+    {
+      "name": "expanded workspace has no horizontal overflow at 390px",
+      "status": "PASS"
+    },
+    {
+      "name": "expanded workspace has no horizontal overflow at 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "final action requires explicit confirmation",
+      "status": "PASS"
+    },
+    {
+      "name": "finish refreshes authoritative server state",
+      "status": "PASS"
+    },
+    {
+      "name": "technical history survives finish",
+      "status": "PASS"
+    },
+    {
+      "name": "no JavaScript errors",
+      "status": "PASS"
+    }
+  ],
+  "passed": 19,
+  "failed": 0,
+  "page_errors": [],
+  "limits": [
+    "Local Chromium only; Safari/Firefox and assistive technology not certified"
+  ]
+}

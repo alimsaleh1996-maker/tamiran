@@ -35,7 +35,12 @@ export type V2Case = {
   promisedAt: string | null;
   acceptedAt: string;
   allowedTransitions: string[];
-  mainState?: "received" | "reviewing" | "in_progress" | "ready_for_delivery" | "closed";
+  mainState?:
+    | "received"
+    | "reviewing"
+    | "in_progress"
+    | "ready_for_delivery"
+    | "closed";
   holdReason?: "customer" | "part" | "qc" | "finance" | "assignment" | null;
   closureOutcome?: "delivered" | "unrepaired" | "cancelled" | null;
   closureReason?: string | null;
@@ -213,8 +218,10 @@ export type V2InventoryPayload = {
   issues: V2PartIssue[];
   warehouse: { id: number; public_id: string; title: string } | null;
 };
-export const loadV2Inventory = () =>
-  directAdminRequest<V2InventoryPayload>("/api/inventory-v2.php");
+export const loadV2Inventory = (caseId?: number) =>
+  directAdminRequest<V2InventoryPayload>(
+    `/api/inventory-v2.php${caseId ? `?caseId=${caseId}` : ""}`,
+  );
 export const inventoryV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/inventory-v2.php", payload);
 export const loadV2InventoryControl = () =>
@@ -295,6 +302,8 @@ export type V2InvoiceDraft = {
   estimatePublicId: string | null;
   items: Array<{
     type: "part" | "labor" | "diagnostic" | "other";
+    sourceKey?: string;
+    sourceType?: "stock" | "manual";
     referenceId?: number | null;
     title: string;
     quantity: number;
@@ -306,7 +315,9 @@ export type V2InvoiceDraft = {
   }>;
 };
 export const loadV2Finance = () =>
-  directAdminRequest<{ invoices: V2Invoice[]; drafts: V2InvoiceDraft[] }>("/api/finance-v2.php");
+  directAdminRequest<{ invoices: V2Invoice[]; drafts: V2InvoiceDraft[] }>(
+    "/api/finance-v2.php",
+  );
 export const financeV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/finance-v2.php", payload);
 
@@ -343,3 +354,54 @@ export const loadV2Sms = () =>
   directAdminRequest<Record<string, unknown[]>>("/api/sms-v2.php");
 export const smsV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/sms-v2.php", payload);
+
+export type TechnicalActivity = {
+  id: number;
+  title: string;
+  description: string;
+  observation: string;
+  attachments: string[];
+  actorName: string;
+  createdAt: string;
+};
+export type TechnicalProjection = {
+  cost: {
+    state:
+      | "needs_estimate"
+      | "waiting_customer"
+      | "approved"
+      | "rejected"
+      | "needs_revision";
+    authorized: boolean;
+    totalAmount: number;
+    partsAmount: number;
+    capAmount: number;
+    estimatePublicId: string | null;
+  };
+  parts: Array<{
+    sourceType: "stock" | "manual";
+    sourceKey: string;
+    title: string;
+    quantity: number;
+    saleUnitPrice: number;
+    purchaseUnitCost?: number;
+  }>;
+  activities: { activities: TechnicalActivity[]; nextBeforeId: number | null };
+  report: string;
+  result: string | null;
+  permissions: {
+    activity: boolean;
+    parts: boolean;
+    finish: boolean;
+    purchase: boolean;
+    stock: boolean;
+  };
+};
+export const loadTechnicalCase = (caseId: number) =>
+  directAdminRequest<TechnicalProjection>(
+    `/api/workflow-v2.php?caseId=${caseId}&technical=1`,
+  );
+export const loadTechnicalActivities = (caseId: number, beforeId: number) =>
+  directAdminRequest<TechnicalProjection["activities"]>(
+    `/api/workflow-v2.php?caseId=${caseId}&technicalActivities=1&beforeId=${beforeId}`,
+  );

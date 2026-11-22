@@ -35,6 +35,7 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
         $mutex=$pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE');$mutex->execute(['shop'=>$scope['shop_id']]);
         $case=v2_case($pdo,$scope,$caseId,true);
         $unrepaired=$case['process_status']==='returned_unrepaired';
+        if(($case['result']??'')==='not_repaired'&&!$unrepaired)throw new TamiranApiException('دستگاه تعمیرنشده باید از صف برگشت بدون تعمیر تحویل شود.',409);
         if($unrepaired && $case['delivered_at']!==null){
             $retry=$pdo->prepare('SELECT metadata_json FROM repair_case_stage_events WHERE workflow_id=:workflow AND idempotency_key=:key LIMIT 1');$retry->execute(['workflow'=>$case['id'],'key'=>'return:'.$idempotency]);$previous=$retry->fetchColumn();
             if($previous!==false){$pdo->commit();return ['delivered'=>true,'replayed'=>true,'outcome'=>'unrepaired','receiptNumber'=>$case['receipt_number']];}

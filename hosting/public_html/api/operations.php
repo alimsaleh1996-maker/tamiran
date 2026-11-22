@@ -815,6 +815,8 @@ function operations_update_case(PDO $pdo, array $scope, array $input): array
         $guard=$pdo->prepare('SELECT id FROM repair_case_workflows WHERE case_id=:case LIMIT 1');$guard->execute(['case'=>$id]);
         if($guard->fetchColumn()!==false)throw new TamiranApiException('تغییر مرحله پرونده نسخه ۲ فقط از موتور فرایند مجاز است.',409);
     }
+    if(array_key_exists('result',$input)){ $v2guard=$pdo->prepare('SELECT id FROM repair_case_workflows WHERE case_id=:case');$v2guard->execute(['case'=>$id]);if($v2guard->fetchColumn()!==false&&($input['result']??'')==='not_repaired')throw new TamiranApiException('نتیجه تعمیرنشده را از پایان مسئولیت فنی ثبت کنید.',409); }
+    if(array_key_exists('operationReport',$input)||array_key_exists('result',$input)){$technicalLock=$pdo->prepare('SELECT locked_at,process_status FROM repair_case_workflows WHERE case_id=:case');$technicalLock->execute(['case'=>$id]);$technicalRow=$technicalLock->fetch();if(is_array($technicalRow)&&($technicalRow['locked_at']!==null||in_array($technicalRow['process_status'],['qc_pending','finance_pending','ready_for_delivery','delivered'],true)))throw new TamiranApiException('مسئولیت فنی پایان یافته است.',409);}
     $result = trim((string)($input['result'] ?? $current['result'] ?? '')) ?: null;
     if ($result !== null && !in_array($result,['repaired','not_repaired'],true)) throw new TamiranApiException('نتیجه تعمیر معتبر نیست.');
     $report = trim((string)($input['operationReport'] ?? $current['operation_report'] ?? '')) ?: null;

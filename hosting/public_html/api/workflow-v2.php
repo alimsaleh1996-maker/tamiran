@@ -91,7 +91,7 @@ function workflow_v2_payload(PDO $pdo,array $scope,?int $caseId=null,?string $qu
         $manualPartsStatement->execute(array_merge([(int)$scope['shop_id']],$caseIds));
         foreach($manualPartsStatement->fetchAll() as $part)$manualPartsByCase[(int)$part['case_id']][]=[
             'publicId'=>$part['public_id'],'title'=>$part['title'],'quantity'=>(float)$part['quantity'],
-            'purchaseUnitCost'=>(int)$part['purchase_unit_cost'],'saleUnitPrice'=>(int)$part['sale_unit_price'],
+            'purchaseUnitCost'=>technician_purchase_allowed($scope)?(int)$part['purchase_unit_cost']:0,'saleUnitPrice'=>(int)$part['sale_unit_price'],
             'note'=>$part['note']??'','createdAt'=>$part['created_at'],
         ];
         $estimateStatement=$pdo->prepare("SELECT e.case_id,e.public_id,e.status,e.total_amount,e.sent_at FROM repair_estimates e INNER JOIN (SELECT case_id,MAX(revision) AS revision FROM repair_estimates WHERE case_id IN ({$placeholders}) GROUP BY case_id) latest ON latest.case_id=e.case_id AND latest.revision=e.revision WHERE e.case_id IN ({$placeholders})");
@@ -215,28 +215,7 @@ function workflow_v2_migrate_case_to_pro(PDO $pdo,array $scope,array $input):arr
 
 function workflow_v2_add_manual_part(PDO $pdo,array $scope,array $input):array
 {
-    v2_require_permission($scope,'case.part.record',['technician'],'ثبت قطعه برای نقش فعلی مجاز نیست.');
-    $caseId=(int)($input['caseId']??0);
-    $title=v2_text($input['title']??'','نام قطعه',240);
-    $quantity=(float)($input['quantity']??0);
-    $purchase=max(0,(int)($input['purchaseUnitCost']??0));
-    $sale=max(0,(int)($input['saleUnitPrice']??0));
-    $note=v2_text($input['note']??'','توضیح قطعه',1000,false);
-    $idempotency=v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه یکتا',160);
-    if($quantity<=0||$quantity>10000||$sale<1)throw new TamiranApiException('تعداد و قیمت فروش قطعه معتبر نیست.');
-    $existing=$pdo->prepare('SELECT public_id FROM repair_case_manual_parts WHERE shop_id=:shop AND idempotency_key=:key LIMIT 1');$existing->execute(['shop'=>$scope['shop_id'],'key'=>$idempotency]);$public=$existing->fetchColumn();if(is_string($public))return['created'=>true,'replayed'=>true,'publicId'=>$public];
-    $pdo->beginTransaction();
-    try{
-        $case=v2_case($pdo,$scope,$caseId,true);
-        if($case['locked_at']!==null)throw new TamiranApiException('پرونده بسته قابل تغییر نیست.',409);
-        if((string)$case['inventory_mode_snapshot']!=='off')throw new TamiranApiException('برای این پرونده قطعه باید از گردش انبار ثبت شود.',409);
-        if($scope['role']==='technician'&&(int)$case['primary_technician_user_id']!==(int)$scope['actor']['id'])throw new TamiranApiException('فقط تکنسین مسئول می‌تواند قطعه مصرفی را ثبت کند.',403);
-        $public=tamiran_id();
-        $pdo->prepare('INSERT INTO repair_case_manual_parts(public_id,shop_id,case_id,title,quantity,purchase_unit_cost,sale_unit_price,note,idempotency_key,created_by_user_id) VALUES(:public,:shop,:case,:title,:quantity,:purchase,:sale,:note,:key,:actor)')->execute(['public'=>$public,'shop'=>$scope['shop_id'],'case'=>$caseId,'title'=>$title,'quantity'=>$quantity,'purchase'=>$purchase,'sale'=>$sale,'note'=>$note,'key'=>$idempotency,'actor'=>$scope['actor']['id']]);
-        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'CASE_MANUAL_PART_RECORDED','repair_case',$case['case_public_id'],null,['partPublicId'=>$public,'title'=>$title,'quantity'=>$quantity,'purchaseUnitCost'=>$purchase,'saleUnitPrice'=>$sale]);
-        $pdo->commit();
-    }catch(Throwable$error){if($pdo->inTransaction())$pdo->rollBack();throw$error;}
-    return['created'=>true,'replayed'=>false,'publicId'=>$public];
+    return technician_manual_part($pdo,$scope,$input);
 }
 
 function workflow_v2_estimate(PDO $pdo,array $scope,array $input): array
@@ -248,25 +227,30 @@ function workflow_v2_estimate(PDO $pdo,array $scope,array $input): array
     try{
         $row=v2_case($pdo,$scope,$caseId,true);if($row['locked_at']!==null)throw new TamiranApiException('پرونده بسته قابل برآورد نیست.',409);
         if($scope['role']==='technician')v2_transition_role_allowed($pdo,$scope,$row,'estimate_pending');
+        technician_editable($row);
+        $key=v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه برآورد',160);
+        $estimatePayload=['items'=>$items,'diagnosticFee'=>technician_money($input['diagnosticFee']??0)];
+        if($old=technician_replay($pdo,$row,$scope,'technical_estimate',$key,$estimatePayload)){$pdo->commit();return $old['estimate'];}
         $revisionStatement=$pdo->prepare('SELECT COALESCE(MAX(revision),0)+1 FROM repair_estimates WHERE case_id=:case FOR UPDATE');$revisionStatement->execute(['case'=>$caseId]);$revision=(int)$revisionStatement->fetchColumn();
         $subtotal=0;$taxTotal=0;$discountTotal=0;$normalized=[];
         foreach($items as $item){
             $type=(string)($item['type']??'');if(!in_array($type,['part','labor','diagnostic','other'],true))throw new TamiranApiException('نوع ردیف برآورد معتبر نیست.');
-            $title=v2_text($item['title']??'','عنوان ردیف',240);$quantity=(float)($item['quantity']??1);$unit=max(0,(int)($item['unitPrice']??0));$discount=max(0,(int)($item['discountAmount']??0));$taxRate=(float)($item['taxRate']??0);
-            if($quantity<=0||$taxRate<0||$taxRate>100)throw new TamiranApiException('تعداد یا مالیات ردیف معتبر نیست.');
+            $title=v2_text($item['title']??'','عنوان ردیف',240);$quantity=(float)($item['quantity']??1);$unit=technician_money($item['unitPrice']??0);$discount=max(0,(int)($item['discountAmount']??0));$taxRate=(float)($item['taxRate']??0);
+            if(!is_finite($quantity)||$quantity<=0||$quantity>10000||!is_finite($taxRate)||$taxRate<0||$taxRate>100)throw new TamiranApiException('تعداد یا مالیات ردیف معتبر نیست.');
             $base=(int)round($quantity*$unit);if($discount>$base)throw new TamiranApiException('تخفیف از مبلغ ردیف بیشتر است.');
             if($discount>0&&$scope['role']!=='repair_manager')throw new TamiranApiException('ثبت تخفیف فقط برای مدیر مجاز است.',403);
             $tax=(int)round(($base-$discount)*$taxRate/100);$line=$base-$discount+$tax;
             $subtotal+=$base;$discountTotal+=$discount;$taxTotal+=$tax;$normalized[]=[$type,$item['referenceId']??null,$title,$quantity,$unit,$discount,$taxRate,$tax,$line];
         }
-        $diagnostic=max(0,(int)($input['diagnosticFee']??0));$total=$subtotal-$discountTotal+$taxTotal+$diagnostic;$requiresCustomerApproval=$total>(int)$row['preapproved_amount'];$status=$requiresCustomerApproval?'draft':'approved';
+        $diagnostic=technician_money($input['diagnosticFee']??0);$total=$subtotal-$discountTotal+$taxTotal+$diagnostic;$requiresCustomerApproval=$total>(int)$row['preapproved_amount'];$status=$requiresCustomerApproval?'draft':'approved';
+        if($total>1000000000000)throw new TamiranApiException('جمع برآورد خارج از محدوده است.');
         $number='EST-'.$scope['shop_id'].'-'.$caseId.'-'.$revision;$public=tamiran_id();
         $pdo->prepare('UPDATE repair_estimates SET status=\'superseded\' WHERE case_id=:case AND status IN (\'draft\',\'sent\',\'explanation_requested\')')->execute(['case'=>$caseId]);
         $pdo->prepare("INSERT INTO repair_estimates(public_id,shop_id,case_id,estimate_number,status,diagnostic_fee,subtotal_amount,discount_amount,tax_amount,total_amount,valid_until,customer_note,internal_note,revision,created_by_user_id,decided_at) VALUES(:public,:shop,:case,:number,:status,:diagnostic,:subtotal,:discount,:tax,:total,:valid_until,:customer_note,:internal_note,:revision,:creator,:decided_at)")
             ->execute(['public'=>$public,'shop'=>$scope['shop_id'],'case'=>$caseId,'number'=>$number,'status'=>$status,'diagnostic'=>$diagnostic,'subtotal'=>$subtotal,'discount'=>$discountTotal,'tax'=>$taxTotal,'total'=>$total,'valid_until'=>$input['validUntil']??null,'customer_note'=>v2_text($input['customerNote']??'','یادداشت مشتری',4000,false),'internal_note'=>v2_text($input['internalNote']??'','یادداشت داخلی',4000,false),'revision'=>$revision,'creator'=>$scope['actor']['id'],'decided_at'=>$requiresCustomerApproval?null:date('Y-m-d H:i:s')]);
         $estimateId=(int)$pdo->lastInsertId();$insert=$pdo->prepare('INSERT INTO repair_estimate_items(estimate_id,item_type,reference_id,title,quantity,unit_price,discount_amount,tax_rate,tax_amount,line_total) VALUES(:estimate,:type,:reference,:title,:quantity,:unit,:discount,:tax_rate,:tax,:line)');
         foreach($normalized as $line)$insert->execute(['estimate'=>$estimateId,'type'=>$line[0],'reference'=>$line[1],'title'=>$line[2],'quantity'=>$line[3],'unit'=>$line[4],'discount'=>$line[5],'tax_rate'=>$line[6],'tax'=>$line[7],'line'=>$line[8]]);
-        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'estimate.create','repair_estimate',$public,null,['total'=>$total,'revision'=>$revision,'status'=>$status],v2_text($input['reason']??'برآورد پس از عیب‌یابی','علت',1000));$pdo->commit();
+        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'estimate.create','repair_estimate',$public,null,['total'=>$total,'revision'=>$revision,'status'=>$status],v2_text($input['reason']??'برآورد پس از عیب‌یابی','علت',1000));technician_event($pdo,$scope,$row,'technical_estimate',$key,$estimatePayload,['estimate'=>['publicId'=>$public,'totalAmount'=>$total,'revision'=>$revision,'requiresCustomerApproval'=>$requiresCustomerApproval]]);$pdo->commit();
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
     return ['publicId'=>$public,'totalAmount'=>$total,'revision'=>$revision,'requiresCustomerApproval'=>$requiresCustomerApproval];
 }
@@ -298,6 +282,7 @@ function workflow_v2_estimate_decide(PDO $pdo,array $scope,array $input): array
     $statement=$pdo->prepare('SELECT e.*,c.public_id AS case_public_id,cu.mobile FROM repair_estimates e INNER JOIN repair_cases c ON c.id=e.case_id INNER JOIN repair_customers cu ON cu.id=c.customer_id WHERE e.public_id=:public AND e.shop_id=:shop LIMIT 1');$statement->execute(['public'=>$public,'shop'=>$scope['shop_id']]);$estimate=$statement->fetch();if(!is_array($estimate))throw new TamiranApiException('برآورد پیدا نشد.',404);
     v2_case($pdo,$scope,(int)$estimate['case_id']);
     if(in_array($channel,['recorded_phone','in_person_signature'],true)&&!v2_has_permission($scope,'estimate.record_customer_decision',['reception']))throw new TamiranApiException('ثبت این روش تأیید برای نقش فعلی مجاز نیست.',403);
+    if(in_array($channel,['recorded_phone','in_person_signature'],true))v2_text($input['reason']??'','شرح مستند تصمیم مشتری',1000);
     $mobile=tamiran_mobile((string)$estimate['mobile']);
     if(in_array($channel,['sms_otp','secure_portal'],true)){
         if(!function_exists('tamiran_sms_verify_otp'))throw new TamiranApiException('سرویس OTP پیکربندی نشده است.',503);
@@ -306,29 +291,15 @@ function workflow_v2_estimate_decide(PDO $pdo,array $scope,array $input): array
     }
     $pdo->beginTransaction();
     try{
+        $caseLock=v2_case($pdo,$scope,(int)$estimate['case_id'],true);if($caseLock['locked_at']!==null)throw new TamiranApiException('پرونده بسته است.',409);
+        $latest=$pdo->prepare('SELECT id FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1');$latest->execute(['case'=>$estimate['case_id']]);if((int)$latest->fetchColumn()!==(int)$estimate['id'])throw new TamiranApiException('برآورد جدیدتری ثبت شده است.',409);
         $lock=$pdo->prepare('SELECT status FROM repair_estimates WHERE id=:id FOR UPDATE');$lock->execute(['id'=>$estimate['id']]);$status=$lock->fetchColumn();if(!in_array($status,['sent','explanation_requested'],true))throw new TamiranApiException('این برآورد در وضعیت قابل تصمیم نیست.',409);
         $pdo->prepare('UPDATE repair_estimates SET status=:decision,decided_at=NOW() WHERE id=:id')->execute(['decision'=>$decision,'id'=>$estimate['id']]);
         $approvalPublic=tamiran_id();$pdo->prepare('INSERT INTO repair_estimate_approvals(public_id,estimate_id,decision,channel,customer_mobile,otp_request_id,recorded_by_user_id,decision_reason,evidence_json) VALUES(:public,:estimate,:decision,:channel,:mobile,:otp,:actor,:reason,:evidence)')
             ->execute(['public'=>$approvalPublic,'estimate'=>$estimate['id'],'decision'=>$decision,'channel'=>$channel,'mobile'=>$mobile,'otp'=>$input['otpRequestId']??null,'actor'=>$scope['actor']['id'],'reason'=>v2_text($input['reason']??'','علت تصمیم',1000,false),'evidence'=>v2_json($input['evidence']??[])]);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'estimate.decision','repair_estimate',$public,['status'=>$status],['status'=>$decision,'channel'=>$channel],v2_text($input['reason']??'','علت',1000,false));$pdo->commit();
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
-    $transitionedCase=null;
-    if($decision==='rejected'){
-        $case=v2_case($pdo,$scope,(int)$estimate['case_id']);
-        if($case['process_status']==='awaiting_customer_approval'){
-            $rejectionReason=v2_text($input['reason']??'','علت رد برآورد',1000)??'رد برآورد توسط مشتری';
-            $transitionedCase=v2_transition(
-                $pdo,
-                $scope,
-                (int)$estimate['case_id'],
-                'returned_unrepaired',
-                $rejectionReason,
-                (int)$case['lock_version'],
-                'estimate-rejected:'.$approvalPublic,
-                true
-            );
-        }
-    }
+    $transitionedCase=null; // Rejection preserves an open technical case until parts and charges are resolved.
     return ['decided'=>true,'decision'=>$decision,'approvalPublicId'=>$approvalPublic,'case'=>$transitionedCase];
 }
 
@@ -355,13 +326,37 @@ function workflow_v2_problem_report(PDO $pdo,array $scope,array $input): array
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'case.problem_report','repair_case',$case['case_public_id'],null,['message'=>$text]);$pdo->commit();return ['recorded'=>true,'replayed'=>false];
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
+function workflow_v2_estimate_send(PDO $pdo,array $scope,array $input): array
+{
+    v2_require_permission($scope,'estimate.send',['reception','technician'],'ارسال برآورد مجاز نیست.');
+    $public=v2_text($input['estimatePublicId']??'','برآورد',80);
+    $q=$pdo->prepare('SELECT case_id FROM repair_estimates WHERE public_id=:public AND shop_id=:shop');$q->execute(['public'=>$public,'shop'=>$scope['shop_id']]);$caseId=$q->fetchColumn();
+    if($caseId===false)throw new TamiranApiException('برآورد پیدا نشد.',404);
+    $pdo->beginTransaction();try{
+        $case=v2_case($pdo,$scope,(int)$caseId,true);v2_require_case_access($pdo,$scope,$case);
+        if($scope['role']==='technician')v2_transition_role_allowed($pdo,$scope,$case,'estimate_pending');
+        technician_editable($case);
+        $q=$pdo->prepare('SELECT public_id,status FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1 FOR UPDATE');$q->execute(['case'=>$caseId]);$estimate=$q->fetch();
+        if(!is_array($estimate)||$estimate['public_id']!==$public||!in_array($estimate['status'],['draft','sent','approved'],true))throw new TamiranApiException('برآورد جاری قابل ارسال نیست.',409);
+        if($estimate['status']==='draft'){
+            $pdo->prepare("UPDATE repair_estimates SET status='sent',sent_at=NOW() WHERE public_id=:public AND shop_id=:shop")->execute(['public'=>$public,'shop'=>$scope['shop_id']]);
+            tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'estimate.send','repair_estimate',$public,['status'=>'draft'],['status'=>'sent']);
+        }
+        $pdo->commit();return ['sent'=>true,'replayed'=>$estimate['status']!=='draft'];
+    }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+}
+
 tamiran_api(static function():array{
     $pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';
+    if($method==='GET'&&($_GET['technical']??'')==='1')return technician_projection($pdo,$scope,(int)($_GET['caseId']??0));
+    if($method==='GET'&&($_GET['technicalActivities']??'')==='1')return technician_activities($pdo,$scope,(int)($_GET['caseId']??0),(int)($_GET['beforeId']??0));
     if($method==='GET'&&($_GET['activity']??'')==='1')return workflow_v2_activity($pdo,$scope,(int)($_GET['caseId']??0));
     if($method==='GET')return workflow_v2_payload($pdo,$scope,isset($_GET['caseId'])?(int)$_GET['caseId']:null,isset($_GET['q'])?(string)$_GET['q']:null);
     if($method!=='POST')throw new TamiranApiException('روش درخواست مجاز نیست.',405);
     tamiran_require_csrf();$input=tamiran_json_body();$action=(string)($input['action']??'');
     return match($action){
+        'technical_activity'=>technician_activity_add($pdo,$scope,$input),
+        'technical_finish'=>technician_finish($pdo,$scope,$input),
         'problem_report'=>workflow_v2_problem_report($pdo,$scope,$input),
         'transition'=>['case'=>v2_transition($pdo,$scope,(int)($input['caseId']??0),(string)($input['target']??''),v2_text($input['reason']??'','علت',1000,false),(int)($input['lockVersion']??-1),v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه یکتا',160))],
         'assign'=>['case'=>workflow_v2_assign($pdo,$scope,$input)],
@@ -371,7 +366,7 @@ tamiran_api(static function():array{
         'migrate_case_to_pro'=>workflow_v2_migrate_case_to_pro($pdo,$scope,$input),
         'manual_part_add'=>workflow_v2_add_manual_part($pdo,$scope,$input),
         'estimate_create'=>['estimate'=>workflow_v2_estimate($pdo,$scope,$input)],
-        'estimate_send'=>(function()use($pdo,$scope,$input){v2_require_permission($scope,'estimate.send',['reception','technician'],'ارسال برآورد مجاز نیست.');$public=v2_text($input['estimatePublicId']??'','برآورد',80);$lookup=$pdo->prepare('SELECT case_id FROM repair_estimates WHERE public_id=:public AND shop_id=:shop LIMIT 1');$lookup->execute(['public'=>$public,'shop'=>$scope['shop_id']]);$caseId=$lookup->fetchColumn();if($caseId===false)throw new TamiranApiException('برآورد پیدا نشد.',404);$case=v2_case($pdo,$scope,(int)$caseId);if($scope['role']==='technician')v2_transition_role_allowed($pdo,$scope,$case,'estimate_pending');$update=$pdo->prepare("UPDATE repair_estimates SET status='sent',sent_at=NOW() WHERE public_id=:public AND shop_id=:shop AND status='draft'");$update->execute(['public'=>$public,'shop'=>$scope['shop_id']]);if($update->rowCount()!==1)throw new TamiranApiException('برآورد قابل ارسال نیست.',409);return ['sent'=>true];})(),
+        'estimate_send'=>workflow_v2_estimate_send($pdo,$scope,$input),
         'estimate_decide'=>['approval'=>workflow_v2_estimate_decide($pdo,$scope,$input)],
         'update_promise'=>workflow_v2_update_promise($pdo,$scope,$input),
         default=>throw new TamiranApiException('عملیات فرایندی معتبر نیست.'),

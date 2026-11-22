@@ -12,19 +12,14 @@ function finance_invoice_case(PDO $pdo,array $scope,array $invoice,bool $lock=fa
 function finance_draft_items(PDO $pdo,int $caseId):array
 {
     $items=[];
-    $estimate=$pdo->prepare("SELECT id,public_id FROM repair_estimates WHERE case_id=:case AND status='approved' ORDER BY revision DESC,id DESC LIMIT 1");
-    $estimate->execute(['case'=>$caseId]);$estimateRow=$estimate->fetch();
-    if(is_array($estimateRow)){
-        $lines=$pdo->prepare("SELECT item_type AS type,reference_id AS referenceId,title,quantity,unit_price AS saleUnitPrice,0 AS purchaseUnitCost,discount_amount AS discountAmount,tax_rate AS taxRate,0 AS warrantyDays FROM repair_estimate_items WHERE estimate_id=:estimate AND item_type<>'part' ORDER BY id");
-        $lines->execute(['estimate'=>$estimateRow['id']]);$items=$lines->fetchAll();
+    $state=$pdo->prepare('SELECT result FROM repair_cases WHERE id=:case');$state->execute(['case'=>$caseId]);$unrepaired=$state->fetchColumn()==='not_repaired';
+    $estimate=$pdo->prepare('SELECT id,public_id,status,diagnostic_fee FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1');$estimate->execute(['case'=>$caseId]);$e=$estimate->fetch();
+    if(is_array($e)&&($e['status']==='approved'||$unrepaired)){
+        $lines=$pdo->prepare("SELECT item_type AS type,reference_id AS referenceId,title,quantity,unit_price AS saleUnitPrice,0 AS purchaseUnitCost,discount_amount AS discountAmount,tax_rate AS taxRate,0 AS warrantyDays FROM repair_estimate_items WHERE estimate_id=:estimate AND ".($unrepaired?"item_type='diagnostic'":"item_type<>'part'").' ORDER BY id');$lines->execute(['estimate'=>$e['id']]);$items=$lines->fetchAll();
+        if((int)$e['diagnostic_fee']>0)$items[]=['type'=>'diagnostic','referenceId'=>null,'title'=>'هزینه عیب‌یابی','quantity'=>1,'saleUnitPrice'=>(int)$e['diagnostic_fee'],'purchaseUnitCost'=>0,'discountAmount'=>0,'taxRate'=>0,'warrantyDays'=>0];
     }
-    $parts=$pdo->prepare("SELECT i.id AS referenceId,i.title,SUM(x.quantity) AS quantity,i.sale_price AS saleUnitPrice,i.purchase_price AS purchaseUnitCost,0 AS discountAmount,0 AS taxRate,30 AS warrantyDays FROM repair_part_issues x INNER JOIN repair_inventory_items i ON i.id=x.item_id WHERE x.case_id=:case AND x.status='consumed' GROUP BY i.id,i.title,i.sale_price,i.purchase_price ORDER BY i.title");
-    $parts->execute(['case'=>$caseId]);
-    foreach($parts->fetchAll()as$part)$items[]=array_merge(['type'=>'part'],$part);
-    $manual=$pdo->prepare("SELECT id AS referenceId,title,quantity,sale_unit_price AS saleUnitPrice,purchase_unit_cost AS purchaseUnitCost,0 AS discountAmount,0 AS taxRate,30 AS warrantyDays FROM repair_case_manual_parts WHERE case_id=:case ORDER BY id");
-    $manual->execute(['case'=>$caseId]);
-    foreach($manual->fetchAll()as$part)$items[]=array_merge(['type'=>'part'],$part);
-    return['estimatePublicId'=>is_array($estimateRow)?$estimateRow['public_id']:null,'items'=>$items];
+    foreach(technician_billable_parts($pdo,$caseId) as $part){if($unrepaired)$part['warrantyDays']=0;$items[]=$part;}
+    return ['estimatePublicId'=>is_array($e)&&$e['status']==='approved'?$e['public_id']:null,'items'=>$items,'unrepaired'=>$unrepaired];
 }
 
 function finance_advance_readiness(PDO $pdo,array $scope,int $caseId,string $key):bool
@@ -38,7 +33,7 @@ function finance_advance_readiness(PDO $pdo,array $scope,int $caseId,string $key
         if($case['process_status']!=='finance_pending')return false;
         $blockers=v2_case_blockers($pdo,$scope,$case);
         if($blockers['parts']!==[]||$blockers['qc']!==[]||$blockers['finance']!==[])return false;
-        v2_transition($pdo,$scope,$caseId,'ready_for_delivery','تمام کنترل‌های تحویل به‌صورت خودکار پاس شد',(int)$case['lock_version'],$key.':ready',true);
+        v2_transition($pdo,$scope,$caseId,technician_unrepaired($pdo,$case)?'returned_unrepaired':'ready_for_delivery',technician_unrepaired($pdo,$case)?'بدون تعمیر؛ مالی و قطعات تعیین تکلیف شد':'تمام کنترل‌های تحویل به‌صورت خودکار پاس شد',(int)$case['lock_version'],$key.':ready',true);
         return true;
     }catch(Throwable$error){tamiran_log('warning','automatic_delivery_readiness_failed',['case_id'=>$caseId,'message'=>$error->getMessage()]);return false;}
 }
@@ -72,6 +67,8 @@ function finance_payload(PDO $pdo,array $scope):array
         $invoice['receivables']=$receivables->fetchAll();
         $ledger->execute(['invoice'=>$invoice['id']]);
         $invoice['ledger']=$ledger->fetchAll();
+        $origins=[];foreach($invoice['ledger'] as $entry){if($entry['event_type']==='invoice_issued')$origins=(json_decode((string)$entry['metadata_json'],true)['partSources']??[]);}
+        foreach($invoice['items'] as &$invoiceItem){$origin=$origins[$invoiceItem['public_id']]??null;if(is_string($origin)){$invoiceItem['sourceKey']=$origin;$invoiceItem['sourceType']=explode(':',$origin,2)[0];}}unset($invoiceItem);
         $invoice['balance']=(int)$invoice['total_amount']-((int)$invoice['paid_amount']-(int)$invoice['refunded_amount']);
         $directCost=0;
         foreach($invoice['items'] as $item){
@@ -94,38 +91,41 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
     $idempotency=v2_text($input['idempotencyKey']??('repair-invoice-'.$caseId),'شناسه یکتای صدور فاکتور',160);
     $items=is_array($input['items']??null)?$input['items']:[];
     $estimatePublic=trim((string)($input['estimatePublicId']??''));
-    if($items===[]&&$estimatePublic!==''){
-        $estimate=$pdo->prepare("SELECT id FROM repair_estimates WHERE public_id=:public AND shop_id=:shop AND case_id=:case AND status='approved'");
-        $estimate->execute(['public'=>$estimatePublic,'shop'=>$scope['shop_id'],'case'=>$caseId]);
-        $estimateId=(int)$estimate->fetchColumn();
-        if($estimateId<1)throw new TamiranApiException('برآورد تأییدشده پیدا نشد.',404);
-        $estimateItems=$pdo->prepare('SELECT ei.item_type AS type,ei.reference_id AS referenceId,ei.title,ei.quantity,ei.unit_price AS unitPrice,ei.discount_amount AS discountAmount,ei.tax_rate AS taxRate,0 AS warrantyDays FROM repair_estimate_items ei WHERE ei.estimate_id=:estimate');
-        $estimateItems->execute(['estimate'=>$estimateId]);
-        $items=$estimateItems->fetchAll();
-    }
+    if($items===[]&&$estimatePublic!=='')$items=finance_draft_items($pdo,$caseId)['items'];
     if($items===[]||count($items)>200)throw new TamiranApiException('حداقل یک ردیف فاکتور الزامی است.');
 
     $pdo->beginTransaction();
     try{
         $case=v2_case($pdo,$scope,$caseId,true);
         if($case['locked_at']!==null)throw new TamiranApiException('پرونده بسته قابل صدور فاکتور نیست.',409);
-        $duplicate=$pdo->prepare('SELECT public_id,invoice_number,total_amount FROM repair_invoices WHERE (case_id=:case OR (shop_id=:shop AND idempotency_key=:idempotency)) LIMIT 1 FOR UPDATE');
+        $duplicate=$pdo->prepare('SELECT public_id,invoice_number,total_amount,case_id,branch_id FROM repair_invoices WHERE (case_id=:case OR (shop_id=:shop AND idempotency_key=:idempotency)) LIMIT 1 FOR UPDATE');
         $duplicate->execute(['case'=>$caseId,'shop'=>$scope['shop_id'],'idempotency'=>$idempotency]);
         $existing=$duplicate->fetch();
         if(is_array($existing)){
+            if((int)$existing['case_id']!==$caseId||(int)$existing['branch_id']!==(int)$scope['branch_id'])throw new TamiranApiException('شناسه فاکتور قبلاً برای پرونده دیگری استفاده شده است.',409);
             $pdo->commit();
             $ready=finance_advance_readiness($pdo,$scope,$caseId,'invoice:'.$existing['public_id']);
             return['issued'=>true,'replayed'=>true,'publicId'=>$existing['public_id'],'invoiceNumber'=>$existing['invoice_number'],'totalAmount'=>(int)$existing['total_amount'],'readyForDelivery'=>$ready];
         }
 
+        $unrepaired=technician_unrepaired($pdo,$case);
+        $canonical=technician_billable_parts($pdo,$caseId);$seenSources=[];$partSources=[];
         $subtotal=0;$discountTotal=0;$taxTotal=0;$laborBasis=0;$partBasis=0;$directCost=0;$normalized=[];
         foreach($items as $item){
             $type=(string)($item['type']??'');
             if(!in_array($type,['part','labor','diagnostic','other'],true))throw new TamiranApiException('نوع ردیف فاکتور معتبر نیست.');
+            if($unrepaired&&!in_array($type,['part','diagnostic'],true))throw new TamiranApiException('فاکتور تعمیرنشده فقط عیب‌یابی و قطعه مصرف‌شده دارد.',409);
+            if($type==='part'){
+                $matches=array_values(array_filter($canonical,static fn(array $p):bool=>isset($item['sourceKey'])?$p['sourceKey']===$item['sourceKey']:(isset($item['referenceId'])&&(int)$p['referenceId']===(int)$item['referenceId'])));
+                if(count($matches)!==1)throw new TamiranApiException('منبع قطعه مبهم یا مصرف آن ثبت نشده است؛ پیش‌نویس فاکتور را تازه کنید.',409);
+                $part=$matches[0];if(isset($seenSources[$part['sourceKey']]))throw new TamiranApiException('یک قطعه نمی‌تواند دوبار در فاکتور ثبت شود.',409);
+                if((float)($item['quantity']??1)!==(float)$part['quantity'])throw new TamiranApiException('تعداد قطعه باید با مصرف پرونده یکسان باشد.',409);
+                $item['referenceId']=$part['referenceId'];$seenSources[$part['sourceKey']]=true;$partSources[]=$part['sourceKey'];
+            }else $partSources[]=null;
             $title=v2_text($item['title']??'','عنوان ردیف',240);
             $quantity=(float)($item['quantity']??1);
-            $purchase=max(0,(int)($item['purchaseUnitCost']??0));
-            $sale=max(0,(int)($item['saleUnitPrice']??$item['unitPrice']??0));
+            $purchase=technician_money($item['purchaseUnitCost']??0);
+            $sale=technician_money($item['saleUnitPrice']??$item['unitPrice']??0);
             $discount=max(0,(int)($item['discountAmount']??0));
             $taxRate=(float)($item['taxRate']??0);
             if($quantity<=0||$taxRate<0||$taxRate>100)throw new TamiranApiException('مقدار ردیف معتبر نیست.');
@@ -140,7 +140,7 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
             }
             $tax=(int)round($netBase*$taxRate/100);
             $subtotal+=$base;$discountTotal+=$discount;$taxTotal+=$tax;
-            $normalized[]=[$type,$item['referenceId']??null,$title,$quantity,$purchase,$sale,$discount,$taxRate,$tax,$netBase+$tax,max(0,(int)($item['warrantyDays']??0))];
+            $normalized[]=[$type,$item['referenceId']??null,$title,$quantity,$purchase,$sale,$discount,$taxRate,$tax,$netBase+$tax,$unrepaired?0:max(0,(int)($item['warrantyDays']??0))];
         }
 
         $pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE')->execute(['shop'=>$scope['shop_id']]);
@@ -149,15 +149,21 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
         $number='INV-'.$scope['shop_id'].'-'.str_pad((string)$sequence->fetchColumn(),7,'0',STR_PAD_LEFT);
         $invoicePublic=tamiran_id();
         $total=$subtotal-$discountTotal+$taxTotal;
+        if($total>1000000000000)throw new TamiranApiException('جمع فاکتور خارج از محدوده است.');
+        if($total>(int)$case['preapproved_amount']){
+            $budget=$pdo->prepare("SELECT total_amount,status,valid_until FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1");$budget->execute(['case'=>$caseId]);$authorization=$budget->fetch();
+            if(!is_array($authorization)||$authorization['status']!=='approved'||$total>(int)$authorization['total_amount']||(!empty($authorization['valid_until'])&&strtotime($authorization['valid_until'])<time()))throw new TamiranApiException('فاکتور از مجوز هزینه معتبر بیشتر است؛ ابتدا برآورد و تأیید تازه ثبت شود.',409);
+        }
         $pdo->prepare("INSERT INTO repair_invoices(public_id,invoice_number,shop_id,branch_id,case_id,status,subtotal_amount,discount_amount,tax_amount,total_amount,issued_by_user_id,idempotency_key,issued_at) VALUES(:public,:number,:shop,:branch,:case,'issued',:subtotal,:discount,:tax,:total,:actor,:idempotency,NOW())")->execute([
             'public'=>$invoicePublic,'number'=>$number,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'case'=>$caseId,
             'subtotal'=>$subtotal,'discount'=>$discountTotal,'tax'=>$taxTotal,'total'=>$total,'actor'=>$scope['actor']['id'],'idempotency'=>$idempotency,
         ]);
         $invoiceId=(int)$pdo->lastInsertId();
         $insert=$pdo->prepare('INSERT INTO repair_invoice_items(public_id,invoice_id,item_type,reference_id,title,quantity,purchase_unit_cost,sale_unit_price,discount_amount,tax_rate,tax_amount,line_total,warranty_days) VALUES(:public,:invoice,:type,:reference,:title,:quantity,:purchase,:sale,:discount,:tax_rate,:tax,:total,:warranty)');
-        foreach($normalized as $line)$insert->execute(['public'=>tamiran_id(),'invoice'=>$invoiceId,'type'=>$line[0],'reference'=>$line[1],'title'=>$line[2],'quantity'=>$line[3],'purchase'=>$line[4],'sale'=>$line[5],'discount'=>$line[6],'tax_rate'=>$line[7],'tax'=>$line[8],'total'=>$line[9],'warranty'=>$line[10]]);
+        $sourceMetadata=[];
+        foreach($normalized as $index=>$line){$itemPublic=tamiran_id();$sourceMetadata[$itemPublic]=$partSources[$index];$insert->execute(['public'=>$itemPublic,'invoice'=>$invoiceId,'type'=>$line[0],'reference'=>$line[1],'title'=>$line[2],'quantity'=>$line[3],'purchase'=>$line[4],'sale'=>$line[5],'discount'=>$line[6],'tax_rate'=>$line[7],'tax'=>$line[8],'total'=>$line[9],'warranty'=>$line[10]]);}
 
-        v2_financial_event($pdo,$scope,$case,$invoiceId,'invoice_issued',$subtotal+$taxTotal,0,0,'repair_invoice',$invoicePublic,'invoice:'.$invoicePublic,['invoiceNumber'=>$number,'subtotal'=>$subtotal,'tax'=>$taxTotal]);
+        v2_financial_event($pdo,$scope,$case,$invoiceId,'invoice_issued',$subtotal+$taxTotal,0,0,'repair_invoice',$invoicePublic,'invoice:'.$invoicePublic,['invoiceNumber'=>$number,'subtotal'=>$subtotal,'tax'=>$taxTotal,'partSources'=>$sourceMetadata,'unrepaired'=>$unrepaired]);
         if($discountTotal>0)v2_financial_event($pdo,$scope,$case,$invoiceId,'discount_applied',-$discountTotal,0,0,'repair_invoice',$invoicePublic,'discount:'.$invoicePublic,['amount'=>$discountTotal]);
         if($directCost>0)v2_financial_event($pdo,$scope,$case,$invoiceId,'part_cost_posted',0,0,$directCost,'repair_invoice',$invoicePublic,'part-cost:'.$invoicePublic,['amount'=>$directCost]);
 

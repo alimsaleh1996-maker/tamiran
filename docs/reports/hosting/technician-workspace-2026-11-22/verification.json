@@ -1,0 +1,34 @@
+{
+  "source_base": "0c90c280cb3f3b6b38575ccd54c0ce9884de1b80",
+  "php_lint_files": 60,
+  "typecheck": "PASS",
+  "frontend_build": "PASS",
+  "node_checks": 29,
+  "frozen_hashes": 67,
+  "menus": 20,
+  "contracts": 27,
+  "api_files": 38,
+  "schema_changed": false,
+  "package_unit_checks": 2,
+  "graph_nodes": 4632,
+  "graph_relationships": 11388,
+  "graph_source_hashes": "PASS",
+  "excluded_cross_edition_relations": 22,
+  "human_or_second_agent_review": "NOT_RUN",
+  "scope_review": "hosting technician workflow, required backend, tests, release docs and graph only; no Worker/reception/receipt/users/QC UI changes",
+  "security_review": [
+    "server shop/branch/case/actor authorization before replay",
+    "CSRF on mutations",
+    "prepared SQL; no client-controlled SQL identifiers",
+    "server time and author; immutable events",
+    "atomic audit rollback and version checks",
+    "latest estimate and invoice cost authorization",
+    "distinct durable stock/manual source and duplicate billing guard",
+    "locked case mutation denial; no unrepaired warranty"
+  ],
+  "limits": [
+    "No production deployment, SMS, real payment or fabricated customer approval",
+    "No Safari/Firefox, screen reader or independent penetration test",
+    "Graph semantics historical; scoped code AST current"
+  ]
+}
