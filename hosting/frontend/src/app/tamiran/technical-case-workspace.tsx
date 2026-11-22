@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowLeftRight, Check, CircleX, Clock3, ClipboardList, Coins, ImagePlus, Layers3, Package, PenLine, Plus, RefreshCw, Wrench } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Check, CircleX, Clock3, Coins, ImagePlus, Layers3, Package, PenLine, Plus, RefreshCw, Wrench } from "lucide-react";
 import { MoneyInput, formatToman } from "./money-input";
 import { moneyDigits } from "./money";
 import { directAdminRequest } from "./directadmin-api";
