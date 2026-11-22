@@ -356,6 +356,7 @@ export const smsV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/sms-v2.php", payload);
 
 export type TechnicalActivity = {
+  correctsActivityId?: number | null;
   id: number;
   title: string;
   description: string;
@@ -365,6 +366,10 @@ export type TechnicalActivity = {
   createdAt: string;
 };
 export type TechnicalProjection = {
+  unrepairedAmount: number;
+  unrepairedFinanceBlockers: string[];
+  receptionNotes: string;
+  nextDestination: string;
   cost: {
     state:
       | "needs_estimate"
@@ -390,6 +395,7 @@ export type TechnicalProjection = {
   report: string;
   result: string | null;
   permissions: {
+    refer: boolean;
     activity: boolean;
     parts: boolean;
     finish: boolean;

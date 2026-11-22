@@ -9,8 +9,8 @@ try{
     if($method==='GET'){
         if(isset($_GET['caseId'])){
             $case=v2_case($pdo,$scope,(int)$_GET['caseId']);v2_require_case_access($pdo,$scope,$case);
-            $private=in_array($scope['role'],['repair_manager','reception'],true)?'':" AND purpose NOT IN ('identity','signature')";
-            $statement=$pdo->prepare("SELECT public_id AS publicId,original_name AS originalName,mime_type AS mimeType,size_bytes AS sizeBytes,created_at AS createdAt FROM tamiran_private_files WHERE case_id=:case AND shop_id=:shop AND branch_id=:branch {$private} ORDER BY id DESC LIMIT 100");
+            $private=in_array($scope['role'],['repair_manager','reception'],true)&&($_GET['technical']??'')!=='1'?'':" AND f.purpose NOT IN ('identity','signature')";
+            $statement=$pdo->prepare("SELECT f.public_id AS publicId,f.original_name AS originalName,f.mime_type AS mimeType,f.size_bytes AS sizeBytes,f.created_at AS createdAt,f.purpose,u.display_name AS uploadedBy FROM tamiran_private_files f LEFT JOIN tamiran_users u ON u.id=f.uploaded_by_user_id WHERE f.case_id=:case AND f.shop_id=:shop AND f.branch_id=:branch {$private} ORDER BY f.id DESC LIMIT 100");
             $statement->execute(['case'=>$case['case_id'],'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);tamiran_respond(['files'=>$statement->fetchAll()]);exit;
         }
         $public=v2_text($_GET['id']??'','فایل',80);$statement=$pdo->prepare('SELECT * FROM tamiran_private_files WHERE public_id=:public AND shop_id=:shop AND branch_id=:branch LIMIT 1');$statement->execute(['public'=>$public,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);$file=$statement->fetch();

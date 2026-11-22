@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text().strip()
 # A new release timestamp lets PHP OPcache detect replaced sources when ZIP
 # extractors preserve file mtimes. Keep it deterministic within this release.
-STAMP = (2026, 11, 22, 22, 0, 0)
+STAMP = (2026, 11, 22, 23, 0, 0)
 PRIVATE = (
     ".htaccess", "install.php", "config.example.php", "v2-core.php", "technician-service.php",
     "product-service.php", "capability-service.php", "catalog-similarity.php", "backup-engine.php",
@@ -147,8 +147,8 @@ def main() -> None:
         write_zip(output / f"tamiran-{VERSION}-install.zip", runtime),
         write_zip(output / f"tamiran-{VERSION}-source.zip", source_files(runtime)),
     ]
-    if VERSION in {"2.0.0-php.2", "2.0.0-php.3", "2.0.0-php.4", "2.0.0-php.5", "2.0.0-php.6", "2.0.0-php.7", "2.0.0-php.8"}:
-        previous = {"2.0.0-php.2": "php.1", "2.0.0-php.3": "php.2", "2.0.0-php.4": "php.3", "2.0.0-php.5": "php.4", "2.0.0-php.6": "php.5", "2.0.0-php.7": "php.6", "2.0.0-php.8": "php.7"}[VERSION]
+    if VERSION in {"2.0.0-php.2", "2.0.0-php.3", "2.0.0-php.4", "2.0.0-php.5", "2.0.0-php.6", "2.0.0-php.7", "2.0.0-php.8", "2.0.0-php.9"}:
+        previous = {"2.0.0-php.2": "php.1", "2.0.0-php.3": "php.2", "2.0.0-php.4": "php.3", "2.0.0-php.5": "php.4", "2.0.0-php.6": "php.5", "2.0.0-php.7": "php.6", "2.0.0-php.8": "php.7", "2.0.0-php.9": "php.8"}[VERSION]
         results.append(write_zip(output / f"tamiran-{VERSION}-update-from-{previous}.zip", update_files(runtime)))
     (output / f"tamiran-{VERSION}-artifacts.json").write_text(json.dumps(results, indent=2) + "\n")
     for result in results:

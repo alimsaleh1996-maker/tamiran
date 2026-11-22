@@ -1,18 +1,18 @@
-> Scoped AST refresh of 20 hosting files on 2026-11-22. Semantic documents are historical. Token accounting is unavailable; internal zero fields are placeholders, not measured usage. Community membership retained for unchanged nodes; new nodes assigned by neighboring community. See SOURCE_STATUS.json for exact file hashes.
+> Scoped AST refresh of 16 hosting files on 2026-11-22. Semantic documents are historical. Token accounting is unavailable; internal zero fields are placeholders, not measured usage. Community membership retained for unchanged nodes; new nodes assigned by neighboring community. See SOURCE_STATUS.json for exact file hashes.
 
-# Graph Report - tamiran  (2026-11-22)
+# Graph Report - tamiran  (2026-11-23)
 
 ## Corpus Check
-- 20 files · ~0 words
+- 16 files · ~0 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4632 nodes · 11388 edges · 217 communities (182 shown, 35 thin omitted)
-- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 1690 edges (avg confidence: 0.85)
+- 4668 nodes · 11514 edges · 217 communities (182 shown, 35 thin omitted)
+- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 1706 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0c90c280`
+- Built from commit: `742231df`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -46,16 +46,20 @@
 - sidebar.tsx
 - FlowTests
 - installer_test.php
+- Client
 - tamiran_flow.py
 - [endpoint]/route.ts
 - reception-contract-http.ts
 - worker/app/tamiran/page.tsx
+- test_flow.py
 - {closure#1}
 - ReceptionPage
+- smoke.py
 - src/app/tamiran/modules.tsx
 - field.tsx
 - worker/app/tamiran/persian-date.ts
 - src/app/tamiran/persian-date.ts
+- run
 - workflow.test.mjs
 - ReceptionError
 - branch-request-adapter.ts
@@ -91,21 +95,18 @@
 - d1-auth-session-readback.test.mjs
 - d1-case-mutation-readback.test.mjs
 - site-foundation.test.mjs
+- public_html/api/operations.php
 - baseline/api/operations.php
 - {closure#1}
 - baseline/private/v2-core.php
 - tamiran_id
 - connector-preview-session.mjs
-- Client
 - backup-engine.php
 - TamiranApiException
 - combobox.tsx
 - tamiran_json_body
 - tamiran_json_body
-- test_flow.py
-- smoke.py
 - public_html/api/bootstrap.php
-- run
 - baseline/api/auth.php
 - ref_node_fs
 - delivery_complete
@@ -189,7 +190,6 @@
 - tamiran_price_catalog
 - engines
 - postcss.config.mjs
-- public_html/api/operations.php
 - build-verified.sh
 - worker/package.json
 - dependencies
@@ -252,7 +252,7 @@
 
 ### Community 0 - "createReceptionReadHttpHandler"
 Cohesion: 0.02
-Nodes (108): LocalD1, Activity, Attachment, CatalogImportRow, CatalogName, CompactReceiptProps, Address, Form (+100 more)
+Nodes (112): LocalD1, Activity, Attachment, CatalogImportRow, CatalogName, CompactReceiptProps, Address, Form (+104 more)
 
 ### Community 101 - "Migration D1 Case Core"
 Cohesion: 0.12
@@ -346,6 +346,10 @@ Nodes (3): FlowTests, RealRufloTest, Tasks
 Cohesion: 0.09
 Nodes (32): TamiranInstallException, tamiran_install(), tamiran_install_check_config_publication(), tamiran_install_ensure_key(), tamiran_install_is_complete(), tamiran_install_log(), tamiran_install_mobile(), tamiran_install_preflight() (+24 more)
 
+### Community 31 - "Client"
+Cohesion: 0.12
+Nodes (22): Client, manager_for(), run(), shop(), main(), submit(), run(), main() (+14 more)
+
 ### Community 32 - "tamiran_flow.py"
 Cohesion: 0.19
 Nodes (13): Flow, FlowError, atomic_json(), changed(), contained(), digest(), fingerprint(), locked() (+5 more)
@@ -362,6 +366,10 @@ Nodes (30): CasePatchDependencies, CaseReadback, ReceptionHttpDependencies, bran
 Cohesion: 0.04
 Nodes (86): CaseMutationRequest, OperationalBootstrapCore, OperationalBootstrapLoaders, WorkspaceProfile, DeviceCatalogItem, CapabilitySnapshot, ServerActor, ApiEnvelope (+78 more)
 
+### Community 43 - "test_flow.py"
+Cohesion: 0.11
+Nodes (5): UpgradePackageTests, build(), inventory(), main(), module_for()
+
 ### Community 44 - "{closure#1}"
 Cohesion: 0.15
 Nodes (19): TamiranKavenegarProvider, tamiran_sms_otp_hash(), tamiran_sms_provider_from_row(), tamiran_sms_queue_event(), tamiran_sms_verify_otp(), {closure#1}(), portal_access_case(), portal_access_otp_request() (+11 more)
@@ -369,6 +377,10 @@ Nodes (19): TamiranKavenegarProvider, tamiran_sms_otp_hash(), tamiran_sms_provid
 ### Community 45 - "ReceptionPage"
 Cohesion: 0.10
 Nodes (27): ActiveReceiptTerms, DraftSubmissionSelection, PreviousDeviceSelection, ReceiptAcceptance, buildDraftSubmissionSelection(), buildPreviousDeviceSelection(), buildReceiptAcceptance(), parseActiveReceiptTerms() (+19 more)
+
+### Community 46 - "smoke.py"
+Cohesion: 0.11
+Nodes (7): SmokeFailure, check(), save(), main(), main(), svg_captcha(), main()
 
 ### Community 47 - "src/app/tamiran/modules.tsx"
 Cohesion: 0.08
@@ -385,6 +397,10 @@ Nodes (23): PersianDateParts, PersianDatePickerProps, PopupPosition, InvoiceCata
 ### Community 50 - "src/app/tamiran/persian-date.ts"
 Cohesion: 0.18
 Nodes (24): PersianDateParts, PersianDatePickerProps, PopupPosition, InvoiceCatalogForm(), dateText(), addGregorianDays(), addPersianMonths(), daysInPersianMonth() (+16 more)
+
+### Community 51 - "run"
+Cohesion: 0.11
+Nodes (26): Runner, run(), upload(), assert_fits(), assert_no_errors(), assert_single_column(), check_quality_browser(), contrast() (+18 more)
 
 ### Community 57 - "workflow.test.mjs"
 Cohesion: 0.13
@@ -408,7 +424,7 @@ Nodes (13): CaseMutationRequest, RepairCaseRecord, RepairCaseStatus, buildCaseMu
 
 ### Community 8 - "src/app/tamiran/v2-workspace.tsx"
 Cohesion: 0.06
-Nodes (79): WorkspaceProfile, CaseActionDialog(), CaseStageBoard(), CaseTools(), CaseToolsDisclosure(), directAdminRequest(), printHandoverReceipt(), formatToman() (+71 more)
+Nodes (89): WorkspaceProfile, Props, Run, Section, CaseActionDialog(), CaseStageBoard(), CaseTools(), CaseToolsDisclosure() (+81 more)
 
 ### Community 82 - "chart.tsx"
 Cohesion: 0.18
@@ -526,6 +542,10 @@ Nodes (4): execute(), file(), rows(), args
 Cohesion: 0.40
 Nodes (4): walk(), html, manifest, report
 
+### Community 20 - "public_html/api/operations.php"
+Cohesion: 0.10
+Nodes (40): {closure#10}(), {closure#13}(), {closure#14}(), {closure#4}(), operations_appearance_options(), operations_canonical_value(), operations_case_select(), operations_case_to_api() (+32 more)
+
 ### Community 22 - "baseline/api/operations.php"
 Cohesion: 0.10
 Nodes (31): tamiran_require_csrf(), {closure#18}(), {closure#19}(), {closure#4}(), operations_appearance_options(), operations_case_select(), operations_case_to_api(), operations_cases() (+23 more)
@@ -540,15 +560,11 @@ Nodes (32): {closure#1}(), finance_advance_readiness(), finance_draft_items(), f
 
 ### Community 3 - "tamiran_id"
 Cohesion: 0.07
-Nodes (100): {closure#2}(), inventory_adjustment(), inventory_adjustment_decide(), inventory_control_payload(), inventory_hot_review(), inventory_hot_submit(), inventory_stocktake_count_item(), inventory_stocktake_decide() (+92 more)
+Nodes (100): delivery_complete(), {closure#2}(), finance_advance_readiness(), finance_draft_items(), finance_invoice_case(), finance_issue(), finance_payload(), finance_payment() (+92 more)
 
 ### Community 30 - "connector-preview-session.mjs"
 Cohesion: 0.07
 Nodes (30): close(), emit(), serve(), createPreviewBinding(), failure(), publicResult(), readRetryAfterMs(), active (+22 more)
-
-### Community 31 - "Client"
-Cohesion: 0.12
-Nodes (21): manager_for(), run(), shop(), main(), submit(), run(), main(), run() (+13 more)
 
 ### Community 36 - "backup-engine.php"
 Cohesion: 0.16
@@ -570,21 +586,9 @@ Nodes (26): catalog_existing_match(), catalog_existing_spelling(), catalog_rows(
 Cohesion: 0.16
 Nodes (24): tamiran_json_body(), tamiran_require_actor(), tamiran_require_writable_actor(), catalog_rows(), catalog_value(), {closure#1}(), {closure#2}(), {closure#3}() (+16 more)
 
-### Community 43 - "test_flow.py"
-Cohesion: 0.11
-Nodes (5): build(), inventory(), main(), module_for(), UpgradePackageTests
-
-### Community 46 - "smoke.py"
-Cohesion: 0.11
-Nodes (7): check(), save(), main(), main(), SmokeFailure, svg_captcha(), main()
-
 ### Community 5 - "public_html/api/bootstrap.php"
 Cohesion: 0.06
 Nodes (56): admin_shop_summary(), auth_begin_actor(), auth_candidate_users(), auth_change_initial_password(), auth_contexts(), auth_identify(), auth_profile_from_row(), auth_select_context() (+48 more)
-
-### Community 51 - "run"
-Cohesion: 0.13
-Nodes (20): run(), upload(), assert_fits(), assert_no_errors(), assert_single_column(), check_quality_browser(), contrast(), run() (+12 more)
 
 ### Community 52 - "baseline/api/auth.php"
 Cohesion: 0.20
@@ -890,10 +894,6 @@ Nodes (3): tamiran_audit_log, tamiran_audit_log_no_delete, tamiran_audit_log_no_
 Cohesion: 0.67
 Nodes (3): sharp, overrides, miniflare
 
-### Community 20 - "public_html/api/operations.php"
-Cohesion: 0.10
-Nodes (40): v2_require_capability(), tamiran_require_csrf(), tamiran_uuid_v7(), tamiran_tracking_token(), tamiran_validate_national_code(), operations_required(), operations_optional(), operations_require_role() (+32 more)
-
 ### Community 24 - "worker/package.json"
 Cohesion: 0.06
 Nodes (42): devDependencies, @cloudflare/vite-plugin@1.37.1, @cloudflare/workers-types@4.20260515.1, drizzle-kit@0.31.10, json-rpc-2.0@1.7.1, raw-body@3.0.2, react-server-dom-webpack@19.2.6, tailwindcss@4.2.1 (+34 more)
@@ -984,22 +984,22 @@ Nodes (11): HTTPS و پراکسی, ثبت رویداد و عیب‌یابی, د�
 
 ## Knowledge Gaps
 - **124 isolated node(s):** `XDG_CACHE_HOME`, `XDG_DATA_HOME`, `NPM_CONFIG_FETCH_RETRIES`, `NPM_CONFIG_FETCH_TIMEOUT`, `NPM_CONFIG_MAXSOCKETS` (+119 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1496 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1504 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **35 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `TamiranApiException` connect `TamiranApiException` to `tamiran_id`, `backup-engine.php`, `public_html/api/bootstrap.php`, `{closure#1}`, `tamiran_json_body`, `reports/hosting/README.md`, `{closure#1}`, `{closure#2}`, `public_html/api/operations.php`, `{closure#4}`, `PHP Third Party Notices`, `{closure#1}`, `installer_test.php`, `delivery_warranty_case`?**
-  _High betweenness centrality (0.222) - this node is a cross-community bridge._
+  _High betweenness centrality (0.229) - this node is a cross-community bridge._
 - **Are the 187 inferred relationships involving `TamiranApiException` (e.g. with `tamiran_backup_capture()` and `tamiran_backup_file_key()`) actually correct?**
   _`TamiranApiException` has 187 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `XDG_CACHE_HOME`, `XDG_DATA_HOME`, `NPM_CONFIG_FETCH_RETRIES` to the rest of the system?**
   _124 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `createReceptionReadHttpHandler` be split into smaller, more focused modules?**
-  _Cohesion score 0.01862772113529898 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.016307986609277857 - nodes in this community are weakly interconnected._
 - **Why does `TamiranApiException` connect `TamiranApiException` to `backup-engine.php`, `{closure#1}`, `baseline/private/v2-core.php`, `tamiran_json_body`, `PHP Install Fa`, `tamiran_id`, `baseline/api/bootstrap.php`, `{closure#2}`, `{closure#4}`, `baseline/api/auth.php`, `baseline/api/operations.php`, `delivery_complete`, `installer_test.php`?**
-  _High betweenness centrality (0.141) - this node is a cross-community bridge._
+  _High betweenness centrality (0.152) - this node is a cross-community bridge._
 - **Are the 151 inferred relationships involving `TamiranApiException` (e.g. with `admin_date()` and `admin_modules()`) actually correct?**
   _`TamiranApiException` has 151 INFERRED edges - model-reasoned connections that need verification._
 

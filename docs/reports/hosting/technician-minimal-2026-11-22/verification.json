@@ -1,0 +1,83 @@
+{
+  "base_commit": "742231df55eca309d78911d581b097e2d9f40624",
+  "version": "2.0.0-php.9",
+  "schema_changed": false,
+  "endpoints": 38,
+  "typecheck": "PASS",
+  "build": "PASS",
+  "node_checks": 29,
+  "php_lint_files": 60,
+  "package_unit_checks": 2,
+  "frozen_hashes": 67,
+  "menus": 20,
+  "contracts": 27,
+  "http_checks": 333,
+  "browser_checks": 67,
+  "ui_review": [
+    {
+      "width": 1440,
+      "composer_textareas": 1,
+      "composer_other_fields": 0,
+      "decorative_images": 0,
+      "accordions": 0
+    },
+    {
+      "width": 768,
+      "composer_textareas": 1,
+      "composer_other_fields": 0,
+      "decorative_images": 0,
+      "accordions": 0
+    },
+    {
+      "width": 390,
+      "composer_textareas": 1,
+      "composer_other_fields": 0,
+      "decorative_images": 0,
+      "accordions": 0
+    },
+    {
+      "width": 320,
+      "composer_textareas": 1,
+      "composer_other_fields": 0,
+      "decorative_images": 0,
+      "accordions": 0
+    }
+  ],
+  "contrast": [
+    {
+      "foreground": "#193e3b",
+      "background": "#ffffff",
+      "ratio": 11.71
+    },
+    {
+      "foreground": "#526b68",
+      "background": "#ffffff",
+      "ratio": 5.73
+    },
+    {
+      "foreground": "#ffffff",
+      "background": "#12675f",
+      "ratio": 6.71
+    },
+    {
+      "foreground": "#267f72",
+      "background": "#ffffff",
+      "ratio": 4.82
+    },
+    {
+      "foreground": "#6b8f83",
+      "background": "#ffffff",
+      "ratio": 3.57
+    }
+  ],
+  "unexecuted": [
+    "Safari/Firefox",
+    "Screen reader",
+    "Real customer OTP/approval",
+    "Production deployment",
+    "Human or second-agent independent review"
+  ],
+  "scope_review": "Only hosting technician screens, necessary projection/report/referral/file API changes, release docs/tests and graph. No reception/receipt/users/roles/accounting/stock/QC/delivery screen/Worker/frozen edits.",
+  "review_regression": "Active collaborator visibility must not be mistaken for accepted responsibility after a server handover failure",
+  "closed_handover_guard": "PASS: pending request cannot mutate a locked case; administrative cancellation preserved"
+}

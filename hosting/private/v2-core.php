@@ -136,7 +136,7 @@ function v2_workflow_maps(array $policy=[]): array
             'diagnosing'=>['estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','returned_unrepaired','cancelled'],
             'estimate_pending'=>['awaiting_customer_approval','repairing','awaiting_parts','returned_unrepaired','cancelled'],
             'awaiting_customer_approval'=>['repairing','awaiting_parts','returned_unrepaired','cancelled'],
-            'awaiting_parts'=>['repairing','returned_unrepaired','cancelled'],
+            'awaiting_parts'=>['repairing','awaiting_customer_approval','returned_unrepaired','cancelled'],
             'repairing'=>array_values(array_unique([$afterRepair,'awaiting_parts','awaiting_customer_approval','cancelled'])),
             'parts_closeout'=>[$afterParts,'repairing'],
             'qc_pending'=>['qc_rework','qc_conditional','finance_pending'],
@@ -146,10 +146,10 @@ function v2_workflow_maps(array $policy=[]): array
     }else{
         $map=[
             'reception'=>['awaiting_assignment','assigned','cancelled'],'awaiting_assignment'=>['assigned','cancelled'],
-            'assigned'=>['diagnosing','cancelled'],'diagnosing'=>['estimate_pending','awaiting_parts','repairing','returned_unrepaired','cancelled'],
+            'assigned'=>['diagnosing','cancelled'],'diagnosing'=>['estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','returned_unrepaired','cancelled'],
             'estimate_pending'=>['awaiting_customer_approval','repairing','awaiting_parts','returned_unrepaired','cancelled'],
             'awaiting_customer_approval'=>['repairing','awaiting_parts','returned_unrepaired','cancelled'],
-            'awaiting_parts'=>['repairing','returned_unrepaired','cancelled'],
+            'awaiting_parts'=>['repairing','awaiting_customer_approval','returned_unrepaired','cancelled'],
             'repairing'=>array_values(array_unique([$afterRepair,'awaiting_parts','awaiting_customer_approval','cancelled'])),
             'parts_closeout'=>[$afterParts,'repairing'],
             'qc_pending'=>['qc_rework','qc_conditional','finance_pending'],'qc_rework'=>['repairing'],
@@ -207,7 +207,7 @@ function v2_closure_outcome(string $status): ?string
 function v2_case(PDO $pdo, array $scope, int $caseId, bool $lock = false): array
 {
     $sql = 'SELECT w.*,c.public_id AS case_public_id,c.receipt_number,c.customer_id,c.device_id,c.declared_issue,c.accessories_json,
-                   c.operation_report,c.result,c.created_at AS accepted_at,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
+                   c.operation_report,c.result,c.reception_notes,c.created_at AS accepted_at,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
                    cu.secondary_mobile,cu.address AS customer_address,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.identifier_snapshot,c.delivered_at,
                    c.product_profile_snapshot,c.inventory_mode_snapshot,c.qc_mode_snapshot,c.feature_flags_snapshot_json,
                    u.display_name AS technician_name

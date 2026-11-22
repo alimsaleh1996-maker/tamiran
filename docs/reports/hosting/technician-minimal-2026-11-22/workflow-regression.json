@@ -1,0 +1,455 @@
+{
+  "suite": "PHP/MariaDB real HTTP synthetic smoke",
+  "results": [
+    {
+      "name": "assigned case visible to its technician",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign technician cannot read technical case",
+      "status": "PASS"
+    },
+    {
+      "name": "cannot begin repair without estimate",
+      "status": "PASS"
+    },
+    {
+      "name": "no-estimate cost gate rejects repair",
+      "status": "PASS"
+    },
+    {
+      "name": "record independent technical activity",
+      "status": "PASS"
+    },
+    {
+      "name": "activity exact replay is idempotent",
+      "status": "PASS"
+    },
+    {
+      "name": "activity key payload mismatch rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "unauthorized replay does not leak record",
+      "status": "PASS"
+    },
+    {
+      "name": "independent activity 2",
+      "status": "PASS"
+    },
+    {
+      "name": "independent activity 3",
+      "status": "PASS"
+    },
+    {
+      "name": "independent activity 4",
+      "status": "PASS"
+    },
+    {
+      "name": "independent activity 5",
+      "status": "PASS"
+    },
+    {
+      "name": "activities do not move case or rewrite version",
+      "status": "PASS"
+    },
+    {
+      "name": "refresh retains all five activities and author/time",
+      "status": "PASS"
+    },
+    {
+      "name": "missing CSRF denied",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign attachment rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "under-cap estimate valid",
+      "status": "PASS"
+    },
+    {
+      "name": "under-cap repair allowed",
+      "status": "PASS"
+    },
+    {
+      "name": "free part alongside professional inventory",
+      "status": "PASS"
+    },
+    {
+      "name": "free part replay does not duplicate",
+      "status": "PASS"
+    },
+    {
+      "name": "free part replay mismatch rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "purchase price permission enforced",
+      "status": "PASS"
+    },
+    {
+      "name": "negative money denied",
+      "status": "PASS"
+    },
+    {
+      "name": "fractional rial denied",
+      "status": "PASS"
+    },
+    {
+      "name": "request stock in same case",
+      "status": "PASS"
+    },
+    {
+      "name": "request replay returns original",
+      "status": "PASS"
+    },
+    {
+      "name": "unsettled request prevents final outcome",
+      "status": "PASS"
+    },
+    {
+      "name": "consumption cannot fabricate an issue",
+      "status": "PASS"
+    },
+    {
+      "name": "warehouse cannot issue to an unassigned technician",
+      "status": "PASS"
+    },
+    {
+      "name": "delivered stock consumed after issue",
+      "status": "PASS"
+    },
+    {
+      "name": "unused delivered part returned",
+      "status": "PASS"
+    },
+    {
+      "name": "stock ledger removes only consumed stock; manual part has no effect",
+      "status": "PASS"
+    },
+    {
+      "name": "mixed part sources visible in case",
+      "status": "PASS"
+    },
+    {
+      "name": "direct phase transition cannot skip final report and result",
+      "status": "PASS"
+    },
+    {
+      "name": "higher revision requires fresh authorization",
+      "status": "PASS"
+    },
+    {
+      "name": "higher cost cannot finish existing repair",
+      "status": "PASS"
+    },
+    {
+      "name": "technician cannot record customer phone approval",
+      "status": "PASS"
+    },
+    {
+      "name": "authorized role still needs decision documentation",
+      "status": "PASS"
+    },
+    {
+      "name": "cost status clearly awaits customer",
+      "status": "PASS"
+    },
+    {
+      "name": "fresh valid under-cap revision re-enables authorized repair",
+      "status": "PASS"
+    },
+    {
+      "name": "stale finalization version rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "repaired QC-off enters finance",
+      "status": "PASS"
+    },
+    {
+      "name": "successful finish replay safe",
+      "status": "PASS"
+    },
+    {
+      "name": "technical responsibility ends at finance",
+      "status": "PASS"
+    },
+    {
+      "name": "repaired case is in finance",
+      "status": "PASS"
+    },
+    {
+      "name": "canonical draft includes diagnostic fee once",
+      "status": "PASS"
+    },
+    {
+      "name": "duplicate part billing rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "finance cannot exceed current cost authorization",
+      "status": "PASS"
+    },
+    {
+      "name": "canonical mixed invoice issued once",
+      "status": "PASS"
+    },
+    {
+      "name": "invoice retry does not add finance rows",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired can end technical work without QC",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired with charges waits in finance",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired proposal removes labor and warranty",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired repair labor cannot be injected",
+      "status": "PASS"
+    },
+    {
+      "name": "unpaid unrepaired cannot close",
+      "status": "PASS"
+    },
+    {
+      "name": "payment settles synthetic invoice without gateway",
+      "status": "PASS"
+    },
+    {
+      "name": "settled unrepaired routes to returned_unrepaired without QC",
+      "status": "PASS"
+    },
+    {
+      "name": "locked return rejects new activities",
+      "status": "PASS"
+    },
+    {
+      "name": "locked return rejects free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "delivery queue includes returned case",
+      "status": "PASS"
+    },
+    {
+      "name": "no-charge unrepaired routes directly to return",
+      "status": "PASS"
+    },
+    {
+      "name": "free return closed and locked",
+      "status": "PASS"
+    },
+    {
+      "name": "active collaborator records attributed activity",
+      "status": "PASS"
+    },
+    {
+      "name": "collaborator cannot finish principal responsibility",
+      "status": "PASS"
+    },
+    {
+      "name": "collaborator cannot register principal manual part",
+      "status": "PASS"
+    },
+    {
+      "name": "collaborator actor retained in immutable history",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired physical return is recorded",
+      "status": "PASS"
+    },
+    {
+      "name": "physical return retry is idempotent",
+      "status": "PASS"
+    },
+    {
+      "name": "new technician accepts formal handover",
+      "status": "PASS"
+    },
+    {
+      "name": "handover retains technical author history",
+      "status": "PASS"
+    },
+    {
+      "name": "former principal loses case access after handover",
+      "status": "PASS"
+    },
+    {
+      "name": "actual Solo light plan off/off follows enabled policy",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign shop cannot access technical projection 11",
+      "status": "PASS"
+    },
+    {
+      "name": "actual Solo light plan simple/simple follows enabled policy",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign shop cannot access technical projection 12",
+      "status": "PASS"
+    },
+    {
+      "name": "solo/off/off: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "solo/off/off: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "solo/off/simple: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "solo/off/simple: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "solo/simple/off: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "solo/simple/off: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "solo/simple/simple: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "solo/simple/simple: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/off/off: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/off/off: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/off/simple: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/off/simple: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/off/independent: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/off/independent: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/simple/off: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/simple/off: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/simple/simple: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/simple/simple: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/simple/independent: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/simple/independent: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/pro/off: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/pro/off: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/pro/simple: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/pro/simple: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/pro/independent: repaired routing and mixed free parts",
+      "status": "PASS"
+    },
+    {
+      "name": "pro/pro/independent: unrepaired never requires QC",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rolls back activity",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rolls back free part",
+      "status": "PASS"
+    },
+    {
+      "name": "failed audit leaves zero activity events",
+      "status": "PASS"
+    },
+    {
+      "name": "failed part audit leaves zero billable parts",
+      "status": "PASS"
+    },
+    {
+      "name": "audit failure rolls back final result and transition",
+      "status": "PASS"
+    },
+    {
+      "name": "finalization rollback preserves state, report and result",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired physical return creates no warranty",
+      "status": "PASS"
+    },
+    {
+      "name": "concurrent retries create one activity",
+      "status": "PASS"
+    },
+    {
+      "name": "activity pagination retains more than fifty independent records",
+      "status": "PASS"
+    }
+  ],
+  "fixture_marker": "TEST-TECH-DESK-785184C9",
+  "base_url": "http://127.0.0.1:9273",
+  "limits": [
+    "Loopback development HTTP, not shared-host HTTPS",
+    "No browser visual/E2E",
+    "No real SMS or payment gateway requests"
+  ],
+  "passed": 110,
+  "failed": 0,
+  "seconds": 7.65
+}

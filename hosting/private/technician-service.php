@@ -46,18 +46,21 @@ function technician_activities(PDO $pdo,array $scope,int $caseId,int $before=0):
     $case=v2_case($pdo,$scope,$caseId);v2_require_case_access($pdo,$scope,$case);
     $s=$pdo->prepare("SELECT e.id,e.description,e.metadata_json,e.created_at,u.display_name FROM repair_case_events e LEFT JOIN tamiran_users u ON u.id=e.actor_user_id WHERE e.case_id=:case AND e.event_type='technical_activity'".($before>0?' AND e.id<:before':'').' ORDER BY e.id DESC LIMIT 51');
     $params=['case'=>$caseId];if($before>0)$params['before']=$before;$s->execute($params);$rows=$s->fetchAll();$more=count($rows)>50;$rows=array_slice($rows,0,50);$items=[];
-    foreach($rows as $row){$meta=json_decode($row['metadata_json'],true);$items[]=['id'=>(int)$row['id'],'title'=>$meta['payload']['title']??'فعالیت فنی','description'=>$row['description'],'observation'=>$meta['payload']['observation']??'','attachments'=>$meta['payload']['attachments']??[],'actorName'=>($meta['actorName']??'')?:$row['display_name'],'createdAt'=>$row['created_at']];}
+    foreach($rows as $row){$meta=json_decode($row['metadata_json'],true);$items[]=['id'=>(int)$row['id'],'correctsActivityId'=>$meta['payload']['correctsActivityId']??null,'title'=>$meta['payload']['title']??'گزارش فنی','description'=>$row['description'],'observation'=>$meta['payload']['observation']??'','attachments'=>$meta['payload']['attachments']??[],'actorName'=>($meta['actorName']??'')?:$row['display_name'],'createdAt'=>$row['created_at']];}
     return ['activities'=>$items,'nextBeforeId'=>$more?(int)end($rows)['id']:null];
 }
 function technician_activity_add(PDO $pdo,array $scope,array $input): array
 {
     $caseId=(int)($input['caseId']??0);$key=v2_text($input['idempotencyKey']??'','شناسه فعالیت',160);
-    $payload=['title'=>v2_text($input['title']??'','عنوان فعالیت',240),'description'=>v2_text($input['description']??'','شرح فعالیت',4000),'observation'=>v2_text($input['observation']??'','نتیجه یا مشاهده',4000,false)??'','attachments'=>array_values(array_unique(is_array($input['attachments']??null)?$input['attachments']:[]))];
+    $payload=['title'=>v2_text($input['title']??'','عنوان فعالیت',240,false)??'گزارش فنی','description'=>v2_text($input['description']??'','شرح فعالیت',4000),'observation'=>v2_text($input['observation']??'','نتیجه یا مشاهده',4000,false)??'','attachments'=>array_values(array_unique(is_array($input['attachments']??null)?$input['attachments']:[]))];
+    $correction=$input['correctsActivityId']??null;
+    if($correction!==null){if(filter_var($correction,FILTER_VALIDATE_INT)===false||(int)$correction<1)throw new TamiranApiException('گزارش مورد اصلاح معتبر نیست.');$payload['correctsActivityId']=(int)$correction;}
     if(count($payload['attachments'])>10)throw new TamiranApiException('حداکثر ده پیوست برای فعالیت مجاز است.');
     $pdo->beginTransaction();try{
         $case=v2_case($pdo,$scope,$caseId,true);technician_access($pdo,$scope,$case);
         if($old=technician_replay($pdo,$case,$scope,'technical_activity',$key,$payload)){$pdo->commit();return $old;}
         technician_editable($case);
+        if(isset($payload['correctsActivityId'])){$corrected=$pdo->prepare("SELECT id FROM repair_case_events WHERE id=:id AND case_id=:case AND event_type='technical_activity'");$corrected->execute(['id'=>$payload['correctsActivityId'],'case'=>$caseId]);if(!$corrected->fetchColumn())throw new TamiranApiException('گزارش مورد اصلاح متعلق به این پرونده نیست.',403);}
         foreach($payload['attachments'] as $file){$q=$pdo->prepare("SELECT id FROM tamiran_private_files WHERE public_id=:public AND case_id=:case AND shop_id=:shop AND branch_id=:branch AND purpose NOT IN ('identity','signature')");$q->execute(['public'=>v2_text($file,'پیوست',80),'case'=>$caseId,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);if(!$q->fetchColumn())throw new TamiranApiException('پیوست متعلق به این پرونده نیست.',403);}
         $result=technician_event($pdo,$scope,$case,'technical_activity',$key,$payload);$pdo->commit();return $result;
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
@@ -103,7 +106,7 @@ function technician_finish(PDO $pdo,array $scope,array $input): array
         if($old=technician_replay($pdo,$case,$scope,'technical_finish',$key,$payload)){$pdo->commit();return $old;}
         technician_editable($case);
         if((int)$case['lock_version']!==(int)($input['lockVersion']??-1))throw new TamiranApiException('پرونده تغییر کرده؛ تازه‌سازی کنید. پیش‌نویس شما محفوظ است.',409);
-        if(!in_array($case['process_status'],['diagnosing','estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','parts_closeout','qc_rework'],true))throw new TamiranApiException('ابتدا بررسی دستگاه را شروع کنید.',409);
+        if(!in_array($case['process_status'],array_merge(['diagnosing','estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','parts_closeout','qc_rework'],$outcome==='not_repaired'?['assigned','reception','awaiting_assignment']:[]),true))throw new TamiranApiException('ابتدا بررسی دستگاه را شروع کنید.',409);
         $parts=v2_open_part_blockers($pdo,(int)$case['case_id']);if($parts!==[])throw new TamiranApiException('ابتدا قطعات را تعیین تکلیف کنید: '.implode('، ',$parts),409);
         if($outcome==='repaired'){if(!in_array($case['process_status'],['repairing','parts_closeout','qc_rework'],true))throw new TamiranApiException('ابتدا مجوز هزینه و مرحله تعمیر را تکمیل کنید.',409);technician_require_cost($pdo,$case);}
         $policy=v2_product_policy($pdo,$scope,$case);$target=$outcome==='repaired'?($policy['qcEnabled']?'qc_pending':'finance_pending'):'finance_pending';
@@ -125,7 +128,8 @@ function technician_projection(PDO $pdo,array $scope,int $caseId): array
     $write=in_array($scope['role'],['repair_manager','technician'],true)&&$case['locked_at']===null&&in_array($case['process_status'],['reception','awaiting_assignment','assigned','diagnosing','estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','parts_closeout','qc_rework'],true);
     $primary=$scope['role']==='repair_manager'||(int)$case['primary_technician_user_id']===(int)$scope['actor']['id'];
     $parts=technician_billable_parts($pdo,$caseId);if(!technician_purchase_allowed($scope))foreach($parts as &$part)unset($part['purchaseUnitCost']);unset($part);
-    return ['cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'permissions'=>['activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
+    $unrepairedAmount=technician_unrepaired_amount($pdo,$caseId);
+    return ['unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','permissions'=>['refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
 }
 
 function technician_manual_part(PDO $pdo,array $scope,array $input): array
