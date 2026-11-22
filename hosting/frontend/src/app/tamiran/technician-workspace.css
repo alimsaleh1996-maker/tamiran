@@ -205,10 +205,14 @@
 }
 .tech-page-nav {
   display: flex;
+  flex-direction: row-reverse;
   gap: 10px;
-  justify-content: space-between;
   flex-wrap: wrap;
   margin-block: 14px;
+}
+/* The primary back-to-list control belongs on the left edge in RTL layouts. */
+.tech-page-nav > [data-tech-exit] {
+  margin-right: auto;
 }
 .tech-device-summary {
   padding-block: 18px;
