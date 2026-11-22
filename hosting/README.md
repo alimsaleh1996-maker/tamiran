@@ -1,3 +1,7 @@
+# نسخهٔ php.10 — میز کار مشترک مرکز عملیات
+
+مرکز عملیات تعمیرات و کارهای من اکنون از همان صفحهٔ سادهٔ پرونده و ثبت گزارش استفاده می‌کنند. پنجرهٔ قدیمی مرکز عملیات حذف شد؛ تخصیص، همکار و تصمیم مشتری صفحه‌های مستقل با مجوزهای قبلی دارند. ارتقای php.9 بدون migration است.
+
 # Tamiran PHP hosting edition
 
 Release: **2.0.0-php.9**. Standalone shared-hosting distribution built from the preserved Tamiran PHP/MySQL business backend and an adapted browser build of the existing twenty-menu interface.

@@ -1,0 +1,151 @@
+{
+  "suite": "PHP/MariaDB real HTTP synthetic smoke",
+  "results": [
+    {
+      "name": "opening preserves status and version",
+      "status": "PASS"
+    },
+    {
+      "name": "necessary reception note is projected",
+      "status": "PASS"
+    },
+    {
+      "name": "text-only report needs no title or category",
+      "status": "PASS"
+    },
+    {
+      "name": "text-only retry returns original event",
+      "status": "PASS"
+    },
+    {
+      "name": "blank report rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "correction appends independent immutable event",
+      "status": "PASS"
+    },
+    {
+      "name": "original text survives correction",
+      "status": "PASS"
+    },
+    {
+      "name": "correction link retained",
+      "status": "PASS"
+    },
+    {
+      "name": "server author and time retained",
+      "status": "PASS"
+    },
+    {
+      "name": "correction cannot link another case",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid correction ID rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "unassigned technician cannot append correction",
+      "status": "PASS"
+    },
+    {
+      "name": "optional photo uploads through existing private-file API",
+      "status": "PASS"
+    },
+    {
+      "name": "photo list exposes server author and time",
+      "status": "PASS"
+    },
+    {
+      "name": "technical gallery hides identity documents for manager too",
+      "status": "PASS"
+    },
+    {
+      "name": "general authorized file list remains backward compatible",
+      "status": "PASS"
+    },
+    {
+      "name": "photo links to a separate report",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit referral uses existing responsibility transfer",
+      "status": "PASS"
+    },
+    {
+      "name": "referral request does not change owner or result",
+      "status": "PASS"
+    },
+    {
+      "name": "referral exact retry is idempotent",
+      "status": "PASS"
+    },
+    {
+      "name": "referral retry cannot change destination reason",
+      "status": "PASS"
+    },
+    {
+      "name": "other technician cannot replay referral",
+      "status": "PASS"
+    },
+    {
+      "name": "accepted referral preserves reports and original actor",
+      "status": "PASS"
+    },
+    {
+      "name": "former principal loses unauthorized edit access",
+      "status": "PASS"
+    },
+    {
+      "name": "initial no-repair decision needs no fake diagnosis step",
+      "status": "PASS"
+    },
+    {
+      "name": "no-charge initial unrepaired case enters return without QC",
+      "status": "PASS"
+    },
+    {
+      "name": "closed case rejects text-only report",
+      "status": "PASS"
+    },
+    {
+      "name": "closed case rejects photo",
+      "status": "PASS"
+    },
+    {
+      "name": "closed case rejects referral",
+      "status": "PASS"
+    },
+    {
+      "name": "unsettled parts block initial no-repair completion",
+      "status": "PASS"
+    },
+    {
+      "name": "failed initial finalization leaves result unset",
+      "status": "PASS"
+    },
+    {
+      "name": "closed case cannot accept an earlier pending handover",
+      "status": "PASS"
+    },
+    {
+      "name": "failed closed-case handover retains owner and lock",
+      "status": "PASS"
+    },
+    {
+      "name": "closed-case pending handover may still be cancelled by manager",
+      "status": "PASS"
+    }
+  ],
+  "scope": "New minimal workspace API additions only; existing workflow matrix is a separate regression",
+  "no_sms_or_customer_approval": true,
+  "passed": 34,
+  "failed": 0,
+  "seconds": 1.26,
+  "limits": [
+    "Loopback development HTTP, not shared-host HTTPS",
+    "No browser visual/E2E",
+    "No real SMS or payment gateway requests"
+  ]
+}

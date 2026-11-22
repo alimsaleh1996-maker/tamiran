@@ -1,18 +1,18 @@
-> Scoped AST refresh of 16 hosting files on 2026-11-22. Semantic documents are historical. Token accounting is unavailable; internal zero fields are placeholders, not measured usage. Community membership retained for unchanged nodes; new nodes assigned by neighboring community. See SOURCE_STATUS.json for exact file hashes.
+> Scoped AST refresh of 8 hosting files on 2026-11-22. Semantic documents are historical. Token accounting is unavailable; internal zero fields are placeholders, not measured usage. Community membership retained for unchanged nodes; new nodes assigned by neighboring community. See SOURCE_STATUS.json for exact file hashes.
 
 # Graph Report - tamiran  (2026-11-23)
 
 ## Corpus Check
-- 16 files · ~0 words
+- 8 files · ~0 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4668 nodes · 11514 edges · 217 communities (182 shown, 35 thin omitted)
-- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 1706 edges (avg confidence: 0.85)
+- 4684 nodes · 11565 edges · 217 communities (182 shown, 35 thin omitted)
+- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 1709 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `742231df`
+- Built from commit: `b13022b9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -229,10 +229,10 @@
 ## Surprising Connections (you probably didn't know these)
 - `۶. نشست برنامه انقضای بیکاری یا انقضای مطلق ندارد` --references--> `requireActiveAppSession()`  [INFERRED]
   docs/reports/worker/2026-10-21-ecc-review.md → migration/worker/lib/auth-session.ts
-- `تغییر` --references--> `createReceptionWithNewDevice()`  [INFERRED]
-  docs/history/worker/20261010D-customer-device-batch.md → migration/worker/lib/reception-new-device.ts
 - `نتیجه و اصلاحات` --references--> `v2_delivery_replay()`  [INFERRED]
   docs/reports/hosting/2026-11-10-workflow-review-FA.md → hosting/private/v2-core.php
+- `تغییر` --references--> `createReceptionWithNewDevice()`  [INFERRED]
+  docs/history/worker/20261010D-customer-device-batch.md → migration/worker/lib/reception-new-device.ts
 - `علت و دامنه محدود` --references--> `resolveServerScope()`  [INFERRED]
   docs/history/worker/20261010O-operations-read.md → migration/worker/lib/server-scope.ts
 - `Verified fast-forward source publication` --semantically_similar_to--> `Verification limits and untested deployment conditions`  [INFERRED] [semantically similar]
@@ -251,8 +251,8 @@
 ## Communities (217 total, 35 thin omitted)
 
 ### Community 0 - "createReceptionReadHttpHandler"
-Cohesion: 0.02
-Nodes (112): LocalD1, Activity, Attachment, CatalogImportRow, CatalogName, CompactReceiptProps, Address, Form (+104 more)
+Cohesion: 0.01
+Nodes (118): LocalD1, Activity, Attachment, CatalogImportRow, CatalogName, CompactReceiptProps, Address, Form (+110 more)
 
 ### Community 101 - "Migration D1 Case Core"
 Cohesion: 0.12
@@ -348,7 +348,7 @@ Nodes (32): TamiranInstallException, tamiran_install(), tamiran_install_check_co
 
 ### Community 31 - "Client"
 Cohesion: 0.12
-Nodes (22): Client, manager_for(), run(), shop(), main(), submit(), run(), main() (+14 more)
+Nodes (23): Client, manager_for(), run(), shop(), main(), submit(), run(), main() (+15 more)
 
 ### Community 32 - "tamiran_flow.py"
 Cohesion: 0.19
@@ -399,8 +399,8 @@ Cohesion: 0.18
 Nodes (24): PersianDateParts, PersianDatePickerProps, PopupPosition, InvoiceCatalogForm(), dateText(), addGregorianDays(), addPersianMonths(), daysInPersianMonth() (+16 more)
 
 ### Community 51 - "run"
-Cohesion: 0.11
-Nodes (26): Runner, run(), upload(), assert_fits(), assert_no_errors(), assert_single_column(), check_quality_browser(), contrast() (+18 more)
+Cohesion: 0.10
+Nodes (29): Runner, run(), upload(), assert_fits(), assert_no_errors(), assert_single_column(), check_quality_browser(), contrast() (+21 more)
 
 ### Community 57 - "workflow.test.mjs"
 Cohesion: 0.13
@@ -424,7 +424,7 @@ Nodes (13): CaseMutationRequest, RepairCaseRecord, RepairCaseStatus, buildCaseMu
 
 ### Community 8 - "src/app/tamiran/v2-workspace.tsx"
 Cohesion: 0.06
-Nodes (89): WorkspaceProfile, Props, Run, Section, CaseActionDialog(), CaseStageBoard(), CaseTools(), CaseToolsDisclosure() (+81 more)
+Nodes (88): WorkspaceProfile, TechnicalScreen, ManualRow, Props, TechnicalActivity, TechnicalProjection, V2Assignment, V2Blockers (+80 more)
 
 ### Community 82 - "chart.tsx"
 Cohesion: 0.18
@@ -544,7 +544,7 @@ Nodes (4): walk(), html, manifest, report
 
 ### Community 20 - "public_html/api/operations.php"
 Cohesion: 0.10
-Nodes (40): {closure#10}(), {closure#13}(), {closure#14}(), {closure#4}(), operations_appearance_options(), operations_canonical_value(), operations_case_select(), operations_case_to_api() (+32 more)
+Nodes (40): v2_require_capability(), {closure#10}(), {closure#13}(), {closure#14}(), {closure#4}(), operations_appearance_options(), operations_canonical_value(), operations_case_select() (+32 more)
 
 ### Community 22 - "baseline/api/operations.php"
 Cohesion: 0.10
@@ -560,7 +560,7 @@ Nodes (32): {closure#1}(), finance_advance_readiness(), finance_draft_items(), f
 
 ### Community 3 - "tamiran_id"
 Cohesion: 0.07
-Nodes (100): delivery_complete(), {closure#2}(), finance_advance_readiness(), finance_draft_items(), finance_invoice_case(), finance_issue(), finance_payload(), finance_payment() (+92 more)
+Nodes (100): technician_access(), technician_activities(), technician_activity_add(), technician_billable_parts(), technician_cost_state(), technician_editable(), technician_event(), technician_finish() (+92 more)
 
 ### Community 30 - "connector-preview-session.mjs"
 Cohesion: 0.07
@@ -572,7 +572,7 @@ Nodes (26): {closure#1}(), {closure#2}(), tamiran_backup_capture(), tamiran_back
 
 ### Community 37 - "TamiranApiException"
 Cohesion: 0.12
-Nodes (22): admin_date(), admin_module_changes(), admin_modules(), admin_random_public_shop_code(), admin_random_shop_code(), admin_temporary_password(), admin_text(), {closure#2}() (+14 more)
+Nodes (22): technician_require_cost(), v2_scope(), admin_date(), admin_module_changes(), admin_modules(), admin_random_public_shop_code(), admin_random_shop_code(), admin_temporary_password() (+14 more)
 
 ### Community 38 - "combobox.tsx"
 Cohesion: 0.10
@@ -984,22 +984,22 @@ Nodes (11): HTTPS و پراکسی, ثبت رویداد و عیب‌یابی, د�
 
 ## Knowledge Gaps
 - **124 isolated node(s):** `XDG_CACHE_HOME`, `XDG_DATA_HOME`, `NPM_CONFIG_FETCH_RETRIES`, `NPM_CONFIG_FETCH_TIMEOUT`, `NPM_CONFIG_MAXSOCKETS` (+119 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1504 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1508 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **35 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `TamiranApiException` connect `TamiranApiException` to `tamiran_id`, `backup-engine.php`, `public_html/api/bootstrap.php`, `{closure#1}`, `tamiran_json_body`, `reports/hosting/README.md`, `{closure#1}`, `{closure#2}`, `public_html/api/operations.php`, `{closure#4}`, `PHP Third Party Notices`, `{closure#1}`, `installer_test.php`, `delivery_warranty_case`?**
-  _High betweenness centrality (0.229) - this node is a cross-community bridge._
+  _High betweenness centrality (0.237) - this node is a cross-community bridge._
 - **Are the 187 inferred relationships involving `TamiranApiException` (e.g. with `tamiran_backup_capture()` and `tamiran_backup_file_key()`) actually correct?**
   _`TamiranApiException` has 187 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `XDG_CACHE_HOME`, `XDG_DATA_HOME`, `NPM_CONFIG_FETCH_RETRIES` to the rest of the system?**
   _124 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `createReceptionReadHttpHandler` be split into smaller, more focused modules?**
-  _Cohesion score 0.016307986609277857 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.014953271028037384 - nodes in this community are weakly interconnected._
 - **Why does `TamiranApiException` connect `TamiranApiException` to `backup-engine.php`, `{closure#1}`, `baseline/private/v2-core.php`, `tamiran_json_body`, `PHP Install Fa`, `tamiran_id`, `baseline/api/bootstrap.php`, `{closure#2}`, `{closure#4}`, `baseline/api/auth.php`, `baseline/api/operations.php`, `delivery_complete`, `installer_test.php`?**
-  _High betweenness centrality (0.152) - this node is a cross-community bridge._
+  _High betweenness centrality (0.146) - this node is a cross-community bridge._
 - **Are the 151 inferred relationships involving `TamiranApiException` (e.g. with `admin_date()` and `admin_modules()`) actually correct?**
   _`TamiranApiException` has 151 INFERRED edges - model-reasoned connections that need verification._
 

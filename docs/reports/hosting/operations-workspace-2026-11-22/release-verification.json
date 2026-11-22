@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0-php.10",
+  "date": "2026-11-22",
+  "upgrade_from_php9_real_install": "PASS",
+  "upgrade_config_and_runtime_keys_preserved": true,
+  "upgrade_private_photo_bytes_preserved": true,
+  "upgrade_existing_case_and_cap_preserved": "PASS",
+  "upgrade_new_issue_only_case": "PASS",
+  "fresh_install_real_http": "PASS",
+  "health_both_packages": "PASS",
+  "hashed_js_and_css_both_packages": "PASS",
+  "https_default_preserved_in_package": true,
+  "api_files": 38,
+  "sql_migration_required": false,
+  "artifacts": [
+    {
+      "file": "tamiran-2.0.0-php.10-install.zip",
+      "sha256": "c9cace0df01ed8e9aa4960e95efad020e8fd6f104e66549fe26b42904ef5dccd",
+      "bytes": 704601,
+      "integrity_and_checksums": "PASS"
+    },
+    {
+      "file": "tamiran-2.0.0-php.10-source.zip",
+      "sha256": "dea2af4c57789423fee90c8c3ce7162100fafd785eab17c78f75da657b856c7d",
+      "bytes": 1209595,
+      "integrity_and_checksums": "PASS"
+    },
+    {
+      "file": "tamiran-2.0.0-php.10-update-from-php.9.zip",
+      "sha256": "28985a0d0cccd230d402e2faa8ffb3cfbe4c821fce9c49e08930625bb64773e8",
+      "bytes": 669572,
+      "integrity_and_checksums": "PASS"
+    }
+  ]
+}

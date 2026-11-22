@@ -90,6 +90,9 @@ export function TechnicalCaseWorkspace({
   onBusyChange,
   onNavigate,
   canViewFinance = false,
+  exitLabel = "بازگشت به دستگاه‌های من",
+  onManage,
+  overviewAction,
 }: {
   caseId: number;
   initial?: V2Case;
@@ -100,6 +103,9 @@ export function TechnicalCaseWorkspace({
   onBusyChange: (busy: boolean) => void;
   onNavigate: (page: string) => void;
   canViewFinance?: boolean;
+  exitLabel?: string;
+  onManage?: () => void;
+  overviewAction?: { label: string; onClick: () => void };
 }) {
   const storage = `tamiran:technical-draft:${actorId}:${caseId}`;
   const [draft, setDraft] = useState<Draft>(() => {
@@ -268,14 +274,24 @@ export function TechnicalCaseWorkspace({
         setSaved("ثبت در حال انجام است؛ پس از پایان می‌توانید برگردید.");
       }
     };
-    const navigation=(window as Window&{navigation?:EventTarget}).navigation;
-    const navigationGuard=(e:Event)=>{if(lock.current&&e.cancelable&&(e as Event&{navigationType?:string}).navigationType==="traverse"){e.preventDefault();setSaved("ثبت در حال انجام است؛ پس از پایان می‌توانید برگردید.");}};
-    navigation?.addEventListener("navigate",navigationGuard);
+    const navigation = (window as Window & { navigation?: EventTarget })
+      .navigation;
+    const navigationGuard = (e: Event) => {
+      if (
+        lock.current &&
+        e.cancelable &&
+        (e as Event & { navigationType?: string }).navigationType === "traverse"
+      ) {
+        e.preventDefault();
+        setSaved("ثبت در حال انجام است؛ پس از پایان می‌توانید برگردید.");
+      }
+    };
+    navigation?.addEventListener("navigate", navigationGuard);
     window.addEventListener("popstate", backGuard, true);
     window.addEventListener("beforeunload", prevent);
     document.addEventListener("click", guard, true);
     return () => {
-      navigation?.removeEventListener("navigate",navigationGuard);
+      navigation?.removeEventListener("navigate", navigationGuard);
       window.removeEventListener("popstate", backGuard, true);
       window.removeEventListener("beforeunload", prevent);
       document.removeEventListener("click", guard, true);
@@ -693,9 +709,18 @@ export function TechnicalCaseWorkspace({
           }
         >
           {screen === "overview" || screen === "work"
-            ? "بازگشت به دستگاه‌های من"
+            ? exitLabel
             : "بازگشت به میز کار"}
         </button>
+        {onManage && (
+          <button
+            className="tech-management-link"
+            disabled={disabled}
+            onClick={onManage}
+          >
+            مدیریت پرونده
+          </button>
+        )}
         <button
           disabled={disabled}
           onClick={() => void run("refresh", async () => {})}
@@ -773,7 +798,15 @@ export function TechnicalCaseWorkspace({
                 </button>
               )}
               <div className="tech-entry-actions">
-                {unstarted && canWrite ? (
+                {overviewAction ? (
+                  <button
+                    className="tech-primary"
+                    disabled={disabled}
+                    onClick={overviewAction.onClick}
+                  >
+                    {overviewAction.label}
+                  </button>
+                ) : unstarted && canWrite ? (
                   <button
                     className="tech-primary"
                     disabled={disabled}

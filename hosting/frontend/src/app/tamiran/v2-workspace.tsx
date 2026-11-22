@@ -1,6 +1,7 @@
 "use client";
-import { CaseToolsDisclosure } from "./case-tools";
-import { CaseStageBoard, CaseActionDialog } from "./case-stage-board";
+import { CaseStageBoard } from "./case-stage-board";
+import { OperationsCaseWorkspace } from "./operations-case-workspace";
+import { technicalCaseFromLocation, writeTechnicalLocation } from "./technician-navigation";
 import { printHandoverReceipt } from "./handover-receipt";
 import { MoneyInput, formatToman } from "./money-input";
 import "./iteration-six.css";
@@ -9,7 +10,6 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
-  ArrowLeftRight,
   Boxes,
   CheckCircle2,
   ClipboardCheck,
@@ -28,8 +28,6 @@ import type { WorkspaceProfile } from "./access";
 import { FollowUpApiError } from "./followups-api";
 import { matchesQueueSearch } from "./queue-search";
 import {
-  assignV2Case,
-  createV2Estimate,
   deliveryV2Action,
   financeV2Action,
   inventoryControlV2Action,
@@ -44,9 +42,7 @@ import {
   loadV2Workflow,
   procurementV2Action,
   qualityV2Action,
-  sendV2Estimate,
   smsV2Action,
-  transitionV2Case,
   workflowV2Action,
   type V2Case,
   type V2DeliveryCase,
@@ -77,10 +73,6 @@ const statusLabels: Record<string, string> = {
   delivered: "تحویل‌شده",
   cancelled: "لغوشده",
   closed: "بسته‌شده",
-};
-const workflowLabels: Record<string, string> = {
-  mobile_tablet: "موبایل و تبلت",
-  computer_laptop: "کامپیوتر و لپ‌تاپ",
 };
 const requestLabels: Record<string, string> = {
   pending: "منتظر انبار",
@@ -171,6 +163,7 @@ const pageSection = (page: string): Section =>
 
 export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
   const section = pageSection(page);
+  const [workflowCaseOpen, setWorkflowCaseOpen] = useState(() => !!technicalCaseFromLocation());
   const [workflow, setWorkflow] = useState<V2WorkflowPayload | null>(null);
   const [inventory, setInventory] = useState<V2InventoryPayload | null>(null);
   const [inventoryControl, setInventoryControl] = useState<Record<
@@ -270,7 +263,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
     );
   return (
     <div className="v2-shell">
-      <header className="v2-page-head">
+      {!(section === "workflow" && workflowCaseOpen) && <header className="v2-page-head">
         <div>
           <span className="v2-kicker">{profile.branch}</span>
           <h2>{page}</h2>
@@ -284,7 +277,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
           <RefreshCw size={17} />
           تازه‌سازی
         </button>
-      </header>
+      </header>}
       {["inventory", "quality", "finance", "delivery"].includes(section) && (
         <label className="module-search v2-queue-search">
           <FileText size={17} />
@@ -308,9 +301,11 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
           profile={profile}
           busy={busy}
           run={run}
-          error={error}
           notify={notify}
           onNavigate={onNavigate}
+          onBusyChange={setBusy}
+          onCaseOpenChange={setWorkflowCaseOpen}
+          onCaseChanged={fresh=>setWorkflow(current=>current?{...current,cases:current.cases.map(item=>item.id===fresh.id?fresh:item)}:current)}
         />
       )}
       {section === "inventory" && workflow && inventory && (
@@ -381,599 +376,181 @@ function WorkflowBoard({
   profile,
   busy,
   run,
-  error,
   notify,
   onNavigate,
+  onBusyChange,
+  onCaseChanged,
+  onCaseOpenChange,
 }: {
   data: V2WorkflowPayload;
   profile: WorkspaceProfile;
   busy: boolean;
   run: Run;
-  error: string;
-  notify: (message:string)=>void;
+  notify: (message: string) => void;
   onNavigate: (page: string) => void;
+  onBusyChange: (busy: boolean) => void;
+  onCaseChanged: (item: V2Case) => void;
+  onCaseOpenChange: (open: boolean) => void;
 }) {
-  const [focusedCaseId] = useState(() => {
-    if (typeof window === "undefined") return 0;
-    const value = Number(
-      window.sessionStorage.getItem("tamiran:focused-workflow-case") ?? 0,
+  const [selectedId, setSelectedId] = useState(() => {
+    const focused = Number(
+      sessionStorage.getItem("tamiran:focused-workflow-case") ?? 0,
     );
-    window.sessionStorage.removeItem("tamiran:focused-workflow-case");
-    return Number.isInteger(value) && value > 0 ? value : 0;
+    sessionStorage.removeItem("tamiran:focused-workflow-case");
+    return (
+      technicalCaseFromLocation() ||
+      (Number.isSafeInteger(focused) && focused > 0 ? focused : 0)
+    );
   });
-  const [search,setSearch] = useState("");
-  const [selectedId,setSelectedId] = useState(focusedCaseId || 0);
-  const [reason, setReason] = useState("");
-  const [technician, setTechnician] = useState("");
-  const [collaborator, setCollaborator] = useState({
-    technicianId: "",
-    task: "",
-    fixedFee: "",
-    laborPercent: "0",
-    partPercent: "0",
-  });
-  const [estimate, setEstimate] = useState({
-    title: "اجرت تعمیر",
-    amount: "",
-    tax: "0",
-  });
+  const [search, setSearch] = useState("");
+  const [handoverReasons, setHandoverReasons] = useState<
+    Record<number, string>
+  >({});
+  const selected = data.cases.find((item) => item.id === selectedId);
+  useEffect(() => onCaseOpenChange(!!selected), [selected?.id, onCaseOpenChange]);
   useEffect(() => {
-    setTechnician(""); setReason("");
-    setEstimate({title:"اجرت تعمیر",amount:"",tax:"0"});
-    setCollaborator({technicianId:"",task:"",fixedFee:"",laborPercent:"0",partPercent:"0"});
+    if (selectedId && !technicalCaseFromLocation())
+      writeTechnicalLocation(selectedId, "overview", undefined, true);
   }, [selectedId]);
-  const visibleCases=data.cases.filter(item=>matchesQueueSearch(search,[item.receiptNumber,item.customerName,item.customerMobile,item.identifier,item.deviceTitle]));
-  const selected=data.cases.find(item=>item.id===selectedId);
-  const stageRun:Run=async(job,message)=>{let completed=false;const value=await run(async()=>{const result=await job();completed=true;return result;},message);if(completed)setSelectedId(0);return value;};
+  const exit = () => {
+    const url = new URL(location.href);
+    url.searchParams.delete("opsTask");
+    history.replaceState({ ...history.state }, "", url);
+    writeTechnicalLocation(0);
+    setSelectedId(0);
+  };
+  const open = (item: V2Case) => {
+    writeTechnicalLocation(item.id);
+    setSelectedId(item.id);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
   const openHandovers = data.handovers.filter(
     (item) => item.status === "requested",
   );
-  const roleTargets: Record<string, string[]> = {
-    reception: [
-      "awaiting_assignment",
-      "assigned",
-      "awaiting_customer_approval",
-      "returned_unrepaired",
-      "cancelled",
-    ],
-    technician: [
-      "diagnosing",
-      "estimate_pending",
-      "awaiting_parts",
-      "repairing",
-      "parts_closeout",
-    ],
-    quality_control: ["qc_rework", "qc_conditional", "finance_pending"],
-    finance_cashier: ["ready_for_delivery"],
+  const handoverLock = React.useRef(false);
+  const decide = async (publicId: string, decision: string, reason: string) => {
+    if (handoverLock.current) return;
+    handoverLock.current = true;
+    try {
+      await run(
+        () =>
+          workflowV2Action({
+            action: "handover_decide",
+            publicId,
+            decision,
+            reason,
+          }),
+        "تصمیم تحویل مسئولیت ثبت شد.",
+      );
+    } finally {
+      handoverLock.current = false;
+    }
   };
-  const transitions =
-    selected?.allowedTransitions.filter(
-      (target) =>
-        profile.role === "repair_manager" ||
-        (roleTargets[profile.role] ?? []).includes(target),
-    ) ?? [];
-  const currentBlockers=selected ? {parts:["awaiting_parts","parts_closeout"].includes(selected.status)?selected.blockers.parts:[],qc:["qc_pending","qc_rework","qc_conditional","finance_pending"].includes(selected.status)?selected.blockers.qc:[],finance:["finance_pending","ready_for_delivery"].includes(selected.status)?selected.blockers.finance:[]} : null;
-  const nextModule=selected ? (["qc_pending","qc_rework","qc_conditional"].includes(selected.status) ? "کنترل کیفیت" : selected.status==="finance_pending" ? "مالی پرونده" : selected.status==="ready_for_delivery" ? "تحویل تعمیرات" : null) : null;
+  if (selected)
+    return (
+      <div className="technical-desk operations-case-desk">
+        <OperationsCaseWorkspace
+          key={selected.id}
+          selected={selected}
+          data={data}
+          profile={profile}
+          busy={busy}
+          run={run}
+          notify={notify}
+          onNavigate={onNavigate}
+          onExit={exit}
+          onBusyChange={onBusyChange}
+          onChanged={onCaseChanged}
+        />
+      </div>
+    );
   return (
     <div className="v2-stack operations-board">
-      <label className="module-search v2-queue-search"><FileText size={17}/><input aria-label="جست‌وجوی دستگاه‌ها" value={search} onChange={e=>setSearch(e.target.value)} placeholder="رسید، نام مشتری یا سریال"/></label>
-      <CaseStageBoard cases={visibleCases} onOpen={item=>setSelectedId(item.id)} openCaseId={selectedId} busy={busy}/>
-      {selected && <CaseActionDialog title={selected.deviceTitle} receipt={selected.receiptNumber} busy={busy} onClose={()=>setSelectedId(0)}>
-        <section className="v2-detail-panel v2-shell">
-          {error && <div role="alert" className="v2-alert">{error}</div>}
-          <p className="case-stage-caption">مرحله: {statusLabels[selected.status] ?? selected.status}</p>
-              <div className="v2-detail-title">
-                <div>
-                  <span className="v2-chip">
-                    {workflowLabels[selected.workflowCode]}
-                  </span>
-                  <h3>{selected.receiptNumber}</h3>
-                  <p>
-                    {selected.customerName} · {selected.deviceTitle}
-                  </p>
-                </div>
-                <span className="v2-stage">
-                  {statusLabels[selected.status] ?? selected.status}
-                </span>
-              </div>
-              <details className="case-secondary-section"><summary>اطلاعات پذیرش و ایراد دستگاه</summary><div className="v2-facts">
-                <span>
-                  <small>مسئول اصلی</small>
-                  <strong>{selected.technicianName || "تخصیص نشده"}</strong>
-                </span>
-                <span>
-                  <small>موعد وعده</small>
-                  <strong>{localDate(selected.promisedAt)}</strong>
-                </span>
-                <span>
-                  <small>سقف پذیرش</small>
-                  <strong>{formatToman(selected.preapprovedAmount)} تومان</strong>
-                </span>
-              </div>
-              <div className="v2-issue">
-                <strong>شرح خرابی مشتری</strong>
-                <p>{selected.declaredIssue}</p>
-              </div>
-              </details>
-              {selected.isLocked && (
-                <div className="v2-issue">
-                  <strong>پرونده مختومه و قفل‌شده است</strong>
-                  <p>{selected.closureReason || "عملیات جدید روی این پرونده مجاز نیست."}</p>
-                </div>
-              )}
-              {currentBlockers && Object.values(currentBlockers).some(items=>items.length) && <Blockers value={currentBlockers}/>}
-              {!selected.isLocked && ["assigned","diagnosing"].includes(selected.status) && selected.technicianView.primaryAction?.target && transitions.includes(selected.technicianView.primaryAction.target) && <section className="case-primary-step">
-                <h3>{selected.technicianView.primaryAction.label}</h3>
-                {selected.status==="diagnosing" && <label><span>نتیجهٔ بررسی</span><textarea rows={3} value={reason} onChange={e=>setReason(e.target.value)}/></label>}
-                <button type="button" className="primary-action" disabled={busy || (selected.status==="diagnosing"&&!reason.trim())} onClick={()=>void stageRun(()=>transitionV2Case(selected.id,selected.technicianView.primaryAction!.target!,selected.lockVersion,reason||"شروع بررسی"),"مرحلهٔ پرونده ثبت شد.")}>{selected.technicianView.primaryAction.label}</button>
-              </section>}
-              {nextModule && <div className="case-primary-step"><p>اقدام بعدی این دستگاه در بخش «{nextModule}» ثبت می‌شود.</p><button type="button" className="primary-action" onClick={()=>{window.sessionStorage.setItem("tamiran:focused-module-receipt",selected.receiptNumber);onNavigate(nextModule);}}>ثبت در {nextModule}</button></div>}
-              {["awaiting_parts","parts_closeout"].includes(selected.status) && selected.inventoryMode!=="off" && <div className="case-primary-step"><button type="button" className="primary-action" onClick={()=>{window.sessionStorage.setItem("tamiran:part-request-case",String(selected.id));onNavigate("درخواست‌های قطعه");}}>پیگیری قطعات همین دستگاه</button></div>}
-              {selected.status==="repairing" && <div className="case-primary-step"><p>ثبت گزارش فنی و نتیجهٔ تعمیر در کارهای من انجام می‌شود.</p><button type="button" className="primary-action" onClick={()=>{window.sessionStorage.setItem("tamiran:focused-tech-case",String(selected.id));onNavigate("کارهای من");}}>ثبت گزارش فنی همین دستگاه</button></div>}
-
-
-              {profile.role === "repair_manager" &&
-                profile.productProfile === "pro" &&
-                selected.productProfile === "solo" && (
-                  <div className="product-preservation-note">
-                    <ArrowLeftRight size={19} />
-                    <div>
-                      <strong>این پرونده هنوز گردش Solo دارد</strong>
-                      <p>پرونده قدیمی بدون تغییر ادامه می‌یابد. فقط در صورت نیاز و پس از بررسی سازگاری، آن را جداگانه به گردش Pro منتقل کنید.</p>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={busy || !reason.trim()}
-                      onClick={() =>
-                        void stageRun(
-                          () =>
-                            workflowV2Action({
-                              action: "migrate_case_to_pro",
-                              caseId: selected.id,
-                              reason,
-                              idempotencyKey:
-                                typeof crypto !== "undefined" && crypto.randomUUID
-                                  ? crypto.randomUUID()
-                                  : `case-migrate-${selected.id}-${Date.now()}`,
-                            }),
-                          "گردش همین پرونده پس از اعتبارسنجی به Pro تغییر کرد.",
-                        )
-                      }
-                    >
-                      انتقال این پرونده به Pro
-                    </button>
-                  </div>
-                )}
-              {!selected.isLocked && ["repair_manager", "reception"].includes(profile.role) && (
-                <details className="case-secondary-section" open={selected.primaryTechnicianUserId === null ? true : undefined} key={`assignment-${selected.id}`}><summary>{selected.primaryTechnicianUserId === null ? "تخصیص تکنسین" : "تغییر تکنسین مسئول"}</summary><div className="v2-inline-form">
-                  <label>
-                    <span>تکنسین مسئول</span>
-                    <select
-                      value={technician}
-                      onChange={(event) => setTechnician(event.target.value)}
-                    >
-                      <option value="">انتخاب کنید</option>
-                      {data.users
-                        .filter((user) => user.role === "technician")
-                        .map((user) => (
-                          <option key={user.id} value={user.id}>
-                            {user.display_name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label className="grow">
-                    <span>
-                      {selected.primaryTechnicianUserId
-                        ? "علت تحویل رسمی"
-                        : "علت تخصیص"}
-                    </span>
-                    <input
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                      placeholder="مثلاً تخصص برد"
-                    />
-                  </label>
+      {selectedId && !selected && (
+        <p role="alert">
+          پرونده در دسترسی فعلی موجود نیست.{" "}
+          <button onClick={exit}>بازگشت به دستگاه‌ها</button>
+        </p>
+      )}
+      <label className="module-search v2-queue-search">
+        <FileText size={17} />
+        <input
+          aria-label="جست‌وجوی دستگاه‌ها"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="رسید، نام مشتری یا سریال"
+        />
+      </label>
+      <CaseStageBoard
+        cases={data.cases.filter((item) =>
+          matchesQueueSearch(search, [
+            item.receiptNumber,
+            item.customerName,
+            item.customerMobile,
+            item.identifier,
+            item.deviceTitle,
+          ]),
+        )}
+        onOpen={open}
+        openCaseId={selectedId}
+        busy={busy}
+      />
+      {openHandovers.length > 0 && (
+        <section className="tech-handover-list">
+          <h3>تحویل‌های رسمی در انتظار</h3>
+          <ul>
+            {openHandovers.map((h) => (
+              <li key={h.id}>
+                <p>
+                  <bdi>{h.receipt_number}</bdi> — {h.from_user_name} ←{" "}
+                  {h.to_user_name}
+                </p>
+                <p>{h.reason}</p>
+                {h.to_user_id === profile.actorId && (
                   <button
-                    disabled={
-                      busy ||
-                      !technician ||
-                      !reason.trim() ||
-                      Number(technician) === selected.primaryTechnicianUserId
-                    }
-                    onClick={() =>
-                      void stageRun(
-                        () =>
-                          selected.primaryTechnicianUserId
-                            ? workflowV2Action({
-                                action: "handover_request",
-                                caseId: selected.id,
-                                toUserId: Number(technician),
-                                reason,
-                                partsDisposition: "transfer_to_new",
-                                hotReturnsDisposition: "transfer_to_new",
-                                toolsNote:
-                                  "تحویل ابزار و لوازم طبق صورت پرونده",
-                              })
-                            : assignV2Case(
-                                selected.id,
-                                Number(technician),
-                                reason,
-                              ),
-                        selected.primaryTechnicianUserId
-                          ? "تحویل رسمی برای تأیید تکنسین مقصد ارسال شد."
-                          : "مسئول پرونده ثبت شد.",
-                      )
-                    }
+                    disabled={busy}
+                    onClick={() => void decide(h.public_id, "accept", "")}
                   >
-                    <UserRoundCheck size={17} />
-                    {selected.primaryTechnicianUserId
-                      ? "درخواست تحویل رسمی"
-                      : "تخصیص"}
+                    تأیید دریافت
                   </button>
-                </div></details>
-              )}
-              {!selected.isLocked && selected.primaryTechnicianUserId !== null && profile.role === "repair_manager" && (
-                <details key={`collaborator-${selected.id}`} className="operations-disclosure"><summary>افزودن همکار و تعیین اجرت</summary><div className="v2-collaborator-form">
-                  <strong>افزودن همکار با وظیفه و اجرت مستقل</strong>
-                  <div className="v2-grid-form">
+                )}
+                {profile.role === "repair_manager" && (
+                  <>
                     <label>
-                      <span>تکنسین همکار</span>
-                      <select
-                        value={collaborator.technicianId}
-                        onChange={(event) =>
-                          setCollaborator({
-                            ...collaborator,
-                            technicianId: event.target.value,
-                          })
-                        }
-                      >
-                        <option value="">انتخاب کنید</option>
-                        {data.users
-                          .filter(
-                            (user) =>
-                              user.role === "technician" &&
-                              user.id !== selected.primaryTechnicianUserId,
-                          )
-                          .map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.display_name}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label className="grow">
-                      <span>وظیفه</span>
+                      مستند انتقال مسئولیت
                       <input
-                        value={collaborator.task}
-                        onChange={(event) =>
-                          setCollaborator({
-                            ...collaborator,
-                            task: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>مبلغ ثابت</span>
-                      <input
-                        inputMode="numeric"
-                        value={collaborator.fixedFee}
-                        onChange={(event) =>
-                          setCollaborator({
-                            ...collaborator,
-                            fixedFee: event.target.value.replace(/\D/g, ""),
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>درصد اجرت</span>
-                      <input
-                        inputMode="decimal"
-                        value={collaborator.laborPercent}
-                        onChange={(event) =>
-                          setCollaborator({
-                            ...collaborator,
-                            laborPercent: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>درصد فروش قطعه</span>
-                      <input
-                        inputMode="decimal"
-                        value={collaborator.partPercent}
-                        onChange={(event) =>
-                          setCollaborator({
-                            ...collaborator,
-                            partPercent: event.target.value,
-                          })
+                        value={handoverReasons[h.id] ?? ""}
+                        onChange={(e) =>
+                          setHandoverReasons((current) => ({
+                            ...current,
+                            [h.id]: e.target.value,
+                          }))
                         }
                       />
                     </label>
                     <button
-                      disabled={
-                        busy ||
-                        !collaborator.technicianId ||
-                        !collaborator.task.trim()
-                      }
-                      onClick={() =>
-                        void stageRun(
-                          () =>
-                            workflowV2Action({
-                              action: "collaborator_add",
-                              caseId: selected.id,
-                              technicianUserId: Number(
-                                collaborator.technicianId,
-                              ),
-                              taskTitle: collaborator.task,
-                              compensationModel:
-                                Number(collaborator.fixedFee) > 0 &&
-                                Number(collaborator.laborPercent) > 0
-                                  ? "mixed"
-                                  : Number(collaborator.laborPercent) > 0
-                                    ? "labor_percent"
-                                    : "fixed",
-                              fixedFee: Number(collaborator.fixedFee),
-                              laborPercent: Number(collaborator.laborPercent),
-                              partSalePercent: Number(collaborator.partPercent),
-                            }),
-                          "همکار و مدل اجرت ثبت شد.",
+                      disabled={busy || !handoverReasons[h.id]?.trim()}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "مسئولیت پرونده با تصمیم مدیر منتقل شود؟",
+                          )
                         )
-                      }
+                          void decide(
+                            h.public_id,
+                            "manager_force",
+                            handoverReasons[h.id],
+                          );
+                      }}
                     >
-                      افزودن همکار
+                      قطعی‌کردن مدیر
                     </button>
-                  </div>
-                </div></details>
-              )}
-              {!selected.isLocked && selected.primaryTechnicianUserId !== null && <details key={`transition-${selected.id}`} className="operations-disclosure"><summary>اقدامات بیشتر و استثناها</summary><div className="v2-transition-box">
-                <strong>انتقال‌های مجاز همین مرحله</strong>
-                {transitions.some((target) => ["returned_unrepaired", "cancelled"].includes(target)) && (
-                  <div className="v2-reason-presets" aria-label="دلایل رایج مختومه‌کردن پرونده">
-                    {["غیرقابل تعمیر", "عدم تأمین قطعه", "انصراف مشتری", "رد برآورد توسط مشتری"].map((item) => (
-                      <button type="button" className={reason === item ? "active" : ""} key={item} onClick={() => setReason(item)}>{item}</button>
-                    ))}
-                  </div>
+                  </>
                 )}
-                <label>
-                  <span>علت/توضیح انتقال</span>
-                  <input
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                    placeholder="برای مراحل پایانی و استثناها الزامی است"
-                  />
-                </label>
-                <div>
-                  {transitions.map((target) => (
-                    <button
-                      key={target}
-                      disabled={
-                        busy ||
-                        (["cancelled", "returned_unrepaired"].includes(
-                          target,
-                        ) &&
-                          !reason.trim())
-                      }
-                      onClick={() =>
-                        void stageRun(
-                          () =>
-                            transitionV2Case(
-                              selected.id,
-                              target,
-                              selected.lockVersion,
-                              reason || undefined,
-                            ),
-                          `پرونده به «${statusLabels[target]}» منتقل شد.`,
-                        )
-                      }
-                    >
-                      {statusLabels[target] ?? target}
-                    </button>
-                  ))}
-                  {transitions.length === 0 && (
-                    <small>
-                      در این مرحله عملیات بعدی از صفحه تخصصی QC، مالی یا تحویل
-                      انجام می‌شود.
-                    </small>
-                  )}
-                </div>
-              </div></details>}
-              {selected.status==="awaiting_customer_approval" && selected.latestEstimate?.status==="approved" && transitions.includes("repairing") && <div className="case-primary-step"><p>تأیید مشتری قبلاً ثبت شده است.</p><button type="button" className="primary-action" disabled={busy} onClick={()=>void stageRun(()=>transitionV2Case(selected.id,"repairing",selected.lockVersion,"ورود به تعمیر با تأیید ثبت‌شده مشتری"),"پرونده وارد تعمیر شد.")}>ورود به تعمیر</button></div>}
-              {selected.status === "awaiting_customer_approval" &&
-                selected.latestEstimate &&
-                ["sent", "explanation_requested"].includes(
-                  selected.latestEstimate.status,
-                ) && (
-                  <div className="v2-card-form">
-                    <strong>ثبت تصمیم مشتری درباره برآورد</strong>
-                    <small>
-                      مبلغ برآورد: {formatMoney(selected.latestEstimate.totalAmount)}
-                    </small>
-                    <label>
-                      <span>توضیح یا مستند تماس</span>
-                      <input
-                        value={reason}
-                        onChange={(event) => setReason(event.target.value)}
-                        placeholder="مثلاً تأیید تلفنی مشتری در تاریخ امروز"
-                      />
-                    </label>
-                    <div>
-                      <button
-                        type="button"
-                        disabled={busy || !reason.trim()}
-                        onClick={() =>
-                          void stageRun(
-                            async () => {
-                              const approval=await workflowV2Action({
-                                action: "estimate_decide",
-                                estimatePublicId: selected.latestEstimate?.publicId,
-                                decision: "approved",channel: "recorded_phone",reason,
-                              });
-                              if(transitions.includes("repairing")) return transitionV2Case(selected.id,"repairing",selected.lockVersion,reason);
-                              return approval;
-                            },
-                            "تأیید مشتری ثبت شد.",
-                          )
-                        }
-                      >
-                        ثبت تأیید تلفنی
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy || !reason.trim()}
-                        onClick={() =>
-                          void stageRun(
-                            () =>
-                              workflowV2Action({
-                                action: "estimate_decide",
-                                estimatePublicId:
-                                  selected.latestEstimate?.publicId,
-                                decision: "rejected",
-                                channel: "recorded_phone",
-                                reason,
-                              }),
-                            "رد برآورد توسط مشتری ثبت شد.",
-                          )
-                        }
-                      >
-                        ثبت رد مشتری
-                      </button>
-                    </div>
-                  </div>
-                )}
-              {["repair_manager", "technician"].includes(profile.role) &&
-                ["estimate_pending"].includes(
-                  selected.status,
-                ) && (
-                  <form
-                    className="v2-card-form"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void stageRun(async () => {
-                        const response = await createV2Estimate({
-                          caseId: selected.id,
-                          items: [
-                            {
-                              type: "labor",
-                              title: estimate.title,
-                              quantity: 1,
-                              unitPrice: Number(estimate.amount),
-                              taxRate: Number(estimate.tax),
-                            },
-                          ],
-                          reason: "برآورد پس از عیب‌یابی",
-                        });
-                        if (response.estimate.requiresCustomerApproval)
-                          await sendV2Estimate(response.estimate.publicId);
-                        await transitionV2Case(selected.id,response.estimate.requiresCustomerApproval ? "awaiting_customer_approval" : "repairing",selected.lockVersion,"ثبت برآورد از پروندهٔ دستگاه");
-                        return response;
-                      }, "برآورد ذخیره و در صورت نیاز برای مشتری ارسال شد.");
-                    }}
-                  >
-                    <strong>برآورد سریع</strong>
-                    <div>
-                      <label>
-                        <span>عنوان</span>
-                        <input
-                          value={estimate.title}
-                          onChange={(e) =>
-                            setEstimate({ ...estimate, title: e.target.value })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>مبلغ برآورد (تومان)</span>
-                        <MoneyInput value={estimate.amount} onChange={(amount)=>setEstimate({...estimate,amount})}/>
-                      </label>
-                      <label>
-                        <span>مالیات ٪</span>
-                        <input
-                          inputMode="decimal"
-                          value={estimate.tax}
-                          onChange={(e) =>
-                            setEstimate({ ...estimate, tax: e.target.value })
-                          }
-                        />
-                      </label>
-                      <button disabled={busy || !estimate.amount}>
-                        ثبت برآورد
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-          <CaseToolsDisclosure key={selected.id} caseId={selected.id} locked={selected.isLocked} notify={notify}/>
-        </section>
-      </CaseActionDialog>}
-      {openHandovers.length > 0 && (<details className="case-secondary-section"><summary>تحویل‌های رسمی در انتظار ({openHandovers.length.toLocaleString("fa-IR")})</summary>
-        <section className="v2-table-panel">
-          <div className="v2-panel-title">
-            <div>
-              <UserRoundCheck />
-              <span>
-                <strong>تحویل‌های رسمی در انتظار</strong>
-                <small>
-                  انتقال مسئولیت فقط پس از تأیید تحویل‌گیرنده یا اجبار ممیزی‌شده
-                  مدیر قطعی می‌شود.
-                </small>
-              </span>
-            </div>
-          </div>
-          <ResponsiveTable headers={["پرونده", "از", "به", "علت", "عملیات"]}>
-            {openHandovers.map((handover) => (
-              <tr key={handover.id}>
-                <td data-label="پرونده">{handover.receipt_number}</td>
-                <td data-label="از">{handover.from_user_name}</td>
-                <td data-label="به">{handover.to_user_name}</td>
-                <td data-label="علت">{handover.reason}</td>
-                <td data-label="عملیات">
-                  <div className="v2-row-actions">
-                    {handover.to_user_id === profile.actorId && (
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void run(
-                            () =>
-                              workflowV2Action({
-                                action: "handover_decide",
-                                publicId: handover.public_id,
-                                decision: "accept",
-                              }),
-                            "تحویل پرونده تأیید شد.",
-                          )
-                        }
-                      >
-                        تأیید دریافت
-                      </button>
-                    )}
-                    {profile.role === "repair_manager" && (
-                      <button
-                        disabled={busy || !reason.trim()}
-                        onClick={() =>
-                          void run(
-                            () =>
-                              workflowV2Action({
-                                action: "handover_decide",
-                                publicId: handover.public_id,
-                                decision: "manager_force",
-                                reason,
-                              }),
-                            "انتقال با علت مدیر قطعی شد.",
-                          )
-                        }
-                      >
-                        قطعی‌کردن مدیر
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
+              </li>
             ))}
-          </ResponsiveTable>
-        </section></details>
+          </ul>
+        </section>
       )}
     </div>
   );

@@ -1,0 +1,176 @@
+{
+  "checks": [
+    {
+      "name": "actual operations card opens full-page overview without changing status",
+      "status": "PASS"
+    },
+    {
+      "name": "operations entry has no old modal or accordion",
+      "status": "PASS"
+    },
+    {
+      "name": "case hides duplicate operations header and refresh controls",
+      "status": "PASS"
+    },
+    {
+      "name": "entry shows necessary reception note",
+      "status": "PASS"
+    },
+    {
+      "name": "entry fits 1440",
+      "status": "PASS"
+    },
+    {
+      "name": "entry fits 768",
+      "status": "PASS"
+    },
+    {
+      "name": "entry fits 390",
+      "status": "PASS"
+    },
+    {
+      "name": "entry fits 320",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit server start from operations enters diagnosing",
+      "status": "PASS"
+    },
+    {
+      "name": "operations composer is one free-text field",
+      "status": "PASS"
+    },
+    {
+      "name": "manager can append independent reports from operations with real author",
+      "status": "PASS"
+    },
+    {
+      "name": "operations work has no accordion",
+      "status": "PASS"
+    },
+    {
+      "name": "work fits 1440",
+      "status": "PASS"
+    },
+    {
+      "name": "work fits 768",
+      "status": "PASS"
+    },
+    {
+      "name": "work fits 390",
+      "status": "PASS"
+    },
+    {
+      "name": "work fits 320",
+      "status": "PASS"
+    },
+    {
+      "name": "management menu has no accordion",
+      "status": "PASS"
+    },
+    {
+      "name": "management opens independently of report form",
+      "status": "PASS"
+    },
+    {
+      "name": "assignment fits 320",
+      "status": "PASS"
+    },
+    {
+      "name": "management draft survives refresh",
+      "status": "PASS"
+    },
+    {
+      "name": "report draft survives separate management pages and refresh",
+      "status": "PASS"
+    },
+    {
+      "name": "operations parts uses same flat task page",
+      "status": "PASS"
+    },
+    {
+      "name": "parts fits 320",
+      "status": "PASS"
+    },
+    {
+      "name": "browser Back restores operations work and draft",
+      "status": "PASS"
+    },
+    {
+      "name": "operations estimate obeys actual approval gate",
+      "status": "PASS"
+    },
+    {
+      "name": "authorized manager reaches isolated documented-decision page",
+      "status": "PASS"
+    },
+    {
+      "name": "approval needs documentation",
+      "status": "PASS"
+    },
+    {
+      "name": "decision page no old accordion",
+      "status": "PASS"
+    },
+    {
+      "name": "approval fits 320",
+      "status": "PASS"
+    },
+    {
+      "name": "failed assignment preserves form and original owner",
+      "status": "PASS"
+    },
+    {
+      "name": "assignment retry refreshes same case without modal",
+      "status": "PASS"
+    },
+    {
+      "name": "collaborator fits 320",
+      "status": "PASS"
+    },
+    {
+      "name": "collaborator retained with Toman converted to integer Rial",
+      "status": "PASS"
+    },
+    {
+      "name": "manager referral requests handover without changing owner",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit exit returns to stage cards and clears case URL",
+      "status": "PASS"
+    },
+    {
+      "name": "operations handovers no accordion or dialog",
+      "status": "PASS"
+    },
+    {
+      "name": "stage-cards fits 320",
+      "status": "PASS"
+    },
+    {
+      "name": "technician entry still uses same report history",
+      "status": "PASS"
+    },
+    {
+      "name": "technician entry has no management or customer confirmation controls",
+      "status": "PASS"
+    },
+    {
+      "name": "forged operations route does not expose customer approval to technician",
+      "status": "PASS"
+    },
+    {
+      "name": "reception without operations permission cannot enter manager workspace",
+      "status": "PASS"
+    },
+    {
+      "name": "no browser JavaScript errors",
+      "status": "PASS"
+    }
+  ],
+  "passed": 42,
+  "failed": 0,
+  "javascript_errors": [],
+  "no_real_services": true
+}

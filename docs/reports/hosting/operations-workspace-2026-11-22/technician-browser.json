@@ -1,0 +1,308 @@
+{
+  "results": [
+    {
+      "name": "opening does not change state or version",
+      "status": "PASS"
+    },
+    {
+      "name": "initial page has three clear decisions",
+      "status": "PASS"
+    },
+    {
+      "name": "initial page shows necessary reception note",
+      "status": "PASS"
+    },
+    {
+      "name": "initial page has no daily forms",
+      "status": "PASS"
+    },
+    {
+      "name": "initial page has no accordion, modal or wide table",
+      "status": "PASS"
+    },
+    {
+      "name": "entry fits 1440px",
+      "status": "PASS"
+    },
+    {
+      "name": "entry fits 768px",
+      "status": "PASS"
+    },
+    {
+      "name": "entry fits 390px",
+      "status": "PASS"
+    },
+    {
+      "name": "entry fits 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit start reaches diagnosing",
+      "status": "PASS"
+    },
+    {
+      "name": "composer requires one text field only",
+      "status": "PASS"
+    },
+    {
+      "name": "work has no accordions or modal",
+      "status": "PASS"
+    },
+    {
+      "name": "parts is a separate case page",
+      "status": "PASS"
+    },
+    {
+      "name": "browser Back preserves case and unsaved report",
+      "status": "PASS"
+    },
+    {
+      "name": "Refresh restores case, work page and draft",
+      "status": "PASS"
+    },
+    {
+      "name": "report saves in place without stage change",
+      "status": "PASS"
+    },
+    {
+      "name": "committed response loss preserves text",
+      "status": "PASS"
+    },
+    {
+      "name": "retry after response loss creates no duplicate",
+      "status": "PASS"
+    },
+    {
+      "name": "correction preserves original visible report",
+      "status": "PASS"
+    },
+    {
+      "name": "browser Back cannot leave during an active save",
+      "status": "PASS"
+    },
+    {
+      "name": "back-to-list control is disabled during save",
+      "status": "PASS"
+    },
+    {
+      "name": "optional photo returns to same composer",
+      "status": "PASS"
+    },
+    {
+      "name": "gallery shows actual file author",
+      "status": "PASS"
+    },
+    {
+      "name": "photos have no accordion",
+      "status": "PASS"
+    },
+    {
+      "name": "photos fits 390px",
+      "status": "PASS"
+    },
+    {
+      "name": "above-cap proposal really enters customer wait",
+      "status": "PASS"
+    },
+    {
+      "name": "work shows short customer-wait message",
+      "status": "PASS"
+    },
+    {
+      "name": "finish is blocked without cost approval",
+      "status": "PASS"
+    },
+    {
+      "name": "partial row save keeps remaining row and marks saved row",
+      "status": "PASS"
+    },
+    {
+      "name": "multirow retry bills each manual part only once",
+      "status": "PASS"
+    },
+    {
+      "name": "Toman entry remains integer Rial at server",
+      "status": "PASS"
+    },
+    {
+      "name": "pending stock prevents final completion",
+      "status": "PASS"
+    },
+    {
+      "name": "settling stock returns to finish page and preserves final text",
+      "status": "PASS"
+    },
+    {
+      "name": "work fits 1440px",
+      "status": "PASS"
+    },
+    {
+      "name": "work stays flat at 1440px",
+      "status": "PASS"
+    },
+    {
+      "name": "work fits 768px",
+      "status": "PASS"
+    },
+    {
+      "name": "work stays flat at 768px",
+      "status": "PASS"
+    },
+    {
+      "name": "work fits 390px",
+      "status": "PASS"
+    },
+    {
+      "name": "work stays flat at 390px",
+      "status": "PASS"
+    },
+    {
+      "name": "work fits 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "work stays flat at 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "parts fits 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "parts is independent and flat",
+      "status": "PASS"
+    },
+    {
+      "name": "estimate fits 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "estimate is independent and flat",
+      "status": "PASS"
+    },
+    {
+      "name": "photos fits 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "photos is independent and flat",
+      "status": "PASS"
+    },
+    {
+      "name": "refer fits 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "refer is independent and flat",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired fits 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "unrepaired is independent and flat",
+      "status": "PASS"
+    },
+    {
+      "name": "repaired fits 320px",
+      "status": "PASS"
+    },
+    {
+      "name": "repaired is independent and flat",
+      "status": "PASS"
+    },
+    {
+      "name": "successful repair follows existing finance route with QC off",
+      "status": "PASS"
+    },
+    {
+      "name": "completed case preserves final report visibly",
+      "status": "PASS"
+    },
+    {
+      "name": "referral stays pending without changing owner/result",
+      "status": "PASS"
+    },
+    {
+      "name": "collaborator visibility cannot masquerade as successful handover",
+      "status": "PASS"
+    },
+    {
+      "name": "blocked handover exposes the server parts reason",
+      "status": "PASS"
+    },
+    {
+      "name": "blocked handover retains the original principal",
+      "status": "PASS"
+    },
+    {
+      "name": "destination technician can accept through existing handover rules",
+      "status": "PASS"
+    },
+    {
+      "name": "opening no-repair page still does not change stage",
+      "status": "PASS"
+    },
+    {
+      "name": "initial unrepaired outcome reaches delivery path without QC",
+      "status": "PASS"
+    },
+    {
+      "name": "locked case has no editable report form",
+      "status": "PASS"
+    },
+    {
+      "name": "newest reports display first",
+      "status": "PASS"
+    },
+    {
+      "name": "older reports append without replacing loaded history",
+      "status": "PASS"
+    },
+    {
+      "name": "older-history control disappears at end",
+      "status": "PASS"
+    },
+    {
+      "name": "browser has no uncaught JavaScript errors",
+      "status": "PASS"
+    }
+  ],
+  "passed": 67,
+  "failed": 0,
+  "javascript_errors": [],
+  "ux_review": [
+    {
+      "width": 1440,
+      "composer_textareas": 1,
+      "composer_other_fields": 0,
+      "decorative_images": 0,
+      "accordions": 0
+    },
+    {
+      "width": 768,
+      "composer_textareas": 1,
+      "composer_other_fields": 0,
+      "decorative_images": 0,
+      "accordions": 0
+    },
+    {
+      "width": 390,
+      "composer_textareas": 1,
+      "composer_other_fields": 0,
+      "decorative_images": 0,
+      "accordions": 0
+    },
+    {
+      "width": 320,
+      "composer_textareas": 1,
+      "composer_other_fields": 0,
+      "decorative_images": 0,
+      "accordions": 0
+    }
+  ],
+  "limits": [
+    "Chromium loopback PHP/MariaDB only; no real SMS/payment/customer approval; no human peer review"
+  ]
+}

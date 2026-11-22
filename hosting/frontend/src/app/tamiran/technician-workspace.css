@@ -560,3 +560,35 @@
   margin-block-end: 0;
   padding-block-end: 4px;
 }
+/* Operations uses the same task workspace; management forms stay on their own page. */
+.operations-case-desk {
+  width: 100%;
+}
+.operations-case .v2-inline-form,
+.operations-case .v2-grid-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+}
+.operations-case .v2-card-form > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.operations-case .v2-inline-form button,
+.operations-case .v2-grid-form button {
+  align-self: end;
+}
+.tech-handover-list ul {
+  list-style: none;
+  padding: 0;
+}
+.tech-handover-list li {
+  padding-block: 16px;
+  border-bottom: 1px solid #d4e2de;
+}
+.tech-handover-list label {
+  display: grid;
+  gap: 8px;
+  margin-block: 12px;
+}

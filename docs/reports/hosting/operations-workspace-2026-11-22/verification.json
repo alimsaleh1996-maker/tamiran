@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0-php.10",
+  "base_commit": "b13022b9c3bd48c643e19e1d155ac43f336962cf",
+  "operations_browser_checks": 42,
+  "technician_browser_checks": 67,
+  "browser_javascript_errors": 0,
+  "http_workflow_checks": 110,
+  "http_report_checks": 34,
+  "node_checks": 29,
+  "php_lint_files": 60,
+  "typecheck": "PASS",
+  "build": "PASS",
+  "schema_changed": false,
+  "other_workspace_module_code_unchanged": true,
+  "manual_review_scope": "separate source/visual review by implementing agent; no independent human or second agent",
+  "unexecuted": [
+    "Safari/Firefox",
+    "Screen reader",
+    "Real customer OTP/approval",
+    "Production deployment"
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "date": "2026-11-22",
-  "graph_nodes": 4668,
-  "typed_relationships": 11514,
+  "graph_nodes": 4684,
+  "typed_relationships": 11565,
   "checks": [
     {
       "file": "graph.html",
@@ -14,5 +14,5 @@
       "javascript_errors": 0
     }
   ],
-  "scope": "self-contained viewers served on loopback; file scheme blocked by browser policy; not hosted app acceptance"
+  "scope": "self-contained viewers served on loopback; not hosted app acceptance"
 }
