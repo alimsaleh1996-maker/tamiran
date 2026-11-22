@@ -915,6 +915,8 @@ export function TechnicalCaseWorkspace({
                   نتیجهٔ ثبت‌شده: {data.report}
                 </p>
               )}
+              <h3>گزارش‌های ثبت‌شده</h3>
+              {timeline(true)}
               <nav className="tech-tools" aria-label="ابزارهای دستگاه">
                 <button disabled={disabled} onClick={() => go("parts")}>
                   قطعات
@@ -966,8 +968,6 @@ export function TechnicalCaseWorkspace({
                   )}
                 </div>
               )}
-              <h3>گزارش‌های ثبت‌شده</h3>
-              {timeline(true)}
             </section>
           ) : null}
           {screen === "parts" ? (
