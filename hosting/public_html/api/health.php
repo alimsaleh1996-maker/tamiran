@@ -23,7 +23,7 @@ tamiran_api(static function (): array {
     return [
         'status' => $schemaCompatible ? 'ok' : 'degraded',
         'version' => TAMIRAN_VERSION,
-        'frontend_version' => '2.0.0-php.6',
+        'frontend_version' => '2.0.0-php.7',
         'backend_version' => TAMIRAN_VERSION,
         'schema_version' => $schemaVersion,
         'schema_compatible' => $schemaCompatible,

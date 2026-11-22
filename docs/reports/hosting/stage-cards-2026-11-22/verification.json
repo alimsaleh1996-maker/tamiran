@@ -1,0 +1,221 @@
+{
+  "version": "2.0.0-php.7",
+  "date": "2026-11-22",
+  "browser": {
+    "passed": 46,
+    "failed": 0,
+    "results": [
+      {
+        "name": "technician board shows only assigned device cards and no forms",
+        "status": "PASS"
+      },
+      {
+        "name": "no case is opened automatically",
+        "status": "PASS"
+      },
+      {
+        "name": "opening a card does not start diagnosis",
+        "status": "PASS"
+      },
+      {
+        "name": "start stage shows one primary action and no technical form",
+        "status": "PASS"
+      },
+      {
+        "name": "background is inert during case dialog",
+        "status": "PASS"
+      },
+      {
+        "name": "Escape restores focus to the device card",
+        "status": "PASS"
+      },
+      {
+        "name": "explicit start advances case to diagnosis",
+        "status": "PASS"
+      },
+      {
+        "name": "device card moves to the diagnosis stage",
+        "status": "PASS"
+      },
+      {
+        "name": "quick close and reopen preserves unsaved technical draft",
+        "status": "PASS"
+      },
+      {
+        "name": "estimate dialog retains submitted report and toman cap",
+        "status": "PASS"
+      },
+      {
+        "name": "validation failure stays visible inside the open case",
+        "status": "PASS"
+      },
+      {
+        "name": "Persian estimate persists exact rials and advances to repair",
+        "status": "PASS"
+      },
+      {
+        "name": "photos history and reporting are initially collapsed",
+        "status": "PASS"
+      },
+      {
+        "name": "photo upload and immutable problem report work inside dialog",
+        "status": "PASS"
+      },
+      {
+        "name": "part navigation closes dialog and preserves exact case",
+        "status": "PASS"
+      },
+      {
+        "name": "part request is linked to same device",
+        "status": "PASS"
+      },
+      {
+        "name": "waiting stage has no unrelated technical submission form",
+        "status": "PASS"
+      },
+      {
+        "name": "tech stage cards fit 1024px",
+        "status": "PASS"
+      },
+      {
+        "name": "tech dialog fits and keeps close control at 1024px",
+        "status": "PASS"
+      },
+      {
+        "name": "tech stage cards fit 768px",
+        "status": "PASS"
+      },
+      {
+        "name": "tech dialog fits and keeps close control at 768px",
+        "status": "PASS"
+      },
+      {
+        "name": "tech stage cards fit 390px",
+        "status": "PASS"
+      },
+      {
+        "name": "tech dialog fits and keeps close control at 390px",
+        "status": "PASS"
+      },
+      {
+        "name": "tech stage cards fit 320px",
+        "status": "PASS"
+      },
+      {
+        "name": "tech dialog fits and keeps close control at 320px",
+        "status": "PASS"
+      },
+      {
+        "name": "manager opens earliest actionable stage instead of a full case",
+        "status": "PASS"
+      },
+      {
+        "name": "manager assignment case hides unrelated future finance blockers",
+        "status": "PASS"
+      },
+      {
+        "name": "assignment closes form and moves device to start stage",
+        "status": "PASS"
+      },
+      {
+        "name": "manager also uploads a private photo inside the selected case",
+        "status": "PASS"
+      },
+      {
+        "name": "manager history and problem report stay inside same case",
+        "status": "PASS"
+      },
+      {
+        "name": "manager over-cap estimate moves card to customer approval",
+        "status": "PASS"
+      },
+      {
+        "name": "customer decision moves correct manager card to repair",
+        "status": "PASS"
+      },
+      {
+        "name": "manager-to-technical handoff opens the same case",
+        "status": "PASS"
+      },
+      {
+        "name": "technical handoff uses fresh version and stores repair result",
+        "status": "PASS"
+      },
+      {
+        "name": "manager cards fit 1024px",
+        "status": "PASS"
+      },
+      {
+        "name": "manager dialog fits 1024px",
+        "status": "PASS"
+      },
+      {
+        "name": "manager cards fit 768px",
+        "status": "PASS"
+      },
+      {
+        "name": "manager dialog fits 768px",
+        "status": "PASS"
+      },
+      {
+        "name": "manager cards fit 390px",
+        "status": "PASS"
+      },
+      {
+        "name": "manager dialog fits 390px",
+        "status": "PASS"
+      },
+      {
+        "name": "manager cards fit 320px",
+        "status": "PASS"
+      },
+      {
+        "name": "manager dialog fits 320px",
+        "status": "PASS"
+      },
+      {
+        "name": "partial consent save refreshes into recovery without asking to record consent twice",
+        "status": "PASS"
+      },
+      {
+        "name": "recovery advances the already approved case",
+        "status": "PASS"
+      },
+      {
+        "name": "stage navigation supports RTL keyboard arrows",
+        "status": "PASS"
+      },
+      {
+        "name": "both flows have no JavaScript errors",
+        "status": "PASS"
+      }
+    ]
+  },
+  "layout": {
+    "passed": 2,
+    "checks": [
+      "Assignment preview waits for enabled action",
+      "320px long device heading retains close control and no horizontal overflow"
+    ]
+  },
+  "http_regression": {
+    "passed": 102,
+    "failed": 0
+  },
+  "node_checks": 29,
+  "packaging_checks": 2,
+  "source_php_syntax_files": 49,
+  "typescript": "PASS",
+  "build": "PASS",
+  "frozen_hashes": 67,
+  "menus": 20,
+  "frontend_contracts": 27,
+  "api_files": 38,
+  "sql_changed": false,
+  "scope": "Real loopback PHP/MariaDB synthetic fixtures; no real SMS/payment/customer data",
+  "limits": [
+    "No live deployment",
+    "No Safari or screen reader certification",
+    "Not all role/profile combinations exercised"
+  ]
+}

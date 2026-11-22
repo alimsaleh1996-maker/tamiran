@@ -251,3 +251,21 @@ export function CaseTools({
     </section>
   );
 }
+
+/** Secondary tools are fetched only when the user opens this section. */
+export function CaseToolsDisclosure(props: {
+  caseId: number;
+  locked: boolean;
+  notify: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="case-secondary-section"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>عکس، گزارش مشکل و تاریخچه</summary>
+      {open && <CaseTools {...props} />}
+    </details>
+  );
+}

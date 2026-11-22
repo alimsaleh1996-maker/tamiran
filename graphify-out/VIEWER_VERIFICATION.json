@@ -1,7 +1,7 @@
 {
   "date": "2026-11-22",
-  "graph_nodes": 4573,
-  "typed_relationships": 11147,
+  "graph_nodes": 4582,
+  "typed_relationships": 11184,
   "checks": [
     {
       "file": "graph.html",

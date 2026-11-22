@@ -1,13 +1,12 @@
 "use client";
 import { MoneyInput, formatToman } from "./money-input";
-import { CaseTools } from "./case-tools";
+import { CaseStageBoard, CaseActionDialog } from "./case-stage-board";
+import { CaseToolsDisclosure } from "./case-tools";
 import "./iteration-six.css";
 
 import {
   AlertTriangle,
   CheckCircle2,
-  ChevronLeft,
-  Clock3,
   FileSearch,
   LoaderCircle,
   PackageOpen,
@@ -16,11 +15,10 @@ import {
   Save,
   Search,
   ShieldCheck,
-  Smartphone,
   Wrench,
 } from "lucide-react";
 import * as React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkspaceProfile } from "./access";
 import { FollowUpApiError } from "./followups-api";
 import type { RepairCaseRecord, RepairCaseStatus } from "./operations";
@@ -35,11 +33,6 @@ import {
   type V2InventoryPayload,
 } from "./v2-api";
 
-const tabs = [
-  { key: "action_required", label: "نیازمند اقدام" },
-  { key: "waiting", label: "منتظر" },
-  { key: "completed", label: "انجام‌شده" },
-] as const;
 const flagLabels: Record<string, string> = {
   warranty: "گارانتی",
   qc_rework: "بازکاری QC",
@@ -108,11 +101,12 @@ export function TechnicianWorkbench({
 }) {
   const [cases, setCases] = useState<V2Case[]>([]);
   const [inventory, setInventory] = useState<V2InventoryPayload | null>(null);
-  const [tab, setTab] =
-    useState<(typeof tabs)[number]["key"]>("action_required");
   const [query, setQuery] = useState("");
   const [serverQuery, setServerQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(0);
+  const [selectedId, setSelectedId] = useState(() => {
+    const value=Number(window.sessionStorage.getItem("tamiran:focused-tech-case")??0);
+    window.sessionStorage.removeItem("tamiran:focused-tech-case");return Number.isSafeInteger(value)&&value>0?value:0;
+  });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -136,6 +130,7 @@ export function TechnicianWorkbench({
     setError("");
     try {
       const payload = await loadV2Workflow(undefined, serverQuery);
+      await onRefreshOperations();
       setCases(payload.cases);
       if (serverQuery && payload.cases.length === 0)
         setError("پرونده‌ای با دسترسی مجاز برای شما پیدا نشد.");
@@ -151,24 +146,16 @@ export function TechnicianWorkbench({
     } finally {
       setLoading(false);
     }
-  }, [profile.inventoryMode, serverQuery]);
+  }, [profile.inventoryMode, serverQuery, onRefreshOperations]);
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  const filtered = useMemo(
-    () =>
-      cases
-        .filter((item) => item.technicianView.group === tab)
-        .sort(
-          (a, b) =>
-            b.technicianView.priority - a.technicianView.priority ||
-            b.updatedAt.localeCompare(a.updatedAt),
-        ),
-    [cases, tab],
-  );
-  const selected =
-    filtered.find((item) => item.id === selectedId) ?? null;
+  const selected = cases.find(item => item.id === selectedId) ?? null;
+  const closeCase = () => {
+    if (selected) window.localStorage.setItem(`tamiran-tech-draft:${selected.publicId}`,draft);
+    setSelectedId(0);
+  };
   const legacy = selected
     ? legacyCases.find((item) => item.receiptNumber === selected.receiptNumber)
     : undefined;
@@ -270,8 +257,8 @@ export function TechnicianWorkbench({
         onNavigate("درخواست‌های قطعه");
       }
       window.localStorage.removeItem(`tamiran-tech-draft:${selected.publicId}`);
-      await onRefreshOperations();
       await reload();
+      setSelectedId(0);
     } catch (cause) {
       setError(errorText(cause));
     } finally {
@@ -279,14 +266,7 @@ export function TechnicianWorkbench({
     }
   };
 
-  const openCase = async (item: V2Case) => {
-    if(busy)return;setError("");setBusy(true);
-    try {
-      if(item.technicianView.primaryAction?.key === "start_diagnosis") await transitionV2Case(item.id,"diagnosing",item.lockVersion,"شروع بررسی از کارهای من");
-      await onRefreshOperations();
-      setSelectedId(item.id);await reload();
-    }catch(cause){setError(errorText(cause));}finally{setBusy(false);}
-  };
+  const openCase = (item: V2Case) => { if (!busy) {setError("");setSelectedId(item.id);} };
   const scan = async (file: File | undefined) => {
     if (!file) return;
     try {
@@ -352,10 +332,9 @@ export function TechnicianWorkbench({
       <header className="tech-workbench-head">
         <div>
           <span>میز کار روزانه</span>
-          <h2>کارهای من</h2>
+          <h2>دستگاه‌های من</h2>
           <p>
-            {profile.displayName} · اقدام بعدی هر پرونده از موتور فرایند خوانده
-            می‌شود.
+            مرحله را انتخاب کنید و کارت دستگاه را باز کنید.
           </p>
         </div>
         <div>
@@ -385,7 +364,7 @@ export function TechnicianWorkbench({
           </button>
         </div>
       </header>
-      {error && (
+      {error && !selected && (
         <div className="form-error-summary" role="alert">
           <AlertTriangle size={19} />
           <div>
@@ -394,60 +373,6 @@ export function TechnicianWorkbench({
           </div>
         </div>
       )}
-      <div className="tech-summary-row">
-        <span>
-          <strong>
-            {
-              cases.filter(
-                (item) => item.technicianView.group === "action_required",
-              ).length
-            }
-          </strong>{" "}
-          کار فعال
-        </span>
-        <span>
-          <strong>
-            {
-              cases.filter((item) =>
-                item.technicianView.flags.includes("waiting_part"),
-              ).length
-            }
-          </strong>{" "}
-          منتظر قطعه
-        </span>
-        <span>
-          <strong>
-            {
-              cases.filter((item) =>
-                item.technicianView.flags.includes("qc_rework"),
-              ).length
-            }
-          </strong>{" "}
-          بازکاری
-        </span>
-      </div>
-      <div className="tech-segmented" role="tablist">
-        {tabs.map((item) => (
-          <button
-            role="tab"
-            aria-selected={tab === item.key}
-            className={tab === item.key ? "active" : ""}
-            key={item.key}
-            onClick={() => {
-              setTab(item.key);
-              setSelectedId(0);
-            }}
-          >
-            {item.label}
-            <b>
-              {
-                cases.filter((entry) => entry.technicianView.group === item.key)
-                  .length
-              }
-            </b>
-          </button>
-        ))}
-      </div>
       <label className="tech-search">
         <Search size={18} />
         <input
@@ -456,71 +381,12 @@ export function TechnicianWorkbench({
           placeholder="شماره پرونده، موبایل، سریال، مدل یا نام مشتری"
         />
       </label>
-      {loading && cases.length === 0 ? (
-        <div className="tech-loading">
-          <LoaderCircle className="is-spinning" />
-          <span>در حال خواندن کارهای شما...</span>
-        </div>
-      ) : (
-        <div className={`tech-master-detail ${selected ? "has-open-case" : "is-list-only"}`}>
-          <aside className="tech-case-list">
-            {filtered.map((item) => (
-              <article
-                className={`tech-case-card ${selected?.id === item.id ? "selected" : ""} ${item.technicianView.flags.includes("qc_rework") ? "priority" : ""}`}
-                key={item.id}
-              >
-                <div className="tech-card-kicker">
-                  <span dir="ltr">#{item.receiptNumber}</span>
-                  <em>{item.technicianView.statusLabel}</em>
-                </div>
-                <div className="tech-card-title">
-                  <span>
-                    <Smartphone size={19} />
-                  </span>
-                  <div>
-                    <strong>{item.customerName}</strong>
-                    <small>{item.deviceTitle}</small>
-                  </div>
-                  <ChevronLeft size={17} />
-                </div>
-                <p>{item.declaredIssue}</p>
-                <div className="tech-card-meta">
-                  <span>
-                    <Clock3 size={14} />
-                    {localDate(item.updatedAt)}
-                  </span>
-                </div>
-                <div className="tech-flags">
-                  {item.technicianView.flags.map((flag) => (
-                    <b key={flag} className={`flag-${flag}`}>
-                      {flagLabels[flag] ?? flag}
-                    </b>
-                  ))}
-                </div>
-                <button type="button" className="tech-open-case" disabled={busy} onClick={() => void openCase(item)}>{item.technicianView.primaryAction?.key === "start_diagnosis" ? "شروع بررسی" : "بازکردن پرونده"}<ChevronLeft size={17}/></button>
-              </article>
-            ))}
-            {!filtered.length && (
-              <div className="tech-empty">
-                <CheckCircle2 size={28} />
-                <strong>پرونده‌ای در این گروه نیست</strong>
-                <p>
-                  با تغییر وضعیت، پرونده‌ها خودکار میان گروه‌ها جابه‌جا می‌شوند.
-                </p>
-              </div>
-            )}
-          </aside>
-          <section className="tech-case-detail">
-            {selected ? (
-              <>
-                <button type="button" className="outline-action tech-close-case" onClick={() => setSelectedId(0)}>بازگشت به کارهای من</button>
-                <div className="tech-case-context" aria-label="مشخصات ثابت پرونده">
-                  <div><small>پرونده</small><strong dir="ltr">{selected.receiptNumber}</strong></div>
-                  <div><small>مشتری</small><strong>{selected.customerName}</strong></div>
-                  <div><small>دستگاه</small><strong>{selected.deviceTitle}</strong></div>
-                  <div><small>مسئول</small><strong>{selected.technicianName || profile.displayName}</strong></div>
-                  <div><small>شعبه</small><strong>{profile.branch}</strong></div>
-                </div>
+      {loading && cases.length===0 ? <p role="status">در حال دریافت دستگاه‌ها…</p> :
+        <CaseStageBoard cases={cases} busy={busy||loading} openCaseId={selectedId} onOpen={openCase}/>
+      }
+      {selected && <CaseActionDialog title={selected.deviceTitle} receipt={selected.receiptNumber} busy={busy} onClose={closeCase}>
+        <section className="tech-case-detail">
+          {error && <div role="alert" className="form-error-summary">{error}</div>}
                 <div className="tech-current-action">
                   <span>
                     <Wrench size={22} />
@@ -594,7 +460,7 @@ export function TechnicianWorkbench({
                     <span><strong>پرونده مختومه است</strong><small>فرم قطعه و اقدام عملیاتی برای پرونده قفل‌شده نمایش داده نمی‌شود.</small></span>
                   </div>
                 )}
-                {selected.technicianView.primaryAction && (
+                {selected.technicianView.primaryAction && ["record_diagnosis","create_estimate","complete_repair"].includes(selected.technicianView.primaryAction.key) && (
                   <section className="tech-detail-section tech-action-form">
                     <header>
                       <h3>اقدام فعلی</h3>
@@ -625,7 +491,7 @@ export function TechnicianWorkbench({
                     </small>
                   </section>
                 )}
-                {!selected.isLocked && (
+                {!selected.isLocked && (<details className="case-secondary-section"><summary>قطعات و درخواست قطعه</summary>
                 <section className="tech-detail-section">
                   <header>
                     <h3>{inventory ? "قطعات این پرونده" : "قطعات مصرف‌شده"}</h3>
@@ -675,9 +541,9 @@ export function TechnicianWorkbench({
                       </div>
                     </div>
                   )}
-                </section>
+                </section></details>
                 )}
-                <CaseTools key={selected.id} caseId={selected.id} locked={selected.isLocked} notify={notify}/>
+                <CaseToolsDisclosure key={selected.id} caseId={selected.id} locked={selected.isLocked} notify={notify}/>
                 {selected.technicianView.primaryAction && (
                   <div className="tech-sticky-action">
                     <button
@@ -697,17 +563,10 @@ export function TechnicianWorkbench({
                     </button>
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="tech-empty large">
-                <ShieldCheck size={32} />
-                <strong>یک پرونده را انتخاب کنید</strong>
-                <p>جزئیات فنی و اقدام بعدی اینجا نمایش داده می‌شود.</p>
-              </div>
-            )}
-          </section>
-        </div>
-      )}
+
+        </section>
+      </CaseActionDialog>}
+
     </div>
   );
 }

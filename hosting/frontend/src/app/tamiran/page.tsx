@@ -1196,6 +1196,7 @@ export default function Home() {
             <V2Workspace
               key={`${activePage}-${contentRevision}`}
               page={activePage}
+              onNavigate={selectPage}
               profile={workspaceProfile}
               notify={notify}
             />
