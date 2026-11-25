@@ -10,13 +10,20 @@ from case_tools import upload
 
 def run(args):
  f=json.loads(Path(args.fixture).read_text());assert urlsplit(f['base']).hostname in ('127.0.0.1','localhost','::1');r=Runner(args.report);m=Client(f['base']);m.login(f['managerMobile'],f['password']);t=Client(f['base']);ta=t.login(f['tech']['phone'],f['password']);users=m.api('admin-users.php')['users'];other=next(u for u in users if u['role']=='technician' and u['id']!=ta['id']);o=Client(f['base']);o.login(other['phone'],f['password'])
- def create():return m.api('operations.php','POST',{'action':'create_case','receiptMode':'issue_only','customerName':'TEST minimal report','customerMobile':f['customerMobile'],'deviceModelId':f['model']['id'],'identifier':synthetic_imei(),'declaredIssue':'TEST روشن نمی‌شود','receptionNotes':'TEST ابتدا اتصال شارژ بررسی شود','customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':ta['id'],'preapprovedAmount':7500000,'idempotencyKey':secrets.token_hex(14)})['repairCase']['id']
+ def create(wait_for_receipt=False):
+  case_id= m.api('operations.php','POST',{'action':'create_case','receiptMode':'issue_only','customerName':'TEST minimal report','customerMobile':f['customerMobile'],'deviceModelId':f['model']['id'],'identifier':synthetic_imei(),'declaredIssue':'TEST روشن نمی‌شود','receptionNotes':'TEST ابتدا اتصال شارژ بررسی شود','customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':ta['id'],'preapprovedAmount':7500000,'idempotencyKey':secrets.token_hex(14)})['repairCase']['id']
+  if not wait_for_receipt: receive(case_id)
+  return case_id
  def row(id,c=t):return c.api(f'workflow-v2.php?caseId={id}')['cases'][0]
  def proj(id,c=t):return c.api(f'workflow-v2.php?caseId={id}&technical=1')
- id=create();before=row(id);p=proj(id)
+ def receive(id):
+  return t.api('workflow-v2.php','POST',{'action':'technical_receive','caseId':id,'lockVersion':row(id)['lockVersion'],'idempotencyKey':secrets.token_hex(12)})
+ id=create(wait_for_receipt=True);before=row(id);p=proj(id)
  r.check('opening preserves status and version',lambda:expect(row(id)['status']==before['status'] and row(id)['lockVersion']==before['lockVersion'],'opening moved state'))
  r.check('necessary reception note is projected',lambda:expect(p['receptionNotes']=='TEST ابتدا اتصال شارژ بررسی شود','note absent'))
  payload={'action':'technical_activity','caseId':id,'description':'فقط نوشتن متن و ثبت گزارش','idempotencyKey':secrets.token_hex(12)}
+ r.check('unchanged intake cannot create a technical note before physical receipt',lambda:t.api('workflow-v2.php','POST',payload,expected=409))
+ r.check('receipt event carries real author and timestamp',lambda:expect(receive(id)['received'] and any(e['event_type']=='technical_receipt' and e['actorName']==ta['displayName'] and e['created_at'] for e in t.api(f'workflow-v2.php?caseId={id}&activity=1')['events']),'physical receipt audit missing'))
  first=r.check('text-only report needs no title or category',lambda:t.api('workflow-v2.php','POST',payload))
  r.check('text-only retry returns original event',lambda:expect(t.api('workflow-v2.php','POST',payload)['id']==first['id'],'duplicate report'))
  r.check('blank report rejected',lambda:t.api('workflow-v2.php','POST',{**payload,'description':'  ','idempotencyKey':secrets.token_hex(12)},expected=400))
@@ -42,19 +49,22 @@ def run(args):
  r.check('referral exact retry is idempotent',lambda:expect(t.api('workflow-v2.php','POST',ref)['publicId']==hand['publicId'],'duplicate referral'))
  r.check('referral retry cannot change destination reason',lambda:t.api('workflow-v2.php','POST',{**ref,'reason':'changed'},expected=409))
  r.check('other technician cannot replay referral',lambda:o.api('workflow-v2.php','POST',ref,expected=403))
+ r.check('manager cannot bypass recipient confirmation',lambda:m.api('workflow-v2.php','POST',{'action':'handover_decide','publicId':hand['publicId'],'decision':'manager_force','reason':'TEST bypass removed'},expected=409))
+ r.check('rejected manager force retains original responsibility',lambda:expect(row(id)['primaryTechnicianUserId']==ta['id'],'owner changed before confirmation'))
  o.api('workflow-v2.php','POST',{'action':'handover_decide','publicId':hand['publicId'],'decision':'accept'})
  r.check('accepted referral preserves reports and original actor',lambda:expect(len(proj(id,o)['activities']['activities'])==3 and all(x['actorName']==ta['displayName'] for x in proj(id,o)['activities']['activities']),'transfer lost history'))
  r.check('former principal loses unauthorized edit access',lambda:t.api('workflow-v2.php','POST',{**payload,'idempotencyKey':secrets.token_hex(12)},expected=403))
  initial=create();state=row(initial)
  finish={'action':'technical_finish','caseId':initial,'result':'not_repaired','reason':'TEST برد قابل تعمیر نیست','report':'TEST برد قابل تعمیر نیست','lockVersion':state['lockVersion'],'idempotencyKey':secrets.token_hex(12)}
- r.check('initial no-repair decision needs no fake diagnosis step',lambda:t.api('workflow-v2.php','POST',finish))
+ r.check('no-repair decision follows physical receipt',lambda:t.api('workflow-v2.php','POST',finish))
  r.check('no-charge initial unrepaired case enters return without QC',lambda:expect(row(initial)['status']=='returned_unrepaired' and proj(initial)['result']=='not_repaired','wrong outcome'))
  r.check('closed case rejects text-only report',lambda:t.api('workflow-v2.php','POST',{**payload,'caseId':initial,'idempotencyKey':secrets.token_hex(12)},expected=409))
  r.check('closed case rejects photo',lambda:upload(t,initial,expected=409))
  r.check('closed case rejects referral',lambda:t.api('workflow-v2.php','POST',{**ref,'caseId':initial,'idempotencyKey':secrets.token_hex(12)},expected=409))
  blocked=create();inv=m.api('inventory-v2.php');item=inv['items'][0];t.api('inventory-v2.php','POST',{'action':'request','caseId':blocked,'itemId':item['id'],'quantity':1,'idempotencyKey':secrets.token_hex(12)})
+ blocked_stage=row(blocked)['status']
  r.check('unsettled parts block initial no-repair completion',lambda:t.api('workflow-v2.php','POST',{**finish,'caseId':blocked,'lockVersion':row(blocked)['lockVersion'],'idempotencyKey':secrets.token_hex(12)},expected=409))
- r.check('failed initial finalization leaves result unset',lambda:expect(proj(blocked)['result'] is None and row(blocked)['status']=='assigned','partial result committed'))
+ r.check('failed initial finalization leaves result unset',lambda:expect(proj(blocked)['result'] is None and row(blocked)['status']==blocked_stage,'partial result committed'))
  closed_ref=create();ch=t.api('workflow-v2.php','POST',{**ref,'caseId':closed_ref,'idempotencyKey':secrets.token_hex(12)});t.api('workflow-v2.php','POST',{**finish,'caseId':closed_ref,'lockVersion':row(closed_ref)['lockVersion'],'idempotencyKey':secrets.token_hex(12)})
  r.check('closed case cannot accept an earlier pending handover',lambda:o.api('workflow-v2.php','POST',{'action':'handover_decide','publicId':ch['publicId'],'decision':'accept'},expected=409))
  r.check('failed closed-case handover retains owner and lock',lambda:expect(row(closed_ref)['primaryTechnicianUserId']==ta['id'] and row(closed_ref)['isLocked'],'closed ownership mutated'))

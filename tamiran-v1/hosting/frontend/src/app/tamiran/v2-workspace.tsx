@@ -529,23 +529,6 @@ function WorkflowBoard({
                       />
                     </label>
                     <button
-                      disabled={busy || !handoverReasons[h.id]?.trim()}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            "مسئولیت پرونده با تصمیم مدیر منتقل شود؟",
-                          )
-                        )
-                          void decide(
-                            h.public_id,
-                            "manager_force",
-                            handoverReasons[h.id],
-                          );
-                      }}
-                    >
-                      قطعی‌کردن مدیر
-                    </button>
-                    <button
                       type="button"
                       disabled={busy || !handoverReasons[h.id]?.trim()}
                       onClick={() =>

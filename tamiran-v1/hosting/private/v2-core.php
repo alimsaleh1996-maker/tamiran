@@ -204,9 +204,26 @@ function v2_closure_outcome(string $status): ?string
     };
 }
 
+/** Both callers use w for the workflow and c for the case. */
+function v2_receipt_pending_sql(): string
+{
+    return "CASE WHEN w.locked_at IS NOT NULL THEN 0
+        WHEN w.primary_technician_user_id IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM repair_case_assignments a
+            WHERE a.workflow_id=w.id AND a.technician_user_id=w.primary_technician_user_id
+              AND a.assignment_type='primary' AND a.ended_at IS NULL AND a.accepted_at IS NULL
+        )
+        WHEN c.product_profile_snapshot='solo' THEN EXISTS (
+            SELECT 1 FROM repair_case_events e WHERE e.case_id=c.id AND e.event_type='case_created'
+              AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json, '$.physicalReceiptRequired'))='true'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM repair_case_events e WHERE e.case_id=c.id AND e.event_type='technical_receipt'
+        ) ELSE 0 END";
+}
+
 function v2_case(PDO $pdo, array $scope, int $caseId, bool $lock = false): array
 {
-    $sql = 'SELECT w.*,c.public_id AS case_public_id,c.receipt_number,c.customer_id,c.device_id,c.declared_issue,c.accessories_json,
+    $sql = 'SELECT w.*,'.v2_receipt_pending_sql().' AS physical_receipt_pending,c.public_id AS case_public_id,c.receipt_number,c.customer_id,c.device_id,c.declared_issue,c.accessories_json,
                    c.operation_report,c.result,c.reception_notes,c.created_at AS accepted_at,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
                    cu.secondary_mobile,cu.address AS customer_address,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.identifier_snapshot,c.delivered_at,
                    c.product_profile_snapshot,c.inventory_mode_snapshot,c.qc_mode_snapshot,c.feature_flags_snapshot_json,
@@ -347,6 +364,9 @@ function v2_transition(PDO $pdo, array $scope, int $caseId, string $target, ?str
         }
         $maps=v2_workflow_maps($policy);
         if(!$technicalFinish&&!in_array($target,$maps[$row['workflow_code']][$row['process_status']]??[],true)) throw new TamiranApiException('این انتقال در گردش صنف پرونده مجاز نیست.',409);
+        if (!in_array($target, ['assigned', 'awaiting_assignment', 'cancelled'], true)) {
+            technician_require_receipt($row);
+        }
         if(in_array($target,['cancelled','returned_unrepaired'],true) && $reason===null) throw new TamiranApiException('علت بستن پرونده الزامی است.');
         if($policy['assignmentRequired']&&!in_array($target,['awaiting_assignment','cancelled','returned_unrepaired'],true)) {
             if((int)$row['primary_technician_user_id']<1) throw new TamiranApiException('پرونده باید تکنسین مسئول فعال داشته باشد.',409);

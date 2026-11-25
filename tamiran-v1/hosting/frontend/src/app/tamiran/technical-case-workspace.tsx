@@ -41,6 +41,7 @@ const date = (value: string | null) =>
     ? new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
         dateStyle: "medium",
         timeStyle: "short",
+        timeZone: "Asia/Tehran",
       }).format(
         new Date(value.replace(" ", "T") + (value.endsWith("Z") ? "" : "Z")),
       )
@@ -740,7 +741,9 @@ export function TechnicalCaseWorkspace({
             <p className="tech-device-issue">{item.declaredIssue}</p>
             {!waiting() && (
               <p className="tech-status">
-                {unstarted
+                {data?.receiptPending
+                  ? "منتظر تأیید دریافت"
+                  : unstarted
                   ? "آمادهٔ بررسی"
                   : canWrite
                     ? "در حال بررسی و تعمیر"
@@ -758,7 +761,34 @@ export function TechnicalCaseWorkspace({
           : saved}
       </p>
       {alert("page")}
-      {item && data ? (
+      {item && data && data.receiptPending ? (
+        <section className="tech-entry tech-receipt" aria-labelledby="device-receipt-heading">
+          <h3 id="device-receipt-heading">تأیید دریافت دستگاه</h3>
+          <dl className="tech-receipt-details">
+            <div><dt>مشتری</dt><dd>{item.customerName}</dd></div>
+            <div><dt>مسئول</dt><dd>{item.technicianName || "تعمیرکار تعمیرگاه"}</dd></div>
+            <div><dt>سقف هزینه در پذیرش</dt><dd>{formatToman(item.preapprovedAmount)} تومان</dd></div>
+            <div><dt>موعد اعلام‌شده</dt><dd>{date(item.promisedAt)}</dd></div>
+          </dl>
+          {data.receptionNotes && <p>{data.receptionNotes}</p>}
+          {data.permissions.receive ? (
+            <>
+              <p>پس از تحویل فیزیکی دستگاه، دریافت آن را ثبت کنید.</p>
+              <button className="tech-primary" disabled={disabled} onClick={() => void run("receipt", async () => {
+                await workflowV2Action({
+                  action: "technical_receive",
+                  caseId,
+                  lockVersion: item.lockVersion,
+                  idempotencyKey: keyFor("receipt", { lockVersion: item.lockVersion }),
+                });
+              }, "work")}>
+                تأیید دریافت دستگاه
+              </button>
+            </>
+          ) : <p role="status">منتظر تأیید دریافت توسط مسئول دستگاه</p>}
+          {alert("receipt")}
+        </section>
+      ) : item && data ? (
         <>
           {waiting() && (
             <p className="tech-wait" role="status">

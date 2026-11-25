@@ -22,6 +22,8 @@ export type V2Case = {
   status: string;
   lockVersion: number;
   isLocked: boolean;
+  receiptPending?: boolean;
+  waitStartedAt?: string | null;
   customerName: string;
   customerMobile: string;
   deviceTitle: string;
@@ -368,6 +370,7 @@ export type TechnicalActivity = {
   createdAt: string;
 };
 export type TechnicalProjection = {
+  receiptPending?: boolean;
   unrepairedAmount: number;
   unrepairedFinanceBlockers: string[];
   receptionNotes: string;
@@ -397,6 +400,7 @@ export type TechnicalProjection = {
   report: string;
   result: string | null;
   permissions: {
+    receive?: boolean;
     refer: boolean;
     activity: boolean;
     parts: boolean;

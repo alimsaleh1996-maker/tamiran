@@ -735,14 +735,14 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
             'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
         ]);
         if ($assignedId !== null) {
-            $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,created_by_user_id,started_at,accepted_at) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی تعمیر',:creator,NOW(),NOW())")
+            $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,created_by_user_id,started_at,accepted_at) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی تعمیر',:creator,NOW(),NULL)")
                 ->execute(['public'=>tamiran_id(),'workflow'=>$workflowId,'technician'=>$assignedId,'creator'=>(int)$scope['actor']['id']]);
         }
         $pdo->prepare('UPDATE repair_device_models SET usage_count=usage_count+1 WHERE id=:id')->execute(['id'=>$modelId]);
         $description = $policy['profile']==='solo' ? 'پذیرش سبک ثبت شد و پرونده وارد بررسی شد.' : ($assignedId === null ? 'پذیرش ثبت شد و پرونده در انتظار تخصیص قرار گرفت.' : 'پذیرش ثبت و پرونده به کاربر منتخب ارجاع شد.');
         $pdo->prepare('INSERT INTO repair_case_events(case_id,actor_user_id,event_type,from_status,to_status,description,metadata_json) VALUES(:case,:actor,:type,NULL,:status,:description,:metadata)')->execute([
             'case'=>$caseId, 'actor'=>(int)$scope['actor']['id'], 'type'=>'case_created', 'status'=>$status, 'description'=>$description,
-            'metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'assignedToUserId'=>$assignedId], JSON_UNESCAPED_UNICODE),
+            'metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'assignedToUserId'=>$assignedId,'physicalReceiptRequired'=>$policy['profile']==='solo'], JSON_UNESCAPED_UNICODE),
         ]);
         if($draftPublic!==''){
             $draftUpdate=$pdo->prepare("UPDATE repair_reception_drafts SET status='submitted',submitted_case_id=:case,row_version=row_version+1,updated_at=NOW() WHERE public_id=:public AND shop_id=:shop AND branch_id=:branch AND created_by_user_id=:actor AND row_version=:version AND status='active'");
@@ -817,6 +817,9 @@ function operations_update_case(PDO $pdo, array $scope, array $input): array
     }
     if(array_key_exists('result',$input)){ $v2guard=$pdo->prepare('SELECT id FROM repair_case_workflows WHERE case_id=:case');$v2guard->execute(['case'=>$id]);if($v2guard->fetchColumn()!==false&&($input['result']??'')==='not_repaired')throw new TamiranApiException('نتیجه تعمیرنشده را از پایان مسئولیت فنی ثبت کنید.',409); }
     if(array_key_exists('operationReport',$input)||array_key_exists('result',$input)){$technicalLock=$pdo->prepare('SELECT locked_at,process_status FROM repair_case_workflows WHERE case_id=:case');$technicalLock->execute(['case'=>$id]);$technicalRow=$technicalLock->fetch();if(is_array($technicalRow)&&($technicalRow['locked_at']!==null||in_array($technicalRow['process_status'],['qc_pending','finance_pending','ready_for_delivery','delivered'],true)))throw new TamiranApiException('مسئولیت فنی پایان یافته است.',409);}
+    if ((array_key_exists('operationReport',$input) || array_key_exists('result',$input)) && is_array($technicalRow ?? null)) {
+        technician_require_receipt(v2_case($pdo, $scope, $id));
+    }
     $result = trim((string)($input['result'] ?? $current['result'] ?? '')) ?: null;
     if ($result !== null && !in_array($result,['repaired','not_repaired'],true)) throw new TamiranApiException('نتیجه تعمیر معتبر نیست.');
     $report = trim((string)($input['operationReport'] ?? $current['operation_report'] ?? '')) ?: null;

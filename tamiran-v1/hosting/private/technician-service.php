@@ -19,10 +19,72 @@ function technician_access(PDO $pdo,array $scope,array $case,bool $primary=false
     v2_require_case_access($pdo,$scope,$case);
     if ($primary && $scope['role']==='technician' && (int)$case['primary_technician_user_id']!==(int)$scope['actor']['id']) throw new TamiranApiException('این عملیات فقط برای تکنسین مسئول مجاز است.',403);
 }
-function technician_editable(array $case): void
+function technician_editable(array $case, bool $requireReceipt = true): void
 {
     if ($case['locked_at']!==null || !in_array($case['process_status'],['reception','awaiting_assignment','assigned','diagnosing','estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','parts_closeout','qc_rework'],true)) throw new TamiranApiException('مسئولیت فنی این پرونده پایان یافته یا پرونده قفل است.',409);
+    if ($requireReceipt) technician_require_receipt($case);
 }
+function technician_require_receipt(array $case): void
+{
+    if (!empty($case['physical_receipt_pending'])) {
+        throw new TamiranApiException('ابتدا دریافت فیزیکی دستگاه را تأیید کنید.', 409);
+    }
+}
+
+function technician_is_receipt_recipient(array $scope, array $case): bool
+{
+    $principal = (int) $case['primary_technician_user_id'];
+    if ($principal > 0) {
+        return $principal === (int) $scope['actor']['id']
+            && in_array($scope['role'], ['technician', 'repair_manager'], true);
+    }
+    return $scope['role'] === 'repair_manager' && $case['product_profile_snapshot'] === 'solo';
+}
+
+function technician_confirm_receipt(PDO $pdo, array $scope, array $input): array
+{
+    $caseId = (int) ($input['caseId'] ?? 0);
+    $key = v2_text($input['idempotencyKey'] ?? '', 'شناسه دریافت', 160);
+    $pdo->beginTransaction();
+    try {
+        $case = v2_case($pdo, $scope, $caseId, true);
+        if (!technician_is_receipt_recipient($scope, $case)) {
+            throw new TamiranApiException('تأیید دریافت فقط برای مسئول همین دستگاه مجاز است.', 403);
+        }
+        if ($old = technician_replay($pdo, $case, $scope, 'technical_receipt', $key, [])) {
+            $pdo->commit();
+            return $old;
+        }
+        technician_editable($case, requireReceipt: false);
+        if (empty($case['physical_receipt_pending'])) {
+            throw new TamiranApiException('برای این پرونده دریافت جدیدی در انتظار تأیید نیست.', 409);
+        }
+        if ((int) $case['lock_version'] !== (int) ($input['lockVersion'] ?? -1)) {
+            throw new TamiranApiException('پرونده تغییر کرده است؛ اطلاعات را تازه‌سازی کنید.', 409);
+        }
+        if ((int) $case['primary_technician_user_id'] > 0) {
+            $confirmation = $pdo->prepare("UPDATE repair_case_assignments SET accepted_at=NOW()
+                WHERE workflow_id=:workflow AND technician_user_id=:actor
+                  AND assignment_type='primary' AND ended_at IS NULL AND accepted_at IS NULL");
+            $confirmation->execute(['workflow' => $case['id'], 'actor' => $scope['actor']['id']]);
+            if ($confirmation->rowCount() !== 1) throw new TamiranApiException('تخصیص فعال تغییر کرده است.', 409);
+        }
+        $receipt = technician_event($pdo, $scope, $case, 'technical_receipt', $key, [], ['received' => true]);
+        if ($case['process_status'] === 'assigned') {
+            v2_transition($pdo, $scope, $caseId, 'diagnosing', 'تأیید دریافت فیزیکی دستگاه',
+                (int) $case['lock_version'], 'receipt:'.$receipt['id'], automatic: true, insideTransaction: true);
+        } else {
+            $pdo->prepare('UPDATE repair_case_workflows SET lock_version=lock_version+1,updated_at=NOW() WHERE id=:id')
+                ->execute(['id' => $case['id']]);
+        }
+        $pdo->commit();
+        return $receipt;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
 /** Existing immutable event table provides replay records under the case row lock. */
 function technician_replay(PDO $pdo,array $case,array $scope,string $event,string $key,array $payload): ?array
 {
@@ -125,11 +187,11 @@ function technician_finish(PDO $pdo,array $scope,array $input): array
 function technician_projection(PDO $pdo,array $scope,int $caseId): array
 {
     $case=v2_case($pdo,$scope,$caseId);v2_require_case_access($pdo,$scope,$case);$policy=v2_product_policy($pdo,$scope,$case);
-    $write=in_array($scope['role'],['repair_manager','technician'],true)&&$case['locked_at']===null&&in_array($case['process_status'],['reception','awaiting_assignment','assigned','diagnosing','estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','parts_closeout','qc_rework'],true);
+    $write=empty($case['physical_receipt_pending'])&&in_array($scope['role'],['repair_manager','technician'],true)&&$case['locked_at']===null&&in_array($case['process_status'],['reception','awaiting_assignment','assigned','diagnosing','estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','parts_closeout','qc_rework'],true);
     $primary=$scope['role']==='repair_manager'||(int)$case['primary_technician_user_id']===(int)$scope['actor']['id'];
     $parts=technician_billable_parts($pdo,$caseId);if(!technician_purchase_allowed($scope))foreach($parts as &$part)unset($part['purchaseUnitCost']);unset($part);
     $unrepairedAmount=technician_unrepaired_amount($pdo,$caseId);
-    return ['unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','permissions'=>['refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
+    return ['unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','receiptPending'=>!empty($case['physical_receipt_pending']),'permissions'=>['receive'=>!empty($case['physical_receipt_pending'])&&technician_is_receipt_recipient($scope,$case),'refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
 }
 
 function technician_manual_part(PDO $pdo,array $scope,array $input): array

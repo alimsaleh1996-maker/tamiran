@@ -30,14 +30,32 @@ def run(args):
         return manager.api('operations.php','POST',{'action':'create_case','receiptMode':'issue_only','customerName':marker,'customerMobile':prefix+'09','deviceModelId':model,'identifier':synthetic_imei(),'declaredIssue':marker,'customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':actors[2]['id'],'preapprovedAmount':7500000,'idempotencyKey':marker+secrets.token_hex(6)})['repairCase']['id']
     def row(id,c=tech):return c.api(f'workflow-v2.php?caseId={id}')['cases'][0]
     def projection(id,c=tech):return c.api(f'workflow-v2.php?caseId={id}&technical=1')
-    def transition(id,target,c=tech,expected=200,version=None):return c.api('workflow-v2.php','POST',{'action':'transition','caseId':id,'target':target,'lockVersion':row(id,c)['lockVersion'] if version is None else version,'idempotencyKey':secrets.token_hex(12)},expected=expected)
+    def receive(id, c=tech, key=None, expected=200, version=None):
+        return c.api('workflow-v2.php','POST',{'action':'technical_receive','caseId':id,
+            'lockVersion':row(id,c)['lockVersion'] if version is None else version,
+            'idempotencyKey':key or secrets.token_hex(12)},expected=expected)
+    def transition(id,target,c=tech,expected=200,version=None):
+        current=row(id,c)
+        if target=='diagnosing' and expected==200 and current['receiptPending']:
+            return receive(id,c,version=version)
+        return c.api('workflow-v2.php','POST',{'action':'transition','caseId':id,'target':target,
+            'lockVersion':current['lockVersion'] if version is None else version,
+            'idempotencyKey':secrets.token_hex(12)},expected=expected)
     def activity(id,key=None,c=tech,expected=200,**patch):return c.api('workflow-v2.php','POST',{'action':'technical_activity','caseId':id,'title':'تست مدار شارژ','description':'ولتاژ باتری و مسیر شارژ بررسی شد.','observation':'افت ولتاژ مشاهده شد.','idempotencyKey':key or secrets.token_hex(12),**patch},expected=expected)
     def estimate(id,amount=1000000,diagnostic=100000):return tech.api('workflow-v2.php','POST',{'action':'estimate_create','caseId':id,'items':[{'type':'labor','title':'اجرت تعمیر','quantity':1,'unitPrice':amount}]+([{'type':'part','title':'برآورد قطعات','quantity':1,'unitPrice':projection(id)['cost']['partsAmount']}] if projection(id)['cost']['partsAmount'] else []),'diagnosticFee':diagnostic,'idempotencyKey':secrets.token_hex(12)})['estimate']
     def finish(id,result='repaired',expected=200,key=None,version=None,c=tech):return c.api('workflow-v2.php','POST',{'action':'technical_finish','caseId':id,'result':result,'report':'گزارش نهایی مصنوعی','reason':'قطعه مورد نیاز موجود نیست' if result=='not_repaired' else '', 'lockVersion':row(id,c)['lockVersion'] if version is None else version,'idempotencyKey':key or secrets.token_hex(12)},expected=expected)
     def manual(id,key=None,expected=200,**patch):return tech.api('workflow-v2.php','POST',{'action':'manual_part_add','caseId':id,'title':'کانکتور آزمایشی','quantity':1,'saleUnitPrice':500000,'idempotencyKey':key or secrets.token_hex(12),**patch},expected=expected)
     id=out.check('assigned case visible to its technician',create)
     out.check('foreign technician cannot read technical case',lambda:other.api(f'workflow-v2.php?caseId={id}&technical=1',expected=403))
-    out.check('cannot begin repair without estimate',lambda:transition(id,'diagnosing'))
+    initial_version=row(id)['lockVersion']
+    receipt_key=secrets.token_hex(12)
+    out.check('automatic assignment requires physical receipt',lambda:expect(row(id)['receiptPending'],'receipt was acknowledged on assignment'))
+    out.check('plain transition cannot bypass physical receipt',lambda:transition(id,'diagnosing',expected=409))
+    out.check('manager cannot confirm for the assigned technician',lambda:receive(id,manager,expected=403))
+    out.check('physical receipt rejects a stale version',lambda:receive(id,version=initial_version+1,expected=409))
+    out.check('assigned technician confirms physical receipt',lambda:receive(id,key=receipt_key,version=initial_version))
+    out.check('lost-response retry keeps the same physical receipt',lambda:expect(receive(id,key=receipt_key,version=initial_version)['replayed'],'receipt duplicated'))
+    out.check('receipt advances to diagnosis',lambda:expect(row(id)['status']=='diagnosing' and not row(id)['receiptPending'],'invalid receipt transition'))
     out.check('no-estimate cost gate rejects repair',lambda:transition(id,'repairing',expected=409))
     key=secrets.token_hex(12);out.check('record independent technical activity',lambda:activity(id,key))
     out.check('activity exact replay is idempotent',lambda:expect(activity(id,key)['replayed'],'not replayed'))
@@ -146,7 +164,8 @@ def run(args):
         sm.api('catalog.php','POST',{'type':'موبایل','brand':marker,'model':'Solo '+str(number)});modelid=sm.api('catalog.php')['items'][0]['id']
         sc=sm.api('operations.php','POST',{'action':'create_case','receiptMode':'issue_only','customerName':marker,'customerMobile':prefix+'09','deviceModelId':modelid,'identifier':synthetic_imei(),'declaredIssue':marker,'customerConsent':{'dataHandling':'no_erasure'},'preapprovedAmount':1000000,'idempotencyKey':marker+'SOLOCASE'+str(number)})['repairCase']['id']
         sr=row(sc,sm)
-        if sr['status']!='diagnosing':transition(sc,'diagnosing',sm)
+        out.check(f'Solo {inventory}/{qc} waits for physical receipt',lambda:expect(sr['receiptPending'],'Solo receipt was acknowledged automatically'))
+        out.check(f'Solo {inventory}/{qc} confirms without new role',lambda:receive(sc,sm))
         sm.api('workflow-v2.php','POST',{'action':'estimate_create','caseId':sc,'items':[{'type':'labor','title':'TEST Solo','quantity':1,'unitPrice':100000}],'idempotencyKey':secrets.token_hex(12)})
         transition(sc,'repairing',sm);finish(sc,c=sm)
         out.check(f'actual Solo light plan {inventory}/{qc} follows enabled policy',lambda sc=sc,sm=sm,qc=qc:expect(row(sc,sm)['status']==('finance_pending' if qc=='off' else 'qc_pending'),'Solo entitlement routing failed'))
@@ -210,6 +229,20 @@ def run(args):
             race_results = list(pool.map(claim, [(manager,actors[2]['id']), (reception,actors[3]['id'])]))
         out.check('two distinct concurrent assignments yield exactly one owner',
                   lambda:expect(sorted(race_results)==[200,409] and len(assignments(contested))==1 and row(contested,manager)['status']=='assigned','competing assignment inconsistent'))
+
+        receipt_case = create()
+        receipt_before = row(receipt_case)
+        receipt_retry_key = secrets.token_hex(12)
+        fixture(receipt_case, 'transition-audit-fail')
+        try:
+            out.check('failed diagnosis transition rolls back physical receipt',
+                      lambda:receive(receipt_case,key=receipt_retry_key,expected=500))
+        finally:
+            fixture(receipt_case, 'audit-reset')
+        out.check('rolled-back receipt leaves the case pending at its original version',
+                  lambda:expect(row(receipt_case)['receiptPending'] and row(receipt_case)['lockVersion']==receipt_before['lockVersion'],'partial receipt committed'))
+        out.check('receipt retries safely after a rolled-back transition',
+                  lambda:receive(receipt_case,key=receipt_retry_key))
 
         fail=create();transition(fail,'diagnosing');fixture(fail,'audit-fail')
         try:

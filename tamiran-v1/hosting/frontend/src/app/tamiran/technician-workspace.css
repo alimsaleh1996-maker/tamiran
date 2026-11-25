@@ -592,3 +592,47 @@
   gap: 8px;
   margin-block: 12px;
 }
+
+.tech-device-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 14px;
+  background: transparent;
+  border: 0;
+}
+.tech-device-list li,
+.tech-device-list li + li { border: 0; }
+.technical-desk .tech-device-list button {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 1px solid var(--tech-line);
+  border-radius: 12px;
+  background: white;
+}
+.tech-card-badges span {
+  padding: 2px 10px;
+  background: #edf5f1;
+  color: #235b4a;
+  border-radius: 15px;
+}
+.tech-device-list .tech-card-next {
+  border-top: 1px solid var(--tech-line);
+  padding-top: 10px;
+  margin-top: auto;
+  font-weight: 700;
+  color: #176552;
+}
+.tech-receipt h3 { margin-top: 0; }
+.tech-receipt-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 185px), 1fr));
+  gap: 12px;
+  margin-block: 16px;
+}
+.tech-receipt-details > div { background: #edf5f1; border-radius: 8px; padding: 10px 12px; }
+.tech-receipt-details dt { color: var(--tech-muted); font-size: 13px; }
+.tech-receipt-details dd { margin: 4px 0 0; overflow-wrap: anywhere; }

@@ -86,7 +86,9 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
       writeTechnicalLocation(selectedId, "overview", undefined, true);
   }, [selectedId]);
   const open = (id: number) => {
-    writeTechnicalLocation(id);
+    const item = cases.find((entry) => entry.id === id);
+    const overview = !item || item.receiptPending || ["assigned", "reception", "awaiting_assignment"].includes(item.status);
+    writeTechnicalLocation(id, overview ? "overview" : "work");
     setSelectedId(id);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
@@ -138,7 +140,16 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
   ];
   const visible = cases.filter(
     (c) => group === "all" || c.technicianView.group === group,
-  );
+  ).sort((a, b) => b.technicianView.priority - a.technicianView.priority ||
+    (a.promisedAt ?? "9999").localeCompare(b.promisedAt ?? "9999"));
+  const numbers = new Intl.NumberFormat("fa-IR");
+  const day = new Intl.DateTimeFormat("fa-IR-u-ca-persian", { dateStyle: "medium", timeZone: "Asia/Tehran" });
+  const fromServer = (value: string) => new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value.replace(" ", "T")}Z`);
+  const waitLabel = (value: string) => {
+    const elapsed = Math.max(0, Math.floor((Date.now() - fromServer(value).getTime()) / 60_000));
+    if (!Number.isFinite(elapsed)) return "—";
+    return elapsed >= 60 ? `${numbers.format(Math.floor(elapsed / 60))} ساعت` : `${numbers.format(elapsed)} دقیقه`;
+  };
   return (
     <div className="technical-desk" dir="rtl">
       {selectedId ? (
@@ -247,12 +258,18 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
                     onClick={() => open(c.id)}
                     aria-label={`بازکردن پرونده ${c.receiptNumber}`}
                   >
-                    <div>
-                      <strong>{c.deviceTitle}</strong>
-                      <bdi>{c.receiptNumber}</bdi>
+                    <div className="tech-card-badges">
+                      <span>{c.technicianView.flags.includes("qc_rework") ? "بازکاری QC" : c.technicianView.flags.includes("sla_overdue") ? "موعد گذشته" : "عادی"}</span>
+                      <span>{c.technicianView.statusLabel}</span>
                     </div>
+                    <strong>{c.deviceTitle}</strong>
+                    <div className="tech-card-reference"><bdi>{c.receiptNumber}</bdi><span>{c.customerName}</span></div>
                     <p>{c.declaredIssue}</p>
-                    <span>{c.technicianView.statusLabel}</span>
+                    <div className="tech-card-timing">
+                      <span>موعد: {c.promisedAt && Number.isFinite(fromServer(c.promisedAt).getTime()) ? day.format(fromServer(c.promisedAt)) : "تعیین نشده"}</span>
+                      {c.waitStartedAt && <span>انتظار: {waitLabel(c.waitStartedAt)}</span>}
+                    </div>
+                    <span className="tech-card-next">{c.technicianView.primaryAction?.label ?? "مشاهده پرونده"} ←</span>
                   </button>
                 </li>
               ))}
