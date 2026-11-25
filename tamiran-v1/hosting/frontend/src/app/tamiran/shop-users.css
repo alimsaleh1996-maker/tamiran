@@ -1,0 +1,754 @@
+.shop-user-management {
+  --su-ink: #183f3c;
+  --su-muted: #536e6a;
+  --su-accent: #14766d;
+  --su-border: #d5e5e2;
+  --su-soft: #f4f9f8;
+  --su-error: #a52e26;
+  color: var(--su-ink);
+  font-size: 14px;
+  line-height: 1.7;
+  margin-block: 4px 28px;
+  min-inline-size: 0;
+}
+.shop-user-management *,
+.shop-user-management *::before,
+.shop-user-management *::after {
+  box-sizing: border-box;
+}
+.shop-user-management button,
+.shop-user-management input,
+.shop-user-management select {
+  font: inherit;
+}
+.shop-user-management button {
+  cursor: pointer;
+}
+.shop-user-management button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.shop-user-management :is(button, input, select):focus-visible {
+  outline: 3px solid #208b80;
+  outline-offset: 3px;
+}
+.shop-user-management .su-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding-block-end: 24px;
+}
+.shop-user-management .su-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--su-accent);
+  font-weight: 600;
+}
+.shop-user-management .su-header h3 {
+  margin: 4px 0 8px;
+  font-size: 22px;
+  line-height: 1.6;
+}
+.shop-user-management .su-header p {
+  margin: 0;
+  color: var(--su-muted);
+  font-size: 14px;
+}
+.shop-user-management .su-button {
+  min-block-size: 44px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-weight: 600;
+  transition:
+    background-color 0.16s,
+    border-color 0.16s;
+}
+.shop-user-management .su-button-primary {
+  background: var(--su-accent);
+  color: #fff;
+  border-color: var(--su-accent);
+}
+.shop-user-management .su-button-primary:hover:not(:disabled) {
+  background: #0b5d55;
+}
+.shop-user-management .su-button-secondary {
+  background: #fff;
+  color: var(--su-ink);
+  border-color: var(--su-border);
+}
+.shop-user-management .su-button-secondary:hover:not(:disabled) {
+  background: var(--su-soft);
+  border-color: #92b8b1;
+}
+.shop-user-management .su-button-text {
+  color: var(--su-accent);
+  background: transparent;
+  padding-inline: 8px;
+}
+.shop-user-management .su-button-text:hover {
+  background: #e8f5f1;
+}
+.shop-user-management .su-roster-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block-end: 20px;
+}
+.shop-user-management .su-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--su-border);
+  border-radius: 10px;
+  padding-inline: 12px;
+  background: var(--su-soft);
+  flex: 1 1 250px;
+  max-inline-size: 360px;
+}
+.shop-user-management .su-search input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 44px;
+  background: transparent;
+  border: 0;
+  color: var(--su-ink);
+}
+.shop-user-management .su-search:focus-within {
+  outline: 2px solid var(--su-accent);
+  outline-offset: 2px;
+}
+.shop-user-management .su-search input:focus-visible {
+  outline: 0;
+}
+.shop-user-management .su-capacity {
+  color: var(--su-muted);
+  font-size: 13px;
+}
+.shop-user-management .su-notice {
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-block-end: 16px;
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+.shop-user-management .su-notice-error {
+  color: #8b2a22;
+  background: #fff1ee;
+  border: 1px solid #e7b3a9;
+}
+.shop-user-management .su-notice-success {
+  background: #edf8f3;
+  color: #1a6350;
+  border: 1px solid #acd7c9;
+}
+.shop-user-management .su-loading,
+.shop-user-management .su-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--su-muted);
+}
+.shop-user-management .su-roster {
+  border: 1px solid var(--su-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.shop-user-management .su-roster table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  text-align: start;
+  font-size: 14px;
+}
+.shop-user-management .su-roster th {
+  padding: 14px 16px;
+  background: var(--su-soft);
+  color: var(--su-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.shop-user-management .su-roster td {
+  padding: 16px;
+  border-block-start: 1px solid #e6efed;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.shop-user-management .su-user-name {
+  display: block;
+  font-weight: 600;
+}
+.shop-user-management .su-user-phone,
+.shop-user-management .su-roster td small {
+  display: block;
+  color: var(--su-muted);
+  font-size: 13px;
+  margin-block-start: 4px;
+}
+.shop-user-management .su-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  color: #5f6866;
+  background: #eef1f0;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.shop-user-management .su-status i {
+  inline-size: 6px;
+  block-size: 6px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.shop-user-management .su-status.is-active {
+  color: #17674f;
+  background: #e7f5ed;
+}
+.shop-user-management .su-self {
+  color: var(--su-muted);
+  font-size: 13px;
+}
+.shop-user-management .su-form {
+  display: grid;
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.shop-user-management .su-section {
+  margin: 0;
+  padding: 22px;
+  min-inline-size: 0;
+  border: 1px solid var(--su-border);
+  border-radius: 14px;
+  background: #fff;
+}
+.shop-user-management .su-section > legend {
+  padding-inline: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--su-ink);
+}
+.shop-user-management .su-step {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 25px;
+  block-size: 25px;
+  border-radius: 8px;
+  margin-inline-end: 8px;
+  background: #eaf4f1;
+  color: var(--su-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+.shop-user-management .su-section-copy {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--su-muted);
+}
+.shop-user-management .su-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.shop-user-management .su-field {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.shop-user-management .su-field > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--su-ink);
+}
+.shop-user-management .su-field > label > span:not(.su-optional) {
+  color: var(--su-error);
+}
+.shop-user-management .su-optional {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--su-muted);
+}
+.shop-user-management .su-field input,
+.shop-user-management .su-field select {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 48px;
+  padding: 10px 12px;
+  color: var(--su-ink);
+  background: #fff;
+  border: 1px solid #b7cdc7;
+  border-radius: 10px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.shop-user-management input::placeholder {
+  color: #6a807c;
+  opacity: 1;
+  font-size: 13px;
+}
+.shop-user-management .su-field input[aria-invalid="true"] {
+  border-color: var(--su-error);
+  background: #fff9f7;
+}
+.shop-user-management .su-field > small {
+  font-size: 12px;
+  color: var(--su-muted);
+  line-height: 1.8;
+}
+.shop-user-management .su-field-error {
+  font-size: 13px;
+  color: var(--su-error);
+  display: block;
+  line-height: 1.7;
+}
+.shop-user-management .su-password {
+  position: relative;
+}
+.shop-user-management .su-password input {
+  padding-inline: 12px 48px;
+}
+.shop-user-management .su-password button {
+  position: absolute;
+  inset-inline-start: 2px;
+  inset-block-start: 2px;
+  inline-size: 44px;
+  block-size: 44px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--su-muted);
+  border-radius: 8px;
+}
+.shop-user-management .su-role-fields {
+  align-items: start;
+  margin-block-end: 24px;
+}
+.shop-user-management .su-account-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--su-border);
+  border-radius: 12px;
+  background: var(--su-soft);
+  padding: 14px;
+}
+.shop-user-management .su-account-status strong {
+  font-size: 14px;
+}
+.shop-user-management .su-account-status small {
+  display: block;
+  color: var(--su-muted);
+  font-size: 12px;
+  margin-block-start: 4px;
+}
+.shop-user-management .su-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 44px;
+  position: relative;
+  cursor: pointer;
+}
+.shop-user-management .su-switch input {
+  position: absolute;
+  opacity: 0;
+  inline-size: 44px;
+  block-size: 44px;
+  inset-inline-start: 0;
+  cursor: pointer;
+}
+.shop-user-management .su-switch > span {
+  inline-size: 40px;
+  block-size: 24px;
+  border-radius: 99px;
+  background: #8c9f9a;
+  position: relative;
+}
+.shop-user-management .su-switch > span::after {
+  content: "";
+  position: absolute;
+  block-size: 18px;
+  inline-size: 18px;
+  top: 3px;
+  right: 3px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.shop-user-management .su-switch input:checked + span {
+  background: var(--su-accent);
+}
+.shop-user-management .su-switch input:checked + span::after {
+  transform: translateX(-16px);
+}
+.shop-user-management .su-switch input:focus-visible + span {
+  outline: 3px solid #208b80;
+  outline-offset: 3px;
+}
+.shop-user-management .su-switch b {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.shop-user-management .su-branch-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  margin-block-end: 12px;
+}
+.shop-user-management .su-counter {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--su-muted);
+}
+.shop-user-management .su-branch-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.shop-user-management .su-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+  min-block-size: 48px;
+  padding: 10px 12px;
+  margin: 0;
+  border: 1px solid #dce9e5;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: start;
+}
+.shop-user-management .su-choice:hover {
+  border-color: #91b8ad;
+  background: #f7faf9;
+}
+.shop-user-management .su-choice.is-selected {
+  border-color: #71aa99;
+  background: #edf7f2;
+}
+.shop-user-management .su-choice input {
+  inline-size: 19px;
+  block-size: 19px;
+  margin: 0;
+  flex: 0 0 19px;
+  accent-color: var(--su-accent);
+  cursor: pointer;
+}
+.shop-user-management .su-choice span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.shop-user-management .su-branch small {
+  display: block;
+  font-size: 12px;
+  color: var(--su-muted);
+}
+.shop-user-management .su-permissions-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 12px;
+}
+.shop-user-management .su-permissions-heading > div {
+  display: flex;
+  align-items: center;
+}
+.shop-user-management .su-permissions-heading h4 {
+  font-size: 16px;
+  margin: 0;
+}
+.shop-user-management .su-role-note {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+  background: var(--su-soft);
+  padding: 16px;
+  border-radius: 10px;
+}
+.shop-user-management .su-role-note > svg {
+  flex: 0 0 22px;
+  color: var(--su-accent);
+}
+.shop-user-management .su-role-note p {
+  margin: 6px 0 0;
+  color: var(--su-muted);
+  font-size: 13px;
+}
+.shop-user-management .su-extra-toggle {
+  inline-size: 100%;
+  min-block-size: 48px;
+  border: 1px solid var(--su-border);
+  background: var(--su-soft);
+  color: var(--su-accent);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.shop-user-management .su-extra-toggle > svg:last-child {
+  margin-inline-start: auto;
+}
+.shop-user-management .su-extra-toggle[aria-expanded="true"] > svg:last-child {
+  transform: rotate(180deg);
+}
+.shop-user-management .su-permission-groups {
+  display: grid;
+  gap: 12px;
+  margin-block-start: 16px;
+}
+.shop-user-management .su-permission-hint {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--su-muted);
+}
+.shop-user-management .su-permission-group {
+  border: 1px solid var(--su-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.shop-user-management .su-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  min-block-size: 58px;
+  padding: 12px 14px;
+  background: #fff;
+  color: var(--su-ink);
+  border: 0;
+  text-align: start;
+}
+.shop-user-management .su-group-toggle:hover,
+.shop-user-management .su-permission-group.is-open .su-group-toggle {
+  background: var(--su-soft);
+}
+.shop-user-management .su-group-icon {
+  display: grid;
+  place-items: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 9px;
+  background: #eaf3ef;
+  color: var(--su-accent);
+  flex-shrink: 0;
+}
+.shop-user-management .su-group-toggle strong {
+  font-size: 14px;
+}
+.shop-user-management .su-group-count {
+  margin-inline-start: auto;
+  font-size: 12px;
+  color: var(--su-muted);
+}
+.shop-user-management .su-group-toggle > svg:last-child {
+  flex-shrink: 0;
+}
+.shop-user-management .su-group-toggle[aria-expanded="true"] > svg:last-child {
+  transform: rotate(180deg);
+}
+.shop-user-management fieldset.su-permission-options {
+  border: 0;
+  border-block-start: 1px solid var(--su-border);
+  border-radius: 0;
+  padding: 14px;
+  margin: 0;
+  min-inline-size: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.shop-user-management .su-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-block-start: 1px solid var(--su-border);
+  padding-block-start: 20px;
+}
+.shop-user-management .su-form-actions > span {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  color: var(--su-muted);
+  font-size: 12px;
+}
+.shop-user-management .su-form-actions > span svg {
+  flex-shrink: 0;
+  margin-block-start: 2px;
+}
+.shop-user-management .su-form-actions > div {
+  display: flex;
+  gap: 10px;
+}
+.shop-user-assignment {
+  border: 1px solid #d5e5e2;
+  border-radius: 12px;
+  padding: 16px;
+  margin-block-start: 28px;
+}
+.shop-user-assignment > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #183f3c;
+  min-block-size: 32px;
+}
+.shop-user-assignment > summary:focus-visible {
+  outline: 3px solid #208b80;
+  outline-offset: 3px;
+}
+@media (max-width: 1000px) {
+  .shop-user-management .su-fields,
+  .shop-user-management .su-branch-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shop-user-management .su-role-fields {
+    gap: 20px;
+  }
+}
+@media (max-width: 640px) {
+  .shop-user-management .su-header {
+    align-items: start;
+    gap: 16px;
+    flex-direction: column;
+    padding-block-end: 20px;
+  }
+  .shop-user-management .su-header h3 {
+    font-size: 20px;
+  }
+  .shop-user-management .su-header > .su-button {
+    inline-size: 100%;
+  }
+  .shop-user-management .su-roster-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .shop-user-management .su-search {
+    flex-basis: auto;
+    max-inline-size: none;
+  }
+  .shop-user-management .su-section {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  .shop-user-management .su-field input,
+  .shop-user-management .su-field select {
+    font-size: 16px;
+  }
+  .shop-user-management fieldset.su-permission-options {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px;
+  }
+  .shop-user-management .su-group-toggle {
+    gap: 8px;
+    padding-inline: 10px;
+    flex-wrap: wrap;
+  }
+  .shop-user-management .su-group-count {
+    font-size: 11px;
+  }
+  .shop-user-management .su-permissions-heading {
+    align-items: start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .shop-user-management .su-form-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .shop-user-management .su-form-actions > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .shop-user-management .su-form-actions .su-button {
+    padding-inline: 8px;
+  }
+  .shop-user-management .su-roster {
+    border: 0;
+    overflow: visible;
+  }
+  .shop-user-management .su-roster table,
+  .shop-user-management .su-roster tbody {
+    display: block;
+  }
+  .shop-user-management .su-roster thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    clip-path: inset(50%);
+    overflow: hidden;
+  }
+  .shop-user-management .su-roster tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    border: 1px solid var(--su-border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-block-end: 12px;
+  }
+  .shop-user-management .su-roster td {
+    padding: 0;
+    border: 0;
+    font-size: 14px;
+  }
+  .shop-user-management .su-roster td:first-child {
+    grid-column: 1 / -1;
+  }
+  .shop-user-management .su-roster td:last-child {
+    grid-column: 1 / -1;
+    border-block-start: 1px solid #e6efed;
+    padding-block-start: 8px;
+  }
+  .shop-user-management .su-roster td:last-child .su-button {
+    inline-size: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shop-user-management *,
+  .shop-user-management *::before,
+  .shop-user-management *::after {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.shop-user-management .sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

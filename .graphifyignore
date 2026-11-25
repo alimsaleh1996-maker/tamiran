@@ -1,3 +1,6 @@
 # Generated browser bundle duplicates hosting/frontend/src and includes bundled
 # React internals. Analyze the editable sources rather than the compiled copy.
 hosting/public_html/assets/index-*.js
+
+# Version 1 has its own graph and extraction root.
+/tamiran-v1/

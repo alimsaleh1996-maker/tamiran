@@ -1,0 +1,14 @@
+private/config.php
+private/installed.lock
+private/.install.mutex
+private/install.key
+private/.config-*.tmp
+private/logs/
+private/runtime-secrets/
+private/rate-limits/
+private/backups/
+private/uploads/
+private/*.lock
+frontend/node_modules
+frontend/.build/
+*.log
