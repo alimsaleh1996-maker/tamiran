@@ -108,6 +108,49 @@ export type V2Handover = {
   requested_at: string;
   decided_at: string | null;
 };
+export type V2HandoverDiscrepancy = {
+  reason: string;
+  reportedAt: string;
+  resolvedAt?: string;
+  resolution?: string;
+};
+export type V2HandoverReceipt = {
+  status: string;
+  revision: string | null;
+  discrepancy: V2HandoverDiscrepancy | null;
+  receipt: {
+    receiptNumber: string;
+    deviceTitle: string;
+    identifier: string | null;
+    fromName: string;
+    toName: string;
+    reason: string;
+    accessories: string[];
+    partIssues: V2HandoverItem[];
+    installedParts: V2HandoverItem[];
+    hotReturns: V2HandoverItem[];
+    partsDisposition: string;
+    hotReturnsDisposition: string;
+    toolsNote: string | null;
+  };
+};
+export type V2HandoverItem = {
+  publicId: string;
+  title: string;
+  quantity: number;
+  status: string;
+};
+export const loadV2HandoverReceipt = (publicId: string) =>
+  directAdminRequest<V2HandoverReceipt>(
+    `/api/workflow-v2.php?${new URLSearchParams({ handoverReceipt: publicId })}`,
+  );
+export function handoverDiscrepancy(handover: V2Handover): V2HandoverDiscrepancy | null {
+  try {
+    return JSON.parse(handover.assets_json)?.discrepancy ?? null;
+  } catch {
+    return null;
+  }
+}
 export type V2WorkflowPayload = {
   cases: V2Case[];
   users: V2User[];

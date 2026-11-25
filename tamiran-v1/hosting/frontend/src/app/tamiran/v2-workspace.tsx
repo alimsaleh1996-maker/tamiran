@@ -30,6 +30,7 @@ import { matchesQueueSearch } from "./queue-search";
 import {
   deliveryV2Action,
   financeV2Action,
+  handoverDiscrepancy,
   inventoryControlV2Action,
   inventoryV2Action,
   loadV2Delivery,
@@ -499,20 +500,18 @@ function WorkflowBoard({
         <section className="tech-handover-list">
           <h3>تحویل‌های رسمی در انتظار</h3>
           <ul>
-            {openHandovers.map((h) => (
-              <li key={h.id}>
+            {openHandovers.map((h) => {
+              const discrepancy = handoverDiscrepancy(h);
+              return <li key={h.id}>
                 <p>
                   <bdi>{h.receipt_number}</bdi> — {h.from_user_name} ←{" "}
                   {h.to_user_name}
                 </p>
                 <p>{h.reason}</p>
-                {h.to_user_id === profile.actorId && (
-                  <button
-                    disabled={busy}
-                    onClick={() => void decide(h.public_id, "accept", "")}
-                  >
-                    تأیید دریافت
-                  </button>
+                {discrepancy && (
+                  <p><strong>مغایرت تحویل</strong> {discrepancy.reason}
+                    {discrepancy.resolution && <> · نتیجهٔ بررسی: {discrepancy.resolution}</>}
+                  </p>
                 )}
                 {profile.role === "repair_manager" && (
                   <>
@@ -528,6 +527,11 @@ function WorkflowBoard({
                         }
                       />
                     </label>
+                    {discrepancy && !discrepancy.resolvedAt && <button
+                      type="button"
+                      disabled={busy || !handoverReasons[h.id]?.trim()}
+                      onClick={() => void decide(h.public_id, "resolve_discrepancy", handoverReasons[h.id])}
+                    >ثبت نتیجهٔ بررسی مغایرت</button>}
                     <button
                       type="button"
                       disabled={busy || !handoverReasons[h.id]?.trim()}
@@ -539,8 +543,8 @@ function WorkflowBoard({
                     </button>
                   </>
                 )}
-              </li>
-            ))}
+              </li>;
+            })}
           </ul>
         </section>
       )}

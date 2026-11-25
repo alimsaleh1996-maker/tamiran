@@ -214,12 +214,194 @@ function workflow_v2_add_collaborator(PDO $pdo,array $scope,array $input):array
 
 function workflow_v2_handover_request(PDO $pdo,array $scope,array $input):array
 {
-    $caseId=(int)($input['caseId']??0);$toUserId=(int)($input['toUserId']??0);$reason=v2_text($input['reason']??'','علت تحویل پرونده',1000);$partsDisposition=(string)($input['partsDisposition']??'');$hotDisposition=(string)($input['hotReturnsDisposition']??'');$allowed=['transfer_to_new','remain_with_previous','settle_before_handover'];if(!in_array($partsDisposition,$allowed,true)||!in_array($hotDisposition,$allowed,true))throw new TamiranApiException('تعیین تکلیف قطعات و داغی الزامی است.');workflow_v2_active_technician($pdo,$scope,$toUserId);$pdo->beginTransaction();try{$case=v2_case($pdo,$scope,$caseId,true);$fromUserId=(int)$case['primary_technician_user_id'];if($fromUserId<1)throw new TamiranApiException('پرونده مسئول ندارد.',409);if($scope['role']!=='repair_manager'&&$fromUserId!==(int)$scope['actor']['id'])throw new TamiranApiException('فقط تکنسین مسئول یا مدیر می‌تواند تحویل رسمی بسازد.',403);if($fromUserId===$toUserId)throw new TamiranApiException('تحویل‌گیرنده باید با مسئول فعلی متفاوت باشد.',409);$key=v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه ارجاع',160);$payload=['toUserId'=>$toUserId,'reason'=>$reason,'partsDisposition'=>$partsDisposition,'hotReturnsDisposition'=>$hotDisposition,'toolsNote'=>v2_text($input['toolsNote']??'','تعیین تکلیف ابزار',2000,false)??''];if($old=technician_replay($pdo,$case,$scope,'technical_referral_request',$key,$payload)){$pdo->commit();return $old;}technician_editable($case, requireReceipt: false);$duplicate=$pdo->prepare("SELECT COUNT(*) FROM repair_case_handovers WHERE workflow_id=:workflow AND status='requested' FOR UPDATE");$duplicate->execute(['workflow'=>$case['id']]);if((int)$duplicate->fetchColumn()>0)throw new TamiranApiException('برای پرونده یک تحویل در انتظار تأیید وجود دارد.',409);$issues=$pdo->prepare("SELECT public_id,quantity,status FROM repair_part_issues WHERE case_id=:case AND technician_user_id=:technician AND status NOT IN ('consumed','returned') FOR UPDATE");$issues->execute(['case'=>$caseId,'technician'=>$fromUserId]);$issueRows=$issues->fetchAll();$hot=$pdo->prepare("SELECT public_id,quantity,status FROM repair_hot_returns WHERE case_id=:case AND technician_user_id=:technician AND status<>'settled' FOR UPDATE");$hot->execute(['case'=>$caseId,'technician'=>$fromUserId]);$hotRows=$hot->fetchAll();$assets=['partsDisposition'=>$partsDisposition,'hotReturnsDisposition'=>$hotDisposition,'partIssues'=>$issueRows,'hotReturns'=>$hotRows,'toolsNote'=>v2_text($input['toolsNote']??'','تعیین تکلیف ابزار',2000,false)];$public=tamiran_id();$pdo->prepare("INSERT INTO repair_case_handovers(public_id,workflow_id,from_user_id,to_user_id,status,reason,assets_json) VALUES(:public,:workflow,:from_user,:to_user,'requested',:reason,:assets)")->execute(['public'=>$public,'workflow'=>$case['id'],'from_user'=>$fromUserId,'to_user'=>$toUserId,'reason'=>$reason,'assets'=>v2_json($assets)]);tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'case.handover.request','repair_case',$case['case_public_id'],['primaryTechnicianUserId'=>$fromUserId],['requestedTechnicianUserId'=>$toUserId,'assets'=>$assets],$reason);v2_notify($pdo,$scope,$toUserId,'case_handover_requested','تحویل پرونده منتظر تأیید شماست','رسید '.$case['receipt_number'],'repair_case_handover',$public);technician_event($pdo,$scope,$case,'technical_referral_request',$key,$payload,['created'=>true,'publicId'=>$public]);$pdo->commit();}catch(Throwable$error){if($pdo->inTransaction())$pdo->rollBack();throw$error;}return['created'=>true,'publicId'=>$public];
+    $caseId=(int)($input['caseId']??0);$toUserId=(int)($input['toUserId']??0);$reason=v2_text($input['reason']??'','علت تحویل پرونده',1000);$partsDisposition=(string)($input['partsDisposition']??'');$hotDisposition=(string)($input['hotReturnsDisposition']??'');$allowed=['transfer_to_new','remain_with_previous','settle_before_handover'];if(!in_array($partsDisposition,$allowed,true)||!in_array($hotDisposition,$allowed,true))throw new TamiranApiException('تعیین تکلیف قطعات و داغی الزامی است.');workflow_v2_active_technician($pdo,$scope,$toUserId);$pdo->beginTransaction();try{$case=v2_case($pdo,$scope,$caseId,true);$fromUserId=(int)$case['primary_technician_user_id'];if($fromUserId<1)throw new TamiranApiException('پرونده مسئول ندارد.',409);if($scope['role']!=='repair_manager'&&$fromUserId!==(int)$scope['actor']['id'])throw new TamiranApiException('فقط تکنسین مسئول یا مدیر می‌تواند تحویل رسمی بسازد.',403);if($fromUserId===$toUserId)throw new TamiranApiException('تحویل‌گیرنده باید با مسئول فعلی متفاوت باشد.',409);$key=v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه ارجاع',160);$payload=['toUserId'=>$toUserId,'reason'=>$reason,'partsDisposition'=>$partsDisposition,'hotReturnsDisposition'=>$hotDisposition,'toolsNote'=>v2_text($input['toolsNote']??'','تعیین تکلیف ابزار',2000,false)??''];if($old=technician_replay($pdo,$case,$scope,'technical_referral_request',$key,$payload)){$pdo->commit();return $old;}technician_editable($case, requireReceipt: false);$duplicate=$pdo->prepare("SELECT COUNT(*) FROM repair_case_handovers WHERE workflow_id=:workflow AND status='requested' FOR UPDATE");$duplicate->execute(['workflow'=>$case['id']]);if((int)$duplicate->fetchColumn()>0)throw new TamiranApiException('برای پرونده یک تحویل در انتظار تأیید وجود دارد.',409);$issues=$pdo->prepare("SELECT public_id,quantity,status FROM repair_part_issues WHERE case_id=:case AND technician_user_id=:technician AND status NOT IN ('consumed','returned') FOR UPDATE");$issues->execute(['case'=>$caseId,'technician'=>$fromUserId]);$issueRows=$issues->fetchAll();$hot=$pdo->prepare("SELECT public_id,quantity,status FROM repair_hot_returns WHERE case_id=:case AND technician_user_id=:technician AND status<>'settled' FOR UPDATE");$hot->execute(['case'=>$caseId,'technician'=>$fromUserId]);$hotRows=$hot->fetchAll();$assets=['receiptVersion'=>1,'partsDisposition'=>$partsDisposition,'hotReturnsDisposition'=>$hotDisposition,'partIssues'=>$issueRows,'hotReturns'=>$hotRows,'toolsNote'=>v2_text($input['toolsNote']??'','تعیین تکلیف ابزار',2000,false)];$public=tamiran_id();$pdo->prepare("INSERT INTO repair_case_handovers(public_id,workflow_id,from_user_id,to_user_id,status,reason,assets_json) VALUES(:public,:workflow,:from_user,:to_user,'requested',:reason,:assets)")->execute(['public'=>$public,'workflow'=>$case['id'],'from_user'=>$fromUserId,'to_user'=>$toUserId,'reason'=>$reason,'assets'=>v2_json($assets)]);tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'case.handover.request','repair_case',$case['case_public_id'],['primaryTechnicianUserId'=>$fromUserId],['requestedTechnicianUserId'=>$toUserId,'assets'=>$assets],$reason);v2_notify($pdo,$scope,$toUserId,'case_handover_requested','تحویل پرونده منتظر تأیید شماست','رسید '.$case['receipt_number'],'repair_case_handover',$public);technician_event($pdo,$scope,$case,'technical_referral_request',$key,$payload,['created'=>true,'publicId'=>$public]);$pdo->commit();}catch(Throwable$error){if($pdo->inTransaction())$pdo->rollBack();throw$error;}return['created'=>true,'publicId'=>$public];
 }
 
-function workflow_v2_handover_decide(PDO $pdo,array $scope,array $input):array
+function workflow_v2_handover_row(PDO $pdo, array $scope, string $public, bool $lock): array
 {
-    $public=v2_text($input['publicId']??'','تحویل پرونده',80);$action=(string)($input['decision']??'');if($action==='manager_force')throw new TamiranApiException('انتقال مسئولیت به تأیید دریافت تکنسین مقصد نیاز دارد.',409);if(!in_array($action,['accept','cancel'],true))throw new TamiranApiException('تصمیم تحویل معتبر نیست.');$decisionReason=v2_text($input['reason']??'','علت تصمیم',1000,$action==='cancel');$pdo->beginTransaction();try{$statement=$pdo->prepare("SELECT h.*,w.case_id,w.shop_id,w.branch_id,w.public_id AS workflow_public_id,c.public_id AS case_public_id,c.receipt_number FROM repair_case_handovers h INNER JOIN repair_case_workflows w ON w.id=h.workflow_id INNER JOIN repair_cases c ON c.id=w.case_id WHERE h.public_id=:public AND w.shop_id=:shop AND w.branch_id=:branch AND h.status='requested' FOR UPDATE");$statement->execute(['public'=>$public,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);$handover=$statement->fetch();if(!is_array($handover))throw new TamiranApiException('تحویل پرونده قابل تصمیم نیست.',409);if($action==='accept'&&(int)$handover['to_user_id']!==(int)$scope['actor']['id'])throw new TamiranApiException('فقط تکنسین تحویل‌گیرنده می‌تواند دریافت را تأیید کند.',403);if($action==='cancel'&&$scope['role']!=='repair_manager'&&(int)$handover['from_user_id']!==(int)$scope['actor']['id'])throw new TamiranApiException('لغو تحویل برای نقش فعلی مجاز نیست.',403);if($action==='cancel'){$pdo->prepare("UPDATE repair_case_handovers SET status='cancelled',decided_by_user_id=:actor,decided_at=NOW() WHERE id=:id")->execute(['actor'=>$scope['actor']['id'],'id'=>$handover['id']]);tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'case.handover.cancel','repair_case',$handover['case_public_id'],['handover'=>'requested'],['handover'=>'cancelled'],$decisionReason);$pdo->commit();return['decided'=>true,'status'=>'cancelled'];}$caseLock=v2_case($pdo,$scope,(int)$handover['case_id'],true);technician_editable($caseLock, requireReceipt: false);if((int)$caseLock['primary_technician_user_id']!==(int)$handover['from_user_id'])throw new TamiranApiException('مسئول پرونده پس از ثبت درخواست تغییر کرده است؛ درخواست قبلی را لغو کنید.',409);$assets=json_decode((string)$handover['assets_json'],true);if(!is_array($assets))throw new TamiranApiException('اطلاعات تحویل پرونده ناقص است.',409);if(($assets['partsDisposition']??'')==='settle_before_handover'){$open=$pdo->prepare("SELECT COUNT(*) FROM repair_part_issues WHERE case_id=:case AND technician_user_id=:technician AND status NOT IN ('consumed','returned')");$open->execute(['case'=>$handover['case_id'],'technician'=>$handover['from_user_id']]);if((int)$open->fetchColumn()>0)throw new TamiranApiException('قطعات مسئول قبلی هنوز تعیین‌تکلیف نشده‌اند.',409);}if(($assets['hotReturnsDisposition']??'')==='settle_before_handover'){$open=$pdo->prepare("SELECT COUNT(*) FROM repair_hot_returns WHERE case_id=:case AND technician_user_id=:technician AND status<>'settled'");$open->execute(['case'=>$handover['case_id'],'technician'=>$handover['from_user_id']]);if((int)$open->fetchColumn()>0)throw new TamiranApiException('تعهد داغی مسئول قبلی هنوز باز است.',409);}workflow_v2_active_technician($pdo,$scope,(int)$handover['to_user_id']);$pdo->prepare("UPDATE repair_case_assignments SET ended_at=NOW() WHERE workflow_id=:workflow AND assignment_type='primary' AND ended_at IS NULL")->execute(['workflow'=>$handover['workflow_id']]);$pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,started_at,accepted_at,created_by_user_id) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی پس از تحویل رسمی',NOW(),NOW(),:actor)")->execute(['public'=>tamiran_id(),'workflow'=>$handover['workflow_id'],'technician'=>$handover['to_user_id'],'actor'=>$scope['actor']['id']]);if(($assets['partsDisposition']??'')==='transfer_to_new')$pdo->prepare("UPDATE repair_part_issues SET technician_user_id=:to_user WHERE case_id=:case AND technician_user_id=:from_user AND status NOT IN ('consumed','returned')")->execute(['to_user'=>$handover['to_user_id'],'case'=>$handover['case_id'],'from_user'=>$handover['from_user_id']]);if(($assets['hotReturnsDisposition']??'')==='transfer_to_new')$pdo->prepare("UPDATE repair_hot_returns SET technician_user_id=:to_user,updated_at=NOW() WHERE case_id=:case AND technician_user_id=:from_user AND status<>'settled'")->execute(['to_user'=>$handover['to_user_id'],'case'=>$handover['case_id'],'from_user'=>$handover['from_user_id']]);$status='accepted';$pdo->prepare('UPDATE repair_case_handovers SET status=:status,decided_by_user_id=:actor,decided_at=NOW() WHERE id=:id')->execute(['status'=>$status,'actor'=>$scope['actor']['id'],'id'=>$handover['id']]);$pdo->prepare('UPDATE repair_case_workflows SET primary_technician_user_id=:technician,lock_version=lock_version+1 WHERE id=:workflow')->execute(['technician'=>$handover['to_user_id'],'workflow'=>$handover['workflow_id']]);$pdo->prepare('UPDATE repair_cases SET assigned_to_user_id=:technician,row_version=row_version+1 WHERE id=:case')->execute(['technician'=>$handover['to_user_id'],'case'=>$handover['case_id']]);tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'case.handover.'.$status,'repair_case',$handover['case_public_id'],['primaryTechnicianUserId'=>(int)$handover['from_user_id']],['primaryTechnicianUserId'=>(int)$handover['to_user_id'],'assets'=>$assets],$decisionReason??$handover['reason']);v2_notify($pdo,$scope,(int)$handover['to_user_id'],'case_handover_completed','مسئولیت پرونده به شما منتقل شد','رسید '.$handover['receipt_number'],'repair_case',$handover['case_public_id']);$pdo->commit();}catch(Throwable$error){if($pdo->inTransaction())$pdo->rollBack();throw$error;}return['decided'=>true,'status'=>$status];
+    $statement = $pdo->prepare(
+        'SELECT h.*,w.case_id,c.public_id AS case_public_id,c.receipt_number,fu.display_name AS from_user_name,tu.display_name AS to_user_name
+         FROM repair_case_handovers h INNER JOIN repair_case_workflows w ON w.id=h.workflow_id
+         INNER JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id
+         INNER JOIN tamiran_users fu ON fu.id=h.from_user_id INNER JOIN tamiran_users tu ON tu.id=h.to_user_id
+         WHERE h.public_id=:public AND w.shop_id=:shop AND w.branch_id=:branch' . ($lock ? ' FOR UPDATE' : '')
+    );
+    $statement->execute(['public'=>$public,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
+    $handover = $statement->fetch();
+    if (!is_array($handover)) throw new TamiranApiException('رسید ارجاع پیدا نشد.', 404);
+    return $handover;
+}
+
+function workflow_v2_handover_snapshot(PDO $pdo, array $scope, array $handover, array $case, array $assets, bool $lock): array
+{
+    $params = ['case'=>$case['case_id'],'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'technician'=>$handover['from_user_id']];
+    $issues = $pdo->prepare("SELECT i.public_id AS publicId, COALESCE(k.title,'قطعه'), i.quantity,i.status
+        FROM repair_part_issues i LEFT JOIN repair_inventory_items k ON k.id=i.item_id AND k.shop_id=i.shop_id
+        WHERE i.case_id=:case AND i.shop_id=:shop AND i.branch_id=:branch AND i.technician_user_id=:technician
+        AND i.status NOT IN ('consumed','returned') ORDER BY i.id" . ($lock ? ' FOR UPDATE' : ''));
+    $issues->execute($params);
+    $outstanding = $issues->fetchAll(PDO::FETCH_NUM);
+    $hot = $pdo->prepare("SELECT h.public_id AS publicId, COALESCE(k.title,'قطعه'), h.quantity,h.status
+        FROM repair_hot_returns h LEFT JOIN repair_inventory_items k ON k.id=h.item_id AND k.shop_id=h.shop_id
+        WHERE h.case_id=:case AND h.shop_id=:shop AND h.branch_id=:branch AND h.technician_user_id=:technician
+        AND h.status<>'settled' ORDER BY h.id" . ($lock ? ' FOR UPDATE' : ''));
+    $hot->execute($params);
+    $rows = static fn(array $rows): array => array_map(
+        static fn(array $row): array => ['publicId'=>$row[0],'title'=>$row[1],'quantity'=>(int)$row[2],'status'=>$row[3]],
+        $rows
+    );
+    $installed = array_map(
+        static fn(array $part): array => ['publicId'=>$part['sourceKey'],'title'=>$part['title'],'quantity'=>(int)$part['quantity'],'status'=>'consumed'],
+        technician_billable_parts($pdo, (int)$case['case_id'])
+    );
+    $accessories = json_decode((string)$case['accessories_json'], true);
+    return [
+        'publicId'=>$handover['public_id'],
+        'receiptNumber'=>$handover['receipt_number'],
+        'deviceTitle'=>trim($case['device_type_snapshot'].' '.$case['brand_snapshot'].' '.$case['model_snapshot']),
+        'identifier'=>$case['identifier_snapshot'],
+        'fromName'=>$handover['from_user_name'],
+        'toName'=>$handover['to_user_name'],
+        'reason'=>$handover['reason'],
+        'accessories'=>is_array($accessories)?array_values($accessories):[],
+        'partIssues'=>$rows($outstanding),
+        'installedParts'=>$installed,
+        'hotReturns'=>$rows($hot->fetchAll(PDO::FETCH_NUM)),
+        'partsDisposition'=>$assets['partsDisposition'] ?? '',
+        'hotReturnsDisposition'=>$assets['hotReturnsDisposition'] ?? '',
+        'toolsNote'=>$assets['toolsNote'] ?? null,
+    ];
+}
+
+function workflow_v2_handover_receipt(PDO $pdo, array $scope, mixed $value): array
+{
+    $public = v2_text($value, 'ارجاع پرونده', 80);
+    $handover = workflow_v2_handover_row($pdo, $scope, $public, false);
+    $actor = (int)$scope['actor']['id'];
+    if ($scope['role'] !== 'repair_manager' && !in_array($actor, [(int)$handover['from_user_id'],(int)$handover['to_user_id']], true)) {
+        throw new TamiranApiException('مشاهدهٔ این رسید برای شما مجاز نیست.', 403);
+    }
+    $assets = json_decode((string)$handover['assets_json'], true, flags: JSON_THROW_ON_ERROR);
+    if ($handover['status']==='accepted' && isset($assets['acceptedReceipt'])) {
+        return ['receipt'=>$assets['acceptedReceipt'],'status'=>'accepted','revision'=>null,'discrepancy'=>null];
+    }
+    $case = v2_case($pdo, $scope, (int)$handover['case_id']);
+    $receipt = workflow_v2_handover_snapshot($pdo, $scope, $handover, $case, $assets, false);
+    return ['receipt'=>$receipt,'status'=>$handover['status'],'revision'=>workflow_v2_handover_revision($receipt, $assets),
+        'discrepancy'=>$assets['discrepancy'] ?? null];
+}
+
+function workflow_v2_handover_revision(array $receipt, array $assets): string
+{
+    return hash('sha256', v2_json([$receipt,$assets['discrepancy'] ?? null]));
+}
+
+function workflow_v2_handover_checklist(array $receipt): array
+{
+    return ['device',
+        ...array_column($receipt['partIssues'], 'publicId'),
+        ...array_column($receipt['installedParts'], 'publicId'),
+        ...array_column($receipt['hotReturns'], 'publicId'),
+    ];
+}
+
+function workflow_v2_handover_decide(PDO $pdo, array $scope, array $input): array
+{
+    $public = v2_text($input['publicId']??'', 'تحویل پرونده', 80);
+    $action = (string)($input['decision']??'');
+    if ($action==='manager_force') throw new TamiranApiException('انتقال مسئولیت به تأیید دریافت تکنسین مقصد نیاز دارد.', 409);
+    if (!in_array($action,['accept','cancel','report_discrepancy','resolve_discrepancy'],true)) {
+        throw new TamiranApiException('تصمیم تحویل معتبر نیست.');
+    }
+    $decisionReason = v2_text($input['reason']??'', 'علت تصمیم', 1000, $action!=='accept');
+    $actor = (int)$scope['actor']['id'];
+    $manager = $scope['role']==='repair_manager';
+    $pdo->beginTransaction();
+    try {
+        $handover = workflow_v2_handover_row($pdo, $scope, $public, true);
+        $recipient = $actor===(int)$handover['to_user_id'];
+        $sender = $actor===(int)$handover['from_user_id'];
+        $allowed = match($action) {
+            'accept','report_discrepancy'=>$recipient,
+            'resolve_discrepancy'=>$manager,
+            'cancel'=>$manager || $sender,
+        };
+        if (!$allowed) throw new TamiranApiException('ثبت این تصمیم برای شما مجاز نیست.', 403);
+        if ($action==='accept' && $handover['status']==='accepted') {
+            $pdo->commit();
+            return ['decided'=>true,'status'=>'accepted','replayed'=>true];
+        }
+        if ($handover['status']!=='requested') throw new TamiranApiException('تحویل پرونده قابل تصمیم نیست.', 409);
+        if ($action==='cancel') {
+            $pdo->prepare("UPDATE repair_case_handovers SET status='cancelled',decided_by_user_id=:actor,decided_at=NOW() WHERE id=:id")
+                ->execute(['actor'=>$actor,'id'=>$handover['id']]);
+            tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$actor,'case.handover.cancel','repair_case',$handover['case_public_id'],['handover'=>'requested'],['handover'=>'cancelled'],$decisionReason);
+            $pdo->commit();
+            return ['decided'=>true,'status'=>'cancelled'];
+        }
+
+        $caseLock = v2_case($pdo, $scope, (int)$handover['case_id'], true);
+        technician_editable($caseLock, requireReceipt: false);
+        if ((int)$caseLock['primary_technician_user_id']!==(int)$handover['from_user_id']) {
+            throw new TamiranApiException('مسئول پرونده پس از ثبت درخواست تغییر کرده است؛ درخواست قبلی را لغو کنید.', 409);
+        }
+        $assets = json_decode((string)$handover['assets_json'], true, flags: JSON_THROW_ON_ERROR);
+        $openDiscrepancy = isset($assets['discrepancy']) && !isset($assets['discrepancy']['resolvedAt']);
+        if ($action==='report_discrepancy' || $action==='resolve_discrepancy') {
+            $report = $action==='report_discrepancy';
+            $before = $assets['discrepancy'] ?? null;
+            if ($openDiscrepancy && $report && $before['reason']===$decisionReason) {
+                $pdo->commit();
+                return ['decided'=>true,'status'=>'requested','replayed'=>true];
+            }
+            if ($openDiscrepancy===$report) {
+                throw new TamiranApiException($report?'مغایرت قبلی در انتظار بررسی مدیر است.':'مغایرت بازی برای بررسی وجود ندارد.',409);
+            }
+            $assets['discrepancy'] = $report
+                ? ['reason'=>$decisionReason,'reportedAt'=>gmdate('c'),'reportedBy'=>$actor]
+                : $before + ['resolution'=>$decisionReason,'resolvedAt'=>gmdate('c'),'resolvedBy'=>$actor];
+            $pdo->prepare('UPDATE repair_case_handovers SET assets_json=:assets WHERE id=:id')
+                ->execute(['assets'=>v2_json($assets),'id'=>$handover['id']]);
+            tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$actor,'case.handover.'.$action,'repair_case_handover',$public,$before,$assets['discrepancy'],$decisionReason);
+            if (!$report) {
+                v2_notify($pdo,$scope,(int)$handover['to_user_id'],'case_handover_discrepancy_resolved','مغایرت تحویل دستگاه بررسی شد','رسید '.$handover['receipt_number'],'repair_case_handover',$public);
+            }
+            $pdo->commit();
+            return ['decided'=>true,'status'=>'requested'];
+        }
+        if ($openDiscrepancy) throw new TamiranApiException('مدیر باید ابتدا مغایرت تحویل را بررسی کند.', 409);
+        $receipt = workflow_v2_handover_snapshot($pdo, $scope, $handover, $caseLock, $assets, true);
+        $revision = $input['receiptRevision'] ?? null;
+        if (!empty($assets['receiptVersion']) && (!is_string($revision) || !hash_equals(workflow_v2_handover_revision($receipt, $assets), $revision))) {
+            throw new TamiranApiException('اطلاعات رسید تازه شده است. رسید را دوباره باز و بررسی کنید.', 409);
+        }
+        if (!empty($assets['receiptVersion']) && ($input['checkedItems'] ?? null)!==workflow_v2_handover_checklist($receipt)) {
+            throw new TamiranApiException('تمام اقلام رسید را تأیید کنید یا مغایرت گزارش دهید.', 409);
+        }
+        if ($receipt['partsDisposition']==='settle_before_handover' && $receipt['partIssues']!==[]) {
+            throw new TamiranApiException('قطعات مسئول قبلی هنوز تعیین‌تکلیف نشده‌اند.', 409);
+        }
+        if ($receipt['hotReturnsDisposition']==='settle_before_handover' && $receipt['hotReturns']!==[]) {
+            throw new TamiranApiException('تعهد داغی مسئول قبلی هنوز باز است.', 409);
+        }
+        $assets['acceptedReceipt'] = $receipt;
+        workflow_v2_active_technician($pdo,$scope,(int)$handover['to_user_id']);
+        $pdo->prepare("UPDATE repair_case_assignments SET ended_at=NOW() WHERE workflow_id=:workflow AND assignment_type='primary' AND ended_at IS NULL")->execute(['workflow'=>$handover['workflow_id']]);
+        $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,started_at,accepted_at,created_by_user_id) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی پس از تحویل رسمی',NOW(),NOW(),:actor)")->execute(['public'=>tamiran_id(),'workflow'=>$handover['workflow_id'],'technician'=>$handover['to_user_id'],'actor'=>$scope['actor']['id']]);
+        if(($assets['partsDisposition']??'')==='transfer_to_new')$pdo->prepare("UPDATE repair_part_issues SET technician_user_id=:to_user WHERE case_id=:case AND technician_user_id=:from_user AND status NOT IN ('consumed','returned')")->execute(['to_user'=>$handover['to_user_id'],'case'=>$handover['case_id'],'from_user'=>$handover['from_user_id']]);
+        if(($assets['hotReturnsDisposition']??'')==='transfer_to_new')$pdo->prepare("UPDATE repair_hot_returns SET technician_user_id=:to_user,updated_at=NOW() WHERE case_id=:case AND technician_user_id=:from_user AND status<>'settled'")->execute(['to_user'=>$handover['to_user_id'],'case'=>$handover['case_id'],'from_user'=>$handover['from_user_id']]);$status='accepted';
+        $pdo->prepare('UPDATE repair_case_handovers SET assets_json=:assets WHERE id=:id')->execute(['assets'=>v2_json($assets),'id'=>$handover['id']]);
+        $pdo->prepare('UPDATE repair_case_handovers SET status=:status,decided_by_user_id=:actor,decided_at=NOW() WHERE id=:id')->execute(['status'=>$status,'actor'=>$scope['actor']['id'],'id'=>$handover['id']]);
+        $pdo->prepare('UPDATE repair_case_workflows SET primary_technician_user_id=:technician,lock_version=lock_version+1 WHERE id=:workflow')->execute(['technician'=>$handover['to_user_id'],'workflow'=>$handover['workflow_id']]);
+        $pdo->prepare('UPDATE repair_cases SET assigned_to_user_id=:technician,row_version=row_version+1 WHERE id=:case')->execute(['technician'=>$handover['to_user_id'],'case'=>$handover['case_id']]);
+        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'case.handover.'.$status,'repair_case',$handover['case_public_id'],['primaryTechnicianUserId'=>(int)$handover['from_user_id']],['primaryTechnicianUserId'=>(int)$handover['to_user_id'],'assets'=>$assets],$decisionReason??$handover['reason']);
+        v2_notify($pdo,$scope,(int)$handover['to_user_id'],'case_handover_completed','مسئولیت پرونده به شما منتقل شد','رسید '.$handover['receipt_number'],'repair_case',$handover['case_public_id']);
+        $pdo->commit();
+        return ['decided'=>true,'status'=>$status];
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
 }
 
 function workflow_v2_migrate_case_to_pro(PDO $pdo,array $scope,array $input):array
@@ -391,6 +573,7 @@ function workflow_v2_estimate_send(PDO $pdo,array $scope,array $input): array
 
 tamiran_api(static function():array{
     $pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';
+    if($method==='GET'&&isset($_GET['handoverReceipt']))return workflow_v2_handover_receipt($pdo,$scope,$_GET['handoverReceipt']);
     if($method==='GET'&&($_GET['technical']??'')==='1')return technician_projection($pdo,$scope,(int)($_GET['caseId']??0));
     if($method==='GET'&&($_GET['technicalActivities']??'')==='1')return technician_activities($pdo,$scope,(int)($_GET['caseId']??0),(int)($_GET['beforeId']??0));
     if($method==='GET'&&($_GET['activity']??'')==='1')return workflow_v2_activity($pdo,$scope,(int)($_GET['caseId']??0));

@@ -139,7 +139,9 @@ def run(args):
     out.check('unrepaired physical return is recorded',lambda:manager.api('delivery-v2.php','POST',delivery))
     out.check('physical return retry is idempotent',lambda:expect(manager.api('delivery-v2.php','POST',delivery)['replayed'],'delivery duplicated'))
     hand=tech.api('workflow-v2.php','POST',{'action':'handover_request','caseId':co,'toUserId':actors[3]['id'],'reason':'TEST transfer','partsDisposition':'transfer_to_new','hotReturnsDisposition':'transfer_to_new'})
-    out.check('new technician accepts formal handover',lambda:other.api('workflow-v2.php','POST',{'action':'handover_decide','publicId':hand['publicId'],'decision':'accept'}))
+    receipt=other.api(f"workflow-v2.php?handoverReceipt={hand['publicId']}")
+    checklist=['device',*[part['publicId'] for group in ('partIssues','installedParts','hotReturns') for part in receipt['receipt'][group]]]
+    out.check('new technician accepts formal handover',lambda:other.api('workflow-v2.php','POST',{'action':'handover_decide','publicId':hand['publicId'],'decision':'accept','receiptRevision':receipt['revision'],'checkedItems':checklist}))
     out.check('handover retains technical author history',lambda:expect(len(projection(co,other)['activities']['activities'])==1,'history lost in handover'))
     out.check('former principal loses case access after handover',lambda:tech.api(f'workflow-v2.php?caseId={co}&technical=1',expected=403))
     late = create()

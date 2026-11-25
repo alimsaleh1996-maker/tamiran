@@ -51,7 +51,28 @@ def run(args):
  r.check('other technician cannot replay referral',lambda:o.api('workflow-v2.php','POST',ref,expected=403))
  r.check('manager cannot bypass recipient confirmation',lambda:m.api('workflow-v2.php','POST',{'action':'handover_decide','publicId':hand['publicId'],'decision':'manager_force','reason':'TEST bypass removed'},expected=409))
  r.check('rejected manager force retains original responsibility',lambda:expect(row(id)['primaryTechnicianUserId']==ta['id'],'owner changed before confirmation'))
- o.api('workflow-v2.php','POST',{'action':'handover_decide','publicId':hand['publicId'],'decision':'accept'})
+ receipt_endpoint=f"workflow-v2.php?handoverReceipt={hand['publicId']}"
+ receipt=o.api(receipt_endpoint)
+ decision={'action':'handover_decide','publicId':hand['publicId']}
+ report={**decision,'decision':'report_discrepancy','reason':'TEST شارژر تحویل نشد'}
+ resolve={**decision,'decision':'resolve_discrepancy','reason':'TEST مورد بررسی و رفع شد'}
+ accept={**decision,'decision':'accept'}
+ r.check('recipient receipt projects physical identifiers and no financial amounts',lambda:expect(receipt['receipt']['receiptNumber']==row(id)['receiptNumber'] and 'accessories' in receipt['receipt'] and all('price' not in k.lower() for k in receipt['receipt']),'incomplete or overexposed receipt'))
+ r.check('receipt review is required for new referral',lambda:o.api('workflow-v2.php','POST',accept,expected=409))
+ r.check('receipt checklist is required on server',lambda:o.api('workflow-v2.php','POST',{**accept,'receiptRevision':receipt['revision'],'checkedItems':[]},expected=409))
+ r.check('only recipient can report a physical discrepancy',lambda:t.api('workflow-v2.php','POST',report,expected=403))
+ r.check('recipient records a mismatch with no ownership change',lambda:expect(o.api('workflow-v2.php','POST',report)['status']=='requested' and row(id)['primaryTechnicianUserId']==ta['id'],'unexpected owner change'))
+ r.check('duplicate report is idempotent',lambda:expect(o.api('workflow-v2.php','POST',report)['replayed'],'duplicate mismatch'))
+ r.check('manager can read mismatch on receipt',lambda:expect(m.api(receipt_endpoint)['discrepancy']['reason']==report['reason'],'missing mismatch'))
+ r.check('open discrepancy blocks recipient',lambda:o.api('workflow-v2.php','POST',{**accept,'receiptRevision':receipt['revision']},expected=409))
+ r.check('technician cannot resolve discrepancy',lambda:o.api('workflow-v2.php','POST',resolve,expected=403))
+ r.check('manager resolution keeps responsibility with sender',lambda:expect(m.api('workflow-v2.php','POST',resolve)['status']=='requested' and row(id)['primaryTechnicianUserId']==ta['id'],'manager changed owner'))
+ r.check('receipt predating resolution is stale',lambda:o.api('workflow-v2.php','POST',{**accept,'receiptRevision':receipt['revision']},expected=409))
+ fresh=o.api(receipt_endpoint)
+ checklist=['device',*[part['publicId'] for group in ('partIssues','installedParts','hotReturns') for part in fresh['receipt'][group]]]
+ accepted={**accept,'receiptRevision':fresh['revision'],'checkedItems':checklist}
+ r.check('reviewed receipt can be accepted after resolution',lambda:expect(o.api('workflow-v2.php','POST',accepted)['status']=='accepted','handover did not complete'))
+ r.check('accepted receipt persists and acceptance retry is idempotent',lambda:expect(o.api(receipt_endpoint)['receipt']==fresh['receipt'] and o.api('workflow-v2.php','POST',accepted)['replayed'],'accepted receipt was lost or transferred twice'))
  r.check('accepted referral preserves reports and original actor',lambda:expect(len(proj(id,o)['activities']['activities'])==3 and all(x['actorName']==ta['displayName'] for x in proj(id,o)['activities']['activities']),'transfer lost history'))
  r.check('former principal loses unauthorized edit access',lambda:t.api('workflow-v2.php','POST',{**payload,'idempotencyKey':secrets.token_hex(12)},expected=403))
  initial=create();state=row(initial)

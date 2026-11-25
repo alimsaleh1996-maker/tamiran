@@ -464,6 +464,23 @@
   border-block: 1px solid var(--tech-line);
   padding-block: 14px;
 }
+.tech-handover-dialog {
+  width: min(520px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: clamp(16px, 5vw, 28px);
+  border: 1px solid var(--tech-line);
+  border-radius: 12px;
+  color: var(--tech-ink);
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.tech-handover-dialog::backdrop { background: #13282499; }
+.tech-handover-dialog h3 { margin-block: 12px 4px; }
+.tech-handover-dialog p { margin-block: 8px; }
+.tech-handover-check { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.tech-handover-dialog textarea { display: block; width: 100%; min-height: 90px; font: inherit; }
+.tech-handover-dialog form button { margin-block: 8px; }
+.tech-handover-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 16px; }
 .technical-desk [id],
 .tech-task {
   scroll-margin-block-start: 110px;
