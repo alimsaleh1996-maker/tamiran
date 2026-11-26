@@ -671,6 +671,7 @@ function workflow_v2_estimate_send(PDO $pdo,array $scope,array $input): array
 
 tamiran_api(static function():array{
     $pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';
+    if($method==='GET'&&isset($_GET['managerFollowups']))return manager_followup_queue($pdo,$scope,$_GET['filter']??'all',$_GET['offset']??0);
     if($method==='GET'&&isset($_GET['managerReport']))return manager_operations_report($pdo,$scope,$_GET['from']??'',$_GET['to']??'');
     if($method==='GET'&&isset($_GET['externalPurchase']))return external_purchase_view($pdo,$scope,isset($_GET['caseId'])?(int)$_GET['caseId']:null);
     if($method==='GET'&&isset($_GET['handoverReceipt']))return workflow_v2_handover_receipt($pdo,$scope,$_GET['handoverReceipt']);

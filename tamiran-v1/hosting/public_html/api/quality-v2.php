@@ -159,6 +159,8 @@ function quality_run(PDO $pdo,array $scope,array $input):array
     if ($selected==='conditional'&&!v2_has_permission($scope,'qc.conditional',['repair_manager'])) {
         throw new TamiranApiException('ثبت قبول مشروط فقط با مجوز مدیر ممکن است.',403);
     }
+    $destination=(string)($input['reworkDestination']??'repairing');
+    if (!in_array($destination,['diagnosing','repairing'],true)) throw new TamiranApiException('مسیر بازکاری معتبر نیست.');
     $failure=v2_text($input['failureReason']??'','علت مردودی',1000,false);
     $limitations=v2_text($input['conditionalLimitations']??'','محدودیت نتیجه مشروط',1000,false);
     $answers=$input['items']??[];
@@ -231,6 +233,12 @@ function quality_run(PDO $pdo,array $scope,array $input):array
         foreach ($records as $record) $insert->execute(['run'=>$runId]+$record);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'qc.complete','repair_qc_run',$public,null,
             ['result'=>$result,'reworkNumber'=>$reworkNumber,'templateId'=>$template['id']]);
+        if ($result==='failed') {
+            $pdo->prepare("INSERT INTO repair_case_events(case_id,actor_user_id,event_type,description,metadata_json)
+                VALUES(:case,:actor,'quality_rework_target',:description,:metadata)")
+                ->execute(['case'=>$caseId,'actor'=>$scope['actor']['id'],'description'=>$destination==='diagnosing'?'بازکاری از عیب‌یابی مجدد':'بازکاری از عملیات تعمیر',
+                    'metadata'=>v2_json(['destination'=>$destination,'qcRun'=>$public])]);
+        }
         if ($result==='failed'&&(int)$case['primary_technician_user_id']>0) {
             v2_notify($pdo,$scope,(int)$case['primary_technician_user_id'],'qc_failed','کنترل کیفیت پرونده مردود شد',$failure,'repair_case',$case['case_public_id']);
         }

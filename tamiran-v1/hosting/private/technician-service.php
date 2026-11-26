@@ -204,7 +204,14 @@ function technician_projection(PDO $pdo,array $scope,int $caseId): array
     $primary=$scope['role']==='repair_manager'||(int)$case['primary_technician_user_id']===(int)$scope['actor']['id'];
     $parts=technician_billable_parts($pdo,$caseId);if(!technician_purchase_allowed($scope))foreach($parts as &$part)unset($part['purchaseUnitCost']);unset($part);
     $unrepairedAmount=technician_unrepaired_amount($pdo,$caseId);
-    return ['invoice'=>case_invoice_public(case_invoice_preview($pdo,$scope,$case)), 'unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','receiptPending'=>!empty($case['physical_receipt_pending']),'permissions'=>['receive'=>!empty($case['physical_receipt_pending'])&&technician_is_receipt_recipient($scope,$case),'refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
+    $reworkDestination=null;
+    if ($case['process_status']==='qc_rework') {
+        $route=$pdo->prepare("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata_json,'$.destination')) FROM repair_case_events
+            WHERE case_id=:case AND event_type='quality_rework_target' ORDER BY id DESC LIMIT 1");
+        $route->execute(['case'=>$caseId]);
+        $reworkDestination=$route->fetchColumn()?:'repairing';
+    }
+    return ['reworkDestination'=>$reworkDestination,'invoice'=>case_invoice_public(case_invoice_preview($pdo,$scope,$case)), 'unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','receiptPending'=>!empty($case['physical_receipt_pending']),'permissions'=>['receive'=>!empty($case['physical_receipt_pending'])&&technician_is_receipt_recipient($scope,$case),'refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
 }
 
 function technician_manual_part(PDO $pdo,array $scope,array $input): array

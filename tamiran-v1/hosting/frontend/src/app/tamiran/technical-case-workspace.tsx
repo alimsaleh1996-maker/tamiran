@@ -947,7 +947,7 @@ export function TechnicalCaseWorkspace({
           {screen === "work" ? (
             <section className="tech-work">
               {canWrite && ["diagnosing", "qc_rework"].includes(item.status) && (
-                <button type="button" onClick={() => go("diagnosis", "work")}>ثبت نتیجهٔ عیب‌یابی</button>
+                <button type="button" onClick={() => go("diagnosis", "work")}>{data.reworkDestination === "diagnosing" ? "شروع عیب‌یابی مجدد" : "ثبت نتیجهٔ عیب‌یابی"}</button>
               )}
               {canWrite ? (
                 <form

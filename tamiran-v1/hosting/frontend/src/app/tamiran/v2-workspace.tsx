@@ -413,7 +413,17 @@ function WorkflowBoard({
   const [handoverReasons, setHandoverReasons] = useState<
     Record<number, string>
   >({});
-  const selected = data.cases.find((item) => item.id === selectedId);
+  const [openedCase, setOpenedCase] = useState<V2Case>();
+  const listedCase = data.cases.find((item) => item.id === selectedId);
+  const selected = listedCase ?? (openedCase?.id === selectedId ? openedCase : undefined);
+  useEffect(() => {
+    if (!selectedId || selected || profile.role !== "repair_manager") return;
+    let active = true;
+    void loadV2Workflow(selectedId).then((reply) => {
+      if (active && reply.cases[0]) setOpenedCase(reply.cases[0]);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [selectedId, selected, profile.role]);
   useEffect(() => onCaseOpenChange(!!selected), [selected?.id, onCaseOpenChange]);
   useEffect(() => {
     if (selectedId && !technicalCaseFromLocation())
@@ -427,6 +437,7 @@ function WorkflowBoard({
     setSelectedId(0);
   };
   const open = (item: V2Case) => {
+    setOpenedCase(item);
     writeTechnicalLocation(item.id);
     setSelectedId(item.id);
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -467,7 +478,7 @@ function WorkflowBoard({
           onNavigate={onNavigate}
           onExit={exit}
           onBusyChange={onBusyChange}
-          onChanged={onCaseChanged}
+          onChanged={(item) => { setOpenedCase(item); onCaseChanged(item); }}
         />
       </div>
     );
@@ -489,7 +500,7 @@ function WorkflowBoard({
       {managerView !== "cases" && profile.role === "repair_manager" && (
         <div className="technical-desk"><section className="tech-task">
           {managerView === "purchases" && <ExternalPurchasePanel actorId={profile.actorId} />}
-          {managerView === "followups" && <OperationsFollowups cases={data.cases} now={data.serverTime} policy={data.operationsPolicy} open={open} />}
+          {managerView === "followups" && <OperationsFollowups open={open} />}
           {managerView === "performance" && <OperationsPerformance />}
           {managerView === "policy" && <OperationsPolicyForm policy={data.operationsPolicy} users={data.users}
             onSaved={async () => { await run(async () => {}, ""); }} />}
@@ -1548,6 +1559,7 @@ function QualityBoard({
   const template = receipt?.template;
   const [result, setResult] = useState("passed");
   const [reason, setReason] = useState("");
+  const [reworkDestination, setReworkDestination] = useState("repairing");
   const [checks, setChecks] = useState<Record<number, string>>({});
   const [checkNotes, setCheckNotes] = useState<Record<number, string>>({});
   const [customTests, setCustomTests] = useState<Array<{ id: string; title: string; result: string; notes: string }>>([]);
@@ -1567,7 +1579,7 @@ function QualityBoard({
               aria-pressed={selected?.id === item.id}
               onClick={() => {
                 setCaseId(String(item.id)); setReceipt(undefined); setChecks({}); setCheckNotes({});
-                setReason(""); setResult("passed"); setCustomTests([]);
+                setReason(""); setResult("passed"); setReworkDestination("repairing"); setCustomTests([]);
               }}
             >
               <strong dir="ltr">{item.receiptNumber}</strong>
@@ -1676,6 +1688,9 @@ function QualityBoard({
             </span>
             <input value={reason} onChange={(e) => setReason(e.target.value)} />
           </label>
+          {result === "failed" && <label>شروع بازکاری از<select aria-label="مسیر بازکاری" value={reworkDestination} onChange={(event) => setReworkDestination(event.target.value)}>
+            <option value="repairing">عملیات تعمیر</option><option value="diagnosing">عیب‌یابی مجدد</option>
+          </select></label>}
           <button
             disabled={
               busy ||
@@ -1701,6 +1716,7 @@ function QualityBoard({
                     receiptId: receipt.publicId,
                     result,
                     failureReason: result === "failed" ? reason : undefined,
+                    reworkDestination: result === "failed" ? reworkDestination : undefined,
                     conditionalLimitations:
                       result === "conditional" ? reason : undefined,
                     idempotencyKey: crypto.randomUUID(),

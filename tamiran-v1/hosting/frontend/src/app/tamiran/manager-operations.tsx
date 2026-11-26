@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { saveShopSetting } from "./directadmin-api";
 import { MoneyInput } from "./money-input";
 import { PersianDatePicker } from "./persian-date-picker";
-import { queueTimestamp } from "./queue-search";
-import { loadManagerPerformance, workflowV2Action, type ManagerPerformance, type OperationsPolicy, type V2Case, type V2User } from "./v2-api";
+import { loadManagerPerformance, loadOperationsFollowups, loadV2Workflow, workflowV2Action, type ManagerPerformance, type OperationsFollowup, type OperationsPolicy, type V2Case, type V2User } from "./v2-api";
 
 const followTitles = {
   customer: "عدم پاسخ مشتری", parts: "انتظار تأمین قطعه", pickup: "عدم مراجعه برای تحویل", late: "عبور از موعد",
@@ -93,36 +92,49 @@ export function OperationsPolicyForm({ policy, users, onSaved }: {
   </form>;
 }
 
-function aged(caseItem: V2Case, now: number, policy: OperationsPolicy) {
-  const reasons: Array<{ name: FollowReason; elapsed: number }> = [];
-  const elapsed = (stamp?: string | null) => stamp ? now - queueTimestamp(stamp).getTime() : -1;
-  if (caseItem.deliveredAt || ["delivered", "closed", "cancelled"].includes(caseItem.status)) return reasons;
-  if (caseItem.holdReason === "customer" && elapsed(caseItem.waitStartedAt) >= hours * policy.followHours.customer) {
-    reasons.push({ name: "customer", elapsed: elapsed(caseItem.waitStartedAt) });
-  }
-  if (caseItem.holdReason === "part" && elapsed(caseItem.waitStartedAt) >= hours * policy.followHours.parts) {
-    reasons.push({ name: "parts", elapsed: elapsed(caseItem.waitStartedAt) });
-  }
-  if (["ready_for_delivery", "returned_unrepaired"].includes(caseItem.status)) {
-    if (elapsed(caseItem.pickupStartedAt) >= hours * policy.followHours.pickup)
-      reasons.push({ name: "pickup", elapsed: elapsed(caseItem.pickupStartedAt) });
-  } else if (elapsed(caseItem.promisedAt) > 0) {
-    reasons.push({ name: "late", elapsed: elapsed(caseItem.promisedAt) });
-  }
-  return reasons;
-}
-
-export function OperationsFollowups({ cases, now, policy, open }: {
-  cases: V2Case[]; now: string; policy: OperationsPolicy; open: (item: V2Case) => void;
-}) {
+export function OperationsFollowups({ open }: { open: (item: V2Case) => void }) {
   const [filter, setFilter] = useState<FollowReason | "all">("all");
+  const [rows, setRows] = useState<OperationsFollowup[]>([]);
+  const [offset, setOffset] = useState<number | null>(null);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const rows = cases.map((item) => ({ item, reasons: aged(item, queueTimestamp(now).getTime(), policy) }))
-    .filter((row) => row.reasons.length && (filter === "all" || row.reasons.some((reason) => reason.name === filter)))
-    .sort((a, b) => Math.max(...b.reasons.map((r) => r.elapsed)) - Math.max(...a.reasons.map((r) => r.elapsed)));
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setRows([]);
+    setOffset(null);
+    setError("");
+    loadOperationsFollowups(filter).then((data) => {
+      if (active) { setRows(data.rows); setOffset(data.nextOffset); setLoading(false); }
+    }, (failure: Error) => {
+      if (active) { setError(failure.message); setLoading(false); }
+    });
+    return () => { active = false; };
+  }, [filter]);
+  async function loadMore() {
+    if (offset === null) return;
+    setBusy(true);
+    try {
+      const data = await loadOperationsFollowups(filter, offset);
+      setRows((current) => [...current, ...data.rows.filter((item) => !current.some((previous) => previous.caseId === item.caseId))]);
+      setOffset(data.nextOffset);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "دریافت پرونده‌های بیشتر انجام نشد.");
+    } finally { setBusy(false); }
+  }
+  async function openCase(id: number) {
+    setBusy(true);
+    try {
+      const result = await loadV2Workflow(id);
+      if (!result.cases[0]) throw new Error("پرونده در دسترسی فعلی پیدا نشد.");
+      open(result.cases[0]);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "پرونده باز نشد.");
+    } finally { setBusy(false); }
+  }
   async function saveNote(caseId: number) {
     setMessage("");
     setError("");
@@ -139,25 +151,27 @@ export function OperationsFollowups({ cases, now, policy, open }: {
   }
   return <section>
     <h3>پرونده‌های نیازمند پیگیری</h3>
-    <label>علت پیگیری<select value={filter} onChange={(event) => setFilter(event.target.value as FollowReason | "all")}>
+    <label>علت پیگیری<select disabled={busy} value={filter} onChange={(event) => setFilter(event.target.value as FollowReason | "all")}>
       <option value="all">همه</option>
       {Object.entries(followTitles).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
     </select></label>
-    <p>{fa(rows.length)} پرونده</p>
+    <p>{fa(rows.length)} پروندهٔ بارگذاری‌شده</p>
     {message && <p role="status">{message}</p>}
     {error && <p role="alert" className="tech-error">{error}</p>}
-    <ul className="tech-plain-list">{rows.map(({ item, reasons }) => <li key={item.id}>
+    <ul className="tech-plain-list">{rows.map((item) => <li key={item.caseId}>
       <p>{item.deviceTitle} · <bdi>{item.receiptNumber}</bdi> · {item.technicianName || "بدون مسئول"}</p>
-      <p>{item.technicianView.statusLabel}</p>
-      <p>{reasons.map(({ name, elapsed }) => `${followTitles[name]} · ${fa(Math.floor(elapsed / hours))} ساعت`).join("، ")}</p>
+      <p>{item.statusLabel}</p>
+      <p>{item.reasons.map(({ name, elapsedSeconds }) => `${followTitles[name]} · ${fa(Math.floor(elapsedSeconds / 3600))} ساعت`).join("، ")}</p>
       <label>نتیجه پیگیری <bdi>{item.receiptNumber}</bdi>
-        <input value={notes[item.id] ?? ""} maxLength={4000} onChange={(event) => setNotes({ ...notes, [item.id]: event.target.value })} />
+        <input value={notes[item.caseId] ?? ""} maxLength={4000} onChange={(event) => setNotes({ ...notes, [item.caseId]: event.target.value })} />
       </label>
       <div className="tech-handover-actions">
-        <button type="button" onClick={() => open(item)}>بازکردن مرحلهٔ پرونده</button>
-        <button type="button" disabled={busy || !notes[item.id]?.trim()} onClick={() => void saveNote(item.id)}>ثبت پیگیری</button>
+        <button type="button" disabled={busy} onClick={() => void openCase(item.caseId)}>بازکردن مرحلهٔ پرونده</button>
+        <button type="button" disabled={busy || !notes[item.caseId]?.trim()} onClick={() => void saveNote(item.caseId)}>ثبت پیگیری</button>
       </div>
     </li>)}</ul>
+    {offset !== null && <button disabled={busy} type="button" onClick={() => void loadMore()}>نمایش پرونده‌های بیشتر</button>}
+    {loading && <p role="status">در حال بارگذاری…</p>}
   </section>;
 }
 
@@ -207,9 +221,10 @@ export function OperationsPerformance() {
           <label>تعداد پایان فنی <meter min={0} max={maximum} value={total}>{fa(total)}</meter> {fa(total)}</label>
           <p>پروندهٔ فعال فعلی: {fa(row.active)} · تحویل ثبت‌شده: {fa(row.delivered)}</p>
           <p>تعمیر موفق: {successBasis ? `${fa(Math.round(100 * row.repaired / successBasis))}٪` : "داده کافی نیست"} · مردودی کنترل کیفیت: {row.qcRuns ? `${fa(Math.round(100 * row.qcFailures / row.qcRuns))}٪` : "داده کافی نیست"}</p>
+          <p>رعایت موعد اولیه: {row.withInitialDue ? `${fa(row.onTime)} از ${fa(row.withInitialDue)} پروندهٔ دارای موعد` : "داده کافی نیست"}</p>
           {row.unrepaired > row.technicalFailures && <p>پایان بدون تعمیر با علت غیرفنی یا نامشخص: {fa(row.unrepaired - row.technicalFailures)}</p>}
           {!!Object.keys(row.stageTimes).length && <ul aria-label="میانگین زمان مرحله‌های تکمیل‌شده">{Object.entries(row.stageTimes).map(([key, second]) =>
-            <li key={key}>{({ diagnosing: "عیب‌یابی", repairing: "تعمیر", awaiting_customer_approval: "انتظار مشتری", awaiting_parts: "انتظار قطعه" } as Record<string, string>)[key]} · {fa(Math.round(second / 60))} دقیقه</li>)}</ul>}
+            <li key={key}>{({ diagnosing: "عیب‌یابی", repairing: "تعمیر", awaiting_customer_approval: "انتظار مشتری", awaiting_parts: "انتظار قطعه", purchase: "انتظار مجوز خرید", transfer: "انتظار انتقال" } as Record<string, string>)[key]} · {fa(Math.round(second / 60))} دقیقه</li>)}</ul>}
           {!!row.transferReasons.length && <ul>{row.transferReasons.map((reason) =>
             <li key={reason.label}>{reason.label} · {fa(reason.count)}</li>)}</ul>}
         </li>;

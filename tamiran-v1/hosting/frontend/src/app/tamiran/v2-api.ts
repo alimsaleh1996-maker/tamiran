@@ -422,6 +422,7 @@ export type TechnicalActivity = {
 export type TechnicalProjection = {
   receiptPending?: boolean;
   invoice: TechnicalInvoice;
+  reworkDestination?: "diagnosing" | "repairing" | null;
   unrepairedAmount: number;
   unrepairedFinanceBlockers: string[];
   receptionNotes: string;
@@ -535,6 +536,8 @@ export type ManagerPerformance = {
   repaired: number;
   unrepaired: number;
   technicalFailures: number;
+  withInitialDue: number;
+  onTime: number;
   stageTimes: Record<string, number>;
   qcRuns: number;
   qcFailures: number;
@@ -543,4 +546,18 @@ export type ManagerPerformance = {
 export const loadManagerPerformance = (from: string, to: string) =>
   directAdminRequest<{ rows: ManagerPerformance[] }>(
     `/api/workflow-v2.php?${new URLSearchParams({ managerReport: "1", from, to })}`,
+  );
+
+export type OperationsFollowupReason = "customer" | "parts" | "pickup" | "late";
+export type OperationsFollowup = {
+  caseId: number;
+  receiptNumber: string;
+  deviceTitle: string;
+  technicianName: string;
+  statusLabel: string;
+  reasons: Array<{ name: OperationsFollowupReason; elapsedSeconds: number }>;
+};
+export const loadOperationsFollowups = (filter: string, offset = 0) =>
+  directAdminRequest<{ rows: OperationsFollowup[]; nextOffset: number | null }>(
+    `/api/workflow-v2.php?${new URLSearchParams({ managerFollowups: "1", filter, offset: String(offset) })}`,
   );

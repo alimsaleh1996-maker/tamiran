@@ -48,12 +48,13 @@ def run(args):
         policy = manager.api('workflow-v2.php')['operationsPolicy']
         manager.api('settings.php','PATCH',{'key':'operations_policy','value':{**policy, **patch}})
 
-    def create():
+    def create(promised_at=None):
         case = manager.api('operations.php','POST',{
             'action':'create_case','receiptMode':'issue_only','customerName':marker,'customerMobile':prefix+'09',
             'deviceModelId':model,'identifier':synthetic_imei(),'declaredIssue':'TEST شارژ قطع می‌شود',
             'customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':technician,
             'preapprovedAmount':7500000,'idempotencyKey':secrets.token_hex(12),
+            **({'promisedAt':promised_at} if promised_at else {}),
         })['repairCase']['id']
         command(tech, case, 'technical_receive', lockVersion=row(case)['lockVersion'])
         return case
@@ -78,7 +79,8 @@ def run(args):
     receipt=destination.api(f"workflow-v2.php?handoverReceipt={refer['publicId']}")
     log.check('approved request still needs physical receipt',lambda:expect(command(destination,case,'handover_decide',decision='accept',receiptRevision=receipt['revision'],checkedItems=['device'],**reply)['status']=='accepted','recipient could not accept'))
     save_policy(handover='disabled')
-    case = create()
+    original_due=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+    case = create(original_due)
     log.check('manager-only policy blocks technician referral',lambda:command(tech,case,'handover_request',expected=403,toUserId=recipient,reasonId='expertise',partsDisposition='transfer_to_new',hotReturnsDisposition='transfer_to_new'))
 
     log.check('diagnosis preserves acceptance issue and moves to estimation',lambda:expect(
@@ -141,9 +143,27 @@ def run(args):
     draft=next(d for d in drafts if d['caseId']==case)
     log.check('finance sees prior confirmed draft and consumed purchase',lambda:expect(draft['totalAmount']==1500000 and len(draft['items'])==2,'finance replaced the pre-QC invoice'))
     date=dt.date.today().isoformat()
-    log.check('manager reports actual repair and QC',lambda:expect(any(r['id']==technician and r['repaired']>=1 and r['qcRuns']>=1 for r in manager.api(f'workflow-v2.php?managerReport=1&from={date}&to={date}')['rows']),'missing verified activity'))
+    log.check('manager reports actual repair and QC',lambda:expect(any(r['id']==technician and r['repaired']>=1 and r['qcRuns']>=1 and r['withInitialDue']==1 and r['onTime']==1 and 'transfer' in r['stageTimes'] for r in manager.api(f'workflow-v2.php?managerReport=1&from={date}&to={date}')['rows']),'missing verified activity'))
     log.check('non-manager cannot request performance data',lambda:tech.api(f'workflow-v2.php?managerReport=1&from={date}&to={date}',expected=403))
-    stock_case=create()
+    failed=create()
+    command(tech,failed,'estimate_create',items=[{'type':'labor','title':'اجرت بازکاری','quantity':1,'unitPrice':200000}])
+    command(tech,failed,'transition',target='repairing',lockVersion=row(failed)['lockVersion'])
+    command(tech,failed,'technical_finish',result='repaired',report='TEST نتیجه اولیه',lockVersion=row(failed)['lockVersion'])
+    failed_qc=qc_call(inspector,'start',failed)['receipt']
+    failed_items=[{'templateItemId':line['id'],'result':'failed' if line['code']=='repair_issue' else 'passed',
+        **({'notes':'TEST ایراد تکرار شد'} if line['code']=='repair_issue' else {})} for line in failed_qc['template']['items']]
+    log.check('failed QC keeps chosen re-diagnosis route',lambda:expect(qc_call(inspector,'run',failed,receiptId=failed_qc['publicId'],
+        items=failed_items,result='failed',failureReason='TEST ایراد پابرجا است',reworkDestination='diagnosing')['result']=='failed'
+        and row(failed)['status']=='qc_rework'
+        and tech.api(f'workflow-v2.php?caseId={failed}&technical=1')['reworkDestination']=='diagnosing','rework route missing'))
+    overdue=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
+    stock_case=create(overdue)
+    feed='workflow-v2.php?managerFollowups=1&filter=late'
+    log.check('manager followup independent from operations list',lambda:expect(any(r['caseId']==stock_case for r in manager.api(feed)['rows']),'overdue case missing'))
+    log.check('manager note retains the real elapsed followup reason',lambda:expect(command(manager,stock_case,'followup_note',message='TEST پیگیری موعد')['recorded']
+        and any(r['caseId']==stock_case for r in manager.api(feed)['rows']),'followup note hid case'))
+    log.check('technician cannot view manager followup branch feed',lambda:tech.api(feed,expected=403))
+
     bad=[{'itemId':item,'quantity':1},{'itemId':99999999999,'quantity':1}]
     purchase_endpoint='inventory-v2.php'
     log.check('invalid item rolls back entire stock batch',lambda:tech.api(purchase_endpoint,'POST',{
