@@ -1,6 +1,6 @@
 # تعمیران ۱٫۰٫۰
 
-نامزد انتشار `1.0.0-rc.10` از `2.0.0-php.10` در Commit `8928ffd9a3c14494e069fb0cd4d2edc7f5bb2fa6` ساخته شده است. اجرای مستقل PHP/MariaDB در `hosting/` قرار دارد. مسیرهای وب و نصب همان `public_html/` و `private/` هستند.
+نامزد انتشار `1.0.0-rc.11` از `2.0.0-php.10` در Commit `8928ffd9a3c14494e069fb0cd4d2edc7f5bb2fa6` ساخته شده است. اجرای مستقل PHP/MariaDB در `hosting/` قرار دارد. مسیرهای وب و نصب همان `public_html/` و `private/` هستند.
 
 ```sh
 cd tamiran-v1/hosting/frontend
