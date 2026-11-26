@@ -38,7 +38,7 @@ import {
   inventoryControlV2Action,
   inventoryV2Action,
   loadV2Delivery,
-  loadV2Finance,
+  loadV2FinanceWorkspace,
   loadV2Inventory,
   loadV2InventoryControl,
   loadV2Procurement,
@@ -56,6 +56,7 @@ import {
   type V2InventoryPayload,
   type V2Invoice,
   type V2InvoiceDraft,
+  type V2FinanceWorkspace,
   type V2ProcurementPayload,
   type V2QualityPayload,
   type V2QualityCase,
@@ -160,7 +161,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
     null,
   );
   const [quality, setQuality] = useState<V2QualityPayload | null>(null);
-  const [finance, setFinance] = useState<{ invoices: V2Invoice[]; drafts: V2InvoiceDraft[] } | null>(
+  const [finance, setFinance] = useState<V2FinanceWorkspace | null>(
     null,
   );
   const [delivery, setDelivery] = useState<{
@@ -187,9 +188,8 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
     : section === "delivery" ? "نهایی‌سازی مالی و ثبت تحویل واقعی"
     : section === "supply" ? "رزرو، خرید و تحویل قطعات پرونده‌ها"
     : "";
-  const canFinance = profile.modules.includes("finance") && (
-    ["repair_manager", "finance_cashier"].includes(profile.role)
-    || profile.permissions.includes("finance.view") || profile.permissions.includes("*"));
+  const canFinance = ["repair_manager", "finance_cashier"].includes(profile.role)
+    || profile.permissions.includes("finance.view") || profile.permissions.includes("*");
   const canDeliver = ["repair_manager", "reception", "finance_cashier"].includes(profile.role)
     || profile.permissions.includes("delivery.view") || profile.permissions.includes("*");
   const [deliveryTab, setDeliveryTab] = useState<"finance" | "ready">(() => {
@@ -210,7 +210,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
       if (section === "delivery") {
         const [base, financial, handover] = await Promise.allSettled([
           loadV2Workflow(),
-          canFinance ? loadV2Finance() : null,
+          canFinance ? loadV2FinanceWorkspace() : null,
           canDeliver ? loadV2Delivery() : null,
         ]);
         if (base.status === "fulfilled") setWorkflow(base.value);
@@ -343,12 +343,20 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
       )}
       {section === "delivery" && (
         <>
-          {!serviceCaseOpen && finance && delivery && <nav className="tech-handover-actions" aria-label="مراحل مالی و تحویل">
+          {!serviceCaseOpen && canFinance && canDeliver && <nav className="tech-handover-actions" aria-label="مراحل مالی و تحویل">
             <button type="button" aria-pressed={deliveryTab === "finance"} onClick={() => chooseDeliveryTab("finance")}>نهایی‌سازی مالی</button>
             <button type="button" aria-pressed={deliveryTab === "ready"} onClick={() => chooseDeliveryTab("ready")}>تحویل دستگاه</button>
           </nav>}
-          {finance && (!delivery || deliveryTab === "finance") && <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={workflow?.cases ?? []} search={queueSearch} profile={profile} busy={busy} run={run} />}
-          {delivery && (!finance || deliveryTab === "ready") && <DeliveryBoard onCaseOpen={setServiceCaseOpen} data={delivery} cases={queueCases} profile={profile} busy={busy} run={run} />}
+          {deliveryTab === "finance" && finance?.available && (
+            <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={workflow?.cases ?? []} search={queueSearch} profile={profile} busy={busy} run={run} />
+          )}
+          {deliveryTab === "finance" && finance?.available === false && (
+            <FinanceUnavailable pending={finance.pending} search={queueSearch}
+              activation={profile.role === "repair_manager" ? () => onNavigate("افزودن قابلیت") : undefined} />
+          )}
+          {deliveryTab === "ready" && delivery && (
+            <DeliveryBoard onCaseOpen={setServiceCaseOpen} data={delivery} cases={queueCases} profile={profile} busy={busy} run={run} />
+          )}
         </>
       )}
       {section === "sms" && sms && (
@@ -1396,6 +1404,28 @@ function QualityTemplateForm({ templates, busy, run }: { templates: V2QcTemplate
     }])}>افزودن آزمایش</button>
     <button type="submit" disabled={busy || !template}>ذخیرهٔ نسخهٔ چک‌لیست</button>
   </form>;
+}
+
+function FinanceUnavailable({ pending, search, activation }: {
+  pending: Extract<V2FinanceWorkspace, { available: false }>["pending"];
+  search: string;
+  activation?: () => void;
+}) {
+  const cases = pending.filter(item => matchesQueueSearch(search,
+    [item.receiptNumber, item.customerName, item.customerMobile, item.identifier ?? "", item.deviceTitle]));
+  return (
+    <section className="v2-card-form">
+      <h3>پرونده‌های منتظر تکمیل مالی</h3>
+      <p role="status" className="service-callout">ماژول مالی برای این تعمیرگاه فعال نیست. صدور فاکتور و تسویه پس از فعال‌سازی انجام می‌شوند.</p>
+      {activation && <button type="button" onClick={activation}>رفتن به فعال‌سازی مالی</button>}
+      {cases.length ? <ul className="tech-plain-list">
+        {cases.map(item => <li key={item.receiptNumber}>
+          <strong><bdi>{item.receiptNumber}</bdi> · {item.deviceTitle}</strong>
+          <p>{item.customerName} · منتظر تکمیل مالی</p>
+        </li>)}
+      </ul> : <Empty text={search.trim() ? "پرونده‌ای با این مشخصات پیدا نشد." : "پرونده‌ای منتظر تکمیل مالی نیست."} />}
+    </section>
+  );
 }
 
 function FinanceBoard({

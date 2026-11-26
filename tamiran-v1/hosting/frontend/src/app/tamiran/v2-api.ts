@@ -385,10 +385,14 @@ export type V2InvoiceDraft = V2FinanceDevice & {
     warrantyDays: number;
   }>;
 };
-export const loadV2Finance = () =>
-  directAdminRequest<{ invoices: V2Invoice[]; drafts: V2InvoiceDraft[] }>(
-    "/api/finance-v2.php",
-  );
+export type V2FinanceWorkspace =
+  | { available: true; invoices: V2Invoice[]; drafts: V2InvoiceDraft[] }
+  | { available: false; pending: Array<{
+      receiptNumber: string; customerName: string; customerMobile: string;
+      identifier: string | null; deviceTitle: string;
+    }> };
+export const loadV2FinanceWorkspace = () =>
+  directAdminRequest<V2FinanceWorkspace>("/api/finance-v2.php?workspace=1");
 export const financeV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/finance-v2.php", payload);
 

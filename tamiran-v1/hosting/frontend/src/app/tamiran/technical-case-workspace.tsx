@@ -1561,7 +1561,10 @@ export function TechnicalCaseWorkspace({
                 ))}
               </ul>
               {canViewFinance ? (
-                <button onClick={() => onNavigate("مالی پرونده")}>
+                <button onClick={() => {
+                  sessionStorage.setItem("tamiran:focused-module-receipt", item.receiptNumber);
+                  onNavigate("مالی پرونده");
+                }}>
                   ورود به مالی پرونده
                 </button>
               ) : (

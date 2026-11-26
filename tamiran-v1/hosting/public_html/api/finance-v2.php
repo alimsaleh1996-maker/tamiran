@@ -31,6 +31,24 @@ function finance_advance_readiness(PDO $pdo,array $scope,int $caseId,string $key
     }catch(Throwable$error){tamiran_log('warning','automatic_delivery_readiness_failed',['case_id'=>$caseId,'message'=>$error->getMessage()]);return false;}
 }
 
+function finance_workspace(PDO $pdo, array $scope, array $policy): array
+{
+    v2_require_permission($scope,'finance.view',['finance_cashier'],'مشاهده مالی پرونده مجاز نیست.');
+    if ($policy['financeEnabled']) return ['available'=>true] + finance_payload($pdo,$scope);
+
+    // Pending case identities are visible to finance viewers even while billing is unavailable.
+    $query=$pdo->prepare("SELECT c.receipt_number AS receiptNumber, cu.full_name AS customerName,
+            cu.mobile AS customerMobile, c.identifier_snapshot AS identifier,
+            CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS deviceTitle
+        FROM repair_case_workflows w
+        JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id AND c.branch_id=w.branch_id
+        JOIN repair_customers cu ON cu.id=c.customer_id AND cu.shop_id=c.shop_id
+        WHERE w.shop_id=:shop AND w.branch_id=:branch AND w.process_status IN ('finance_pending','qc_conditional')
+        ORDER BY w.updated_at DESC, w.id DESC");
+    $query->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
+    return ['available'=>false,'pending'=>$query->fetchAll()];
+}
+
 function finance_payload(PDO $pdo,array $scope):array
 {
     v2_require_permission($scope,'finance.view',['finance_cashier'],'مشاهده مالی پرونده مجاز نیست.');
@@ -287,7 +305,9 @@ function finance_receivable(PDO $pdo,array $scope,array $input):array
 
 tamiran_api(static function():array{
     $pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';
-    v2_require_capability(v2_product_policy($pdo,$scope),'financeEnabled','ماژول مالی برای این تعمیرگاه فعال نیست.');
+    $policy=v2_product_policy($pdo,$scope);
+    if($method==='GET' && ($_GET['workspace']??null)==='1') return finance_workspace($pdo,$scope,$policy);
+    v2_require_capability($policy,'financeEnabled','ماژول مالی برای این تعمیرگاه فعال نیست.');
     if($method==='GET')return finance_payload($pdo,$scope);
     if($method!=='POST')throw new TamiranApiException('روش درخواست مجاز نیست.',405);
     tamiran_require_csrf();$input=tamiran_json_body();

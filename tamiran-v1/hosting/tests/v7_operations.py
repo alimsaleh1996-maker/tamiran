@@ -178,6 +178,33 @@ def run(args):
         check_supply_browser(log,args.url,warehouse,row(stock_case)['receiptNumber'],args.browser_dir)
         check_finance_delivery_browser(log,args.url,manager,case,row(case)['receiptNumber'],args.browser_dir)
         check_operations_browser(log,args.url,manager,tech,stock_case,args.browser_dir)
+
+    pending = create()
+    command(tech,pending,'estimate_create',items=[{'type':'labor','title':'اجرت آزمایشی','quantity':1,'unitPrice':200000}])
+    command(tech,pending,'transition',target='repairing',lockVersion=row(pending)['lockVersion'])
+    command(tech,pending,'technical_finish',result='repaired',report='TEST پایان تعمیر',lockVersion=row(pending)['lockVersion'])
+    receipt=qc_call(inspector,'start',pending)['receipt']
+    qc_call(inspector,'run',pending,receiptId=receipt['publicId'],items=[
+        {'templateItemId':test['id'],'result':'passed'} for test in receipt['template']['items']])
+    pending_number=row(pending)['receiptNumber']
+    def set_finance_module(enabled):
+        admin.api('admin.php','PATCH',{'id':owner['shop']['id'],
+            'modules':['repair','inventory']+(['finance'] if enabled else []),
+            'moduleChangeReason':'آزمون محیط محلی'})
+    set_finance_module(False)
+    locked=manager.api('finance-v2.php?workspace=1')
+    log.check('inactive finance shows pending case identity without billing data',lambda:expect(
+        locked['available'] is False and any(entry['receiptNumber']==pending_number for entry in locked['pending'])
+        and 'invoices' not in locked and 'drafts' not in locked,'disabled finance hides case or exposes billing data'))
+    log.check('technician without finance permission cannot read the workspace',lambda:tech.api('finance-v2.php?workspace=1',expected=403))
+    log.check('inactive finance still rejects invoice issue',lambda:manager.api('finance-v2.php','POST',
+        {'action':'issue','caseId':pending,'items':[{'type':'labor','title':'آزمایش','quantity':1,'saleUnitPrice':200000}]},expected=403))
+    if args.browser_dir:
+        check_locked_finance_browser(log,args.url,manager,pending,pending_number,args.browser_dir)
+    set_finance_module(True)
+    reopened=manager.api('finance-v2.php?workspace=1')
+    log.check('activating module restores the same existing case without re-referral',lambda:expect(
+        reopened['available'] and any(entry['caseId']==pending for entry in reopened['drafts']), 'existing pending case did not reappear'))
     log.save()
 
 
@@ -265,11 +292,20 @@ def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
             route.fulfill(response=response,json=body)
         page.route(lambda address: urlsplit(address).path.endswith('/api/workflow-v2.php') and not urlsplit(address).query,
             omit_case_from_general_feed)
+        def omit_legacy_finance_setting(route):
+            response=route.fetch()
+            body=response.json()
+            shop=body['data']['actor']['shop']
+            assert 'finance' in shop['modules']
+            shop['modules'].remove('finance')
+            route.fulfill(response=response,json=body)
+        page.route(lambda address: urlsplit(address).path.endswith('/api/auth.php') and not urlsplit(address).query,
+            omit_legacy_finance_setting)
         page.goto(url+'/?view=delivery',wait_until='networkidle')
         log.check('combined menu opens finance rather than delivery for a finance-authorized manager', lambda:
             browser_expect(page.get_by_role('button',name='نهایی‌سازی مالی',exact=True)).to_have_attribute('aria-pressed','true'))
         card=page.locator('.service-queue-card').filter(has_text=receipt)
-        log.check('finance case remains visible when the general case feed omits it',lambda:browser_expect(card).to_be_visible())
+        log.check('server-authorized case is visible with stale module settings and a truncated general feed',lambda:browser_expect(card).to_be_visible())
         draft=next(row for row in manager.api('finance-v2.php')['drafts'] if row['caseId']==case)
         search=page.get_by_role('textbox',name='جست‌وجوی صف')
         search.fill(draft['customer_mobile'])
@@ -312,6 +348,25 @@ def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
         log.check('delivery records physical delivery independently',lambda:expect(
             manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='delivered','physical delivery not stored'))
         log.check('finance and delivery browser have no JavaScript errors',lambda:expect(not errors,str(errors)))
+        browser.close()
+
+
+def check_locked_finance_browser(log,url,manager,case,receipt,folder):
+    from playwright.sync_api import sync_playwright, expect as browser_expect
+    with sync_playwright() as tooling:
+        browser=tooling.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+        page=open_as(browser,url,manager,width=1440).new_page()
+        page.goto(url+f'/?view=my-work&techCase={case}&techTask=overview',wait_until='networkidle')
+        page.get_by_role('button',name='پیگیری مالی',exact=True).click()
+        page.get_by_role('button',name='ورود به مالی پرونده',exact=True).click()
+        log.check('manager follows the case into the finance tab with original receipt prefilled', lambda:
+            browser_expect(page.get_by_role('textbox',name='جست‌وجوی صف')).to_have_value(receipt))
+        log.check('disabled finance still displays the case and explains activation',lambda:
+            browser_expect(page.get_by_role('heading',name='پرونده‌های منتظر تکمیل مالی')).to_be_visible())
+        browser_expect(page.get_by_role('listitem').filter(has_text=receipt)).to_be_visible()
+        browser_expect(page.get_by_role('button',name='صدور فاکتور',exact=True)).to_have_count(0)
+        browser_expect(page.get_by_role('button',name='رفتن به فعال‌سازی مالی',exact=True)).to_be_visible()
+        page.screenshot(path=str(Path(folder)/'finance-inactive.png'),full_page=True)
         browser.close()
 
 
