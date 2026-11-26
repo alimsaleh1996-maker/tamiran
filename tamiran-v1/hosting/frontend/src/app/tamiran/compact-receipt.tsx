@@ -1,3 +1,6 @@
+import { ReceiptA4 } from "./receipt-a4";
+import receiptA4Css from "./receipt-a4.css?inline";
+import type { IntakeReceiptDetails } from "./operations";
 import type { WorkspaceProfile } from "./access";
 import { SecureQr } from "./secure-qr";
 import { formatToman } from "./money-input";
@@ -8,6 +11,10 @@ export type CompactReceiptProps = {
   receiptNumber: string;
   customerName: string;
   customerMobile: string;
+  nationalCode?: string;
+  deviceType?: string;
+  shopAddress?: string;
+  details?: IntakeReceiptDetails | null;
   catalogItem: { brand: string; model: string } | null;
   accessories: string[];
   appearanceStates: string[];
@@ -69,6 +76,8 @@ function dateText(value?: string | null, withTime = false) {
       }).format(d)
     : formatPersianDate(value);
 }
+export const DEFAULT_RECEIPT_SIZE = "A4";
+
 export function CompactReceipt(p: CompactReceiptProps) {
   const tracking = p.trackingUrl
     ? new URL(
@@ -86,19 +95,25 @@ export function CompactReceipt(p: CompactReceiptProps) {
         : p.dataHandling === "no_erasure"
           ? "تعمیر بدون حذف اطلاعات"
           : "ثبت نشده";
-  const conditions = p.conditions?.length
+  const conditions = p.details?.terms?.trim() ? p.details.terms.split(/\n+/).map(line => line.trim()).filter(Boolean)
+    : p.conditions?.length
     ? p.conditions
     : [
         "تحویل دستگاه با ارائهٔ این رسید و احراز هویت مشتری انجام می‌شود.",
         "تعمیر و هزینهٔ بالاتر از سقف پذیرش نیازمند تأیید مشتری است.",
         "ضمانت خدمت و قطعات مطابق فاکتور نهایی است.",
       ];
+  const printSize = p.printSize ?? DEFAULT_RECEIPT_SIZE;
+  if (printSize === "A4") return <>
+    <style>{RECEIPT_CSS + receiptA4Css}</style>
+    <ReceiptA4 receipt={p} tracking={tracking} handling={handling} conditions={conditions} />
+  </>;
   return (
     <>
       <style>{RECEIPT_CSS}</style>
       <article
         className="tamiran-receipt"
-        data-print-size={p.printSize ?? "A5"}
+        data-print-size={printSize}
         aria-label="رسید پذیرش تعمیر"
       >
         <header>
@@ -244,7 +259,7 @@ export function printCompactReceipt(): boolean {
         ? "80mm 210mm"
         : "A5";
   const style = d.createElement("style");
-  style.textContent = `@font-face{font-family:Vazirmatn;src:url('${new URL("/assets/vazirmatn-arabic-wght-normal-Cafbb7Zc.woff2", location.origin)}') format('woff2');font-weight:100 900}@page{size:${size};margin:0}${RECEIPT_CSS}`;
+  style.textContent = `@font-face{font-family:Vazirmatn;src:url('${new URL("/assets/vazirmatn-arabic-wght-normal-Cafbb7Zc.woff2", location.origin)}') format('woff2');font-weight:100 900}@page{size:${size};margin:0}${RECEIPT_CSS}${receiptA4Css}`;
   d.head.append(style);
   d.body.append(receipt.cloneNode(true));
   void d.fonts

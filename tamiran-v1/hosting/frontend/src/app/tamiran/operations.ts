@@ -27,6 +27,17 @@ export type RepairCaseEvent = {
   createdAt: string;
 };
 
+export type ReceiptIssueDetail = { issue: string; kind: string; note: string };
+
+export type IntakeReceiptDetails = {
+  initialEstimate: number | null;
+  notes: string;
+  declaredIssues: string[];
+  issueDetails?: ReceiptIssueDetail[];
+  advance: number;
+  terms: string;
+};
+
 export type RepairCaseRecord = {
   id: number;
   expectedVersion: number;
@@ -36,6 +47,7 @@ export type RepairCaseRecord = {
   receiptNumber: string;
   receiptSequence?: number | null;
   trackingUrl?: string;
+  receiptDetails?: IntakeReceiptDetails | null;
   branchCode: string;
   customerId: number;
   customerName: string;
@@ -176,6 +188,7 @@ export type CreateRepairCaseInput = {
   color: string;
   declaredIssue: string;
   declaredIssues?: string[];
+  receiptIssueDetails?: ReceiptIssueDetail[];
   accessories: string[];
   appearanceStates: string[];
   receptionNotes?: string;
@@ -184,6 +197,8 @@ export type CreateRepairCaseInput = {
   previousDeviceId?: number;
   expectedDeviceVersion?: number;
   preapprovedAmount?: number;
+  initialEstimate?: number;
+  receiptNotes?: string;
   promisedAt?: string;
   temporaryDeviceSecret?: string;
   devicePassword?: string;

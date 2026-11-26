@@ -1,0 +1,117 @@
+.tamiran-receipt.receipt-a4 {
+  --receipt-rule: #a6a6a6;
+  width: 210mm;
+  padding: 10mm 11mm 8mm;
+  color: #181a1a;
+  font-size: 10pt;
+  line-height: 1.65;
+  border-radius: 0;
+  overflow-wrap: anywhere;
+}
+
+.receipt-a4 .receipt-a4-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr) 30mm;
+  align-items: center;
+  gap: 4mm;
+  min-height: 31mm;
+  padding-block: 0 3mm;
+  margin: 0;
+  border-bottom: 1px solid #242727;
+  break-inside: avoid;
+}
+.receipt-a4 .receipt-a4-title { text-align: center; }
+.receipt-a4 .receipt-a4-title h2 { font-size: 17pt; font-weight: 850; line-height: 1.35; color: inherit; }
+.receipt-a4 .receipt-a4-title p, .receipt-a4 .receipt-a4-brand p { font-size: 8pt; color: #494949; }
+.receipt-a4 .receipt-a4-brand > div { display: flex; gap: 2mm; align-items: center; font-size: 13pt; line-height: 1.35; }
+.receipt-a4 .receipt-a4-brand > div > span { flex: none; border: 1px solid #262727; border-radius: 2mm; padding: 0 2mm; font-size: 18pt; font-weight: 850; }
+.receipt-a4 .receipt-a4-tracking { justify-self: center; text-align: center; font-size: 8pt; }
+.receipt-a4 .receipt-a4-tracking a { color: inherit; text-decoration: none; display: block; }
+.receipt-a4 .secure-qr, .receipt-a4 .secure-qr svg { width: 25mm; height: auto; margin-inline: auto; }
+.receipt-a4 .secure-qr > span { font-size: 7.5pt; }
+
+.receipt-a4 .receipt-a4-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1mm 3mm;
+  padding-block: 2mm;
+  font-size: 8pt;
+  color: #484848;
+  break-inside: avoid;
+}
+.receipt-a4 .receipt-a4-meta strong { font-size: 11pt; color: #181a1a; }
+.receipt-a4 section { padding: 0; margin-block-end: 3mm; border: 0; break-inside: auto; }
+.receipt-a4 h3 { margin-block-end: 1.5mm; font-size: 10pt; font-weight: 800; break-after: avoid; }
+
+.receipt-a4 .receipt-a4-cells {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-inline-end: 1px solid var(--receipt-rule);
+  border-block-end: 1px solid var(--receipt-rule);
+  break-inside: avoid;
+}
+.receipt-a4 .receipt-a4-cells > div { border-inline-start: 1px solid var(--receipt-rule); border-block-start: 1px solid var(--receipt-rule); padding: 1.1mm 2.5mm; min-width: 0; }
+.receipt-a4 .receipt-a4-cells dt, .receipt-a4 .receipt-a4-note, .receipt-a4 .receipt-a4-section-head span { color: #494949; font-size: 8pt; }
+.receipt-a4 .receipt-a4-cells dd { font-weight: 690; }
+.receipt-a4 .receipt-a4-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 2mm; }
+.receipt-a4 .receipt-a4-money > div { background: #f1f1f1; padding-block: 1.4mm; }
+.receipt-a4 .receipt-a4-money > div:nth-child(2) { box-shadow: inset 0 0.55mm #262727; }
+.receipt-a4 .receipt-a4-money dd { font-size: 13pt; font-weight: 800; }
+.receipt-a4 .receipt-a4-note { margin-block-start: 0.8mm; }
+
+.receipt-a4 .receipt-a4-issues { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.7pt; line-height: 1.55; }
+.receipt-a4 .receipt-a4-issues th, .receipt-a4 .receipt-a4-issues td {
+  border: 1px solid var(--receipt-rule);
+  text-align: start;
+  padding: 1mm 2mm;
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+.receipt-a4 .receipt-a4-issues th { background: #f1f1f1; font-weight: 700; }
+.receipt-a4 .receipt-a4-issues :is(th, td):first-child { width: 10mm; padding-inline: 0.5mm; text-align: center; white-space: nowrap; }
+.receipt-a4 .receipt-a4-issues :is(th, td):nth-child(2) { width: 19%; }
+.receipt-a4 .receipt-a4-issues :is(th, td):nth-child(3) { width: 28%; }
+.receipt-a4 .receipt-a4-issues tr { break-inside: avoid; }
+
+.receipt-a4 .receipt-a4-conditions { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 4mm; }
+.receipt-a4 .receipt-a4-conditions ol { margin: 0; padding-inline-start: 5mm; font-size: 8.5pt; line-height: 1.65; }
+.receipt-a4 .receipt-a4-conditions li { margin-block-end: 0.7mm; white-space: pre-wrap; }
+.receipt-a4 .receipt-a4-appearance { min-height: 46mm; display: grid; align-content: start; gap: 1.1mm; font-size: 8.8pt; }
+.receipt-a4 .receipt-a4-appearance, .receipt-a4 .receipt-a4-extras { border: 1px solid var(--receipt-rule); padding: 1.8mm 3mm; }
+.receipt-a4 .receipt-a4-extras p { white-space: pre-wrap; }
+.receipt-a4 .receipt-a4-extras p + p { border-top: 1px dotted var(--receipt-rule); margin-block-start: 0.7mm; padding-block-start: 0.7mm; }
+.receipt-a4-device-views { display: flex; flex-direction: row-reverse; gap: 4mm; justify-content: center; padding-block: 1mm; }
+.receipt-a4-device-views > div { display: grid; justify-items: center; position: relative; color: #494949; font-size: 7.5pt; }
+.receipt-a4-device-views svg { width: 23mm; height: 30mm; stroke-width: 0.95; }
+.receipt-a4-device-back svg:nth-child(2) { position: absolute; inset-block-start: 6mm; inset-inline-start: 6mm; width: 5mm; height: 5mm; }
+
+.receipt-a4 .receipt-a4-acceptance { padding-block-start: 1.5mm; border-block-start: 1px solid var(--receipt-rule); break-inside: avoid; }
+.receipt-a4 .receipt-a4-acceptance > p { font-size: 8.8pt; margin-block-end: 2mm; }
+.receipt-a4-signatures { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7mm; }
+.receipt-a4-signatures > div { border: 1px solid var(--receipt-rule); padding: 1.5mm 3mm; min-height: 24mm; display: flex; flex-direction: column; justify-content: space-between; }
+.receipt-a4-signatures span { font-size: 8pt; color: #494949; }
+.receipt-a4 .receipt-a4-footer { margin-block-start: 4mm; padding-block-start: 1.3mm; border-block-start: 1.5px solid #242727; display: flex; justify-content: space-between; gap: 2mm; font-size: 8pt; color: #494949; break-inside: avoid; }
+
+@media screen and (max-width: 540px) {
+  .tamiran-receipt.receipt-a4 { padding: 4mm; }
+  .receipt-a4 .receipt-a4-header { grid-template-columns: minmax(0,1fr) 22mm; gap: 2mm; }
+  .receipt-a4 .receipt-a4-title { grid-column: 1/-1; grid-row: 1; text-align: start; }
+  .receipt-a4 .receipt-a4-title h2 { font-size: 15pt; }
+  .receipt-a4 .secure-qr, .receipt-a4 .secure-qr svg { width: 22mm; }
+  .receipt-a4 .receipt-a4-conditions { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .receipt-a4 .receipt-a4-cells > div { padding-inline: 1.4mm; }
+  .receipt-a4-signatures { gap: 3mm; }
+}
+
+@media print {
+  .tamiran-receipt.receipt-a4 {
+    width: 210mm !important;
+    padding: 10mm 11mm 6mm !important;
+    font-size: 9pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .receipt-a4 thead { display: table-header-group; }
+}

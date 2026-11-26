@@ -84,9 +84,17 @@ function operations_scope(PDO $pdo): array
     ];
 }
 
-function operations_case_select(): string
+function operations_case_select(bool $receiptDetails=false): string
 {
-    return <<<'SQL'
+    $receiptFields=$receiptDetails?"(SELECT COALESCE(SUM(l.cash_delta),0) FROM repair_financial_ledger l
+            WHERE l.shop_id=c.shop_id AND l.branch_id=c.branch_id AND l.case_id=c.id
+              AND l.reference_type IN ('case_advance','case_advance_refund')) AS receipt_advance,
+        COALESCE((SELECT t.body_text FROM repair_case_receipt_terms a JOIN repair_receipt_term_versions t ON t.id=a.term_version_id
+            WHERE a.case_id=c.id AND t.shop_id=c.shop_id ORDER BY a.id DESC LIMIT 1),
+          (SELECT t.body_text FROM repair_case_stage_events e JOIN repair_receipt_term_versions t
+              ON t.shop_id=c.shop_id AND t.public_id=JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.receiptTermsSnapshot.publicId'))
+            WHERE e.workflow_id=workflow.id AND e.from_status IS NULL ORDER BY e.id LIMIT 1)) AS receipt_terms_body,":'';
+    return <<<SQL
 SELECT c.*, b.branch_code,
        customer.full_name AS customer_name, customer.mobile AS customer_mobile, customer.national_code,
        customer.province AS customer_province, customer.city AS customer_city, customer.address AS customer_address, customer.postal_code AS customer_postal_code,
@@ -94,6 +102,7 @@ SELECT c.*, b.branch_code,
        (SELECT e.metadata_json FROM repair_case_stage_events e WHERE e.workflow_id=workflow.id AND e.from_status IS NULL ORDER BY e.id LIMIT 1) AS reception_identity_event,
        c.model_snapshot AS model_title, c.identifier_snapshot AS identifier_value, c.color_snapshot,
        workflow.id AS workflow_id, workflow.preapproved_amount, workflow.promised_at, workflow.customer_consent_json,
+       $receiptFields
        final_invoice.total_amount AS invoice_total_amount,
        assignee.display_name AS assigned_to_name, creator.display_name AS created_by_name, deliverer.display_name AS delivered_by_name
 FROM repair_cases c
@@ -152,7 +161,17 @@ function operations_case_to_api(array $row, string $role, array $events = []): a
     $accessories = json_decode((string) $row['accessories_json'], true);
     $appearanceStates = json_decode((string) ($row['appearance_states_json'] ?? '[]'), true);
     $trackingUrl = '';
-    if (in_array($role, ['repair_manager','reception'], true) && !empty($row['tracking_token_ciphertext'])) {
+    $canReadReceipt=in_array($role,['repair_manager','reception'],true);
+    $intake=json_decode((string)($row['reception_identity_event']??'{}'),true);
+    $receiptDetails=$canReadReceipt&&array_key_exists('receipt_advance',$row)?[
+        'initialEstimate'=>$intake['initialEstimate']??null,
+        'notes'=>$intake['receiptNotes']??'',
+        'declaredIssues'=>$intake['declaredIssues']??[],
+        'issueDetails'=>$intake['receiptIssueDetails']??[],
+        'advance'=>(int)$row['receipt_advance'],
+        'terms'=>$row['receipt_terms_body']??'',
+    ]:null;
+    if ($canReadReceipt && !empty($row['tracking_token_ciphertext'])) {
         $trackingUrl = '/?portal=' . tamiran_decrypt_secret((string)$row['tracking_token_ciphertext']);
     }
     return [
@@ -164,6 +183,7 @@ function operations_case_to_api(array $row, string $role, array $events = []): a
         'receiptNumber' => $row['receipt_number'],
         'receiptSequence' => isset($row['receipt_sequence']) ? (int)$row['receipt_sequence'] : null,
         'trackingUrl' => $trackingUrl,
+        'receiptDetails' => $receiptDetails,
         'branchCode' => $row['branch_code'],
         'customerId' => (int) $row['customer_id'],
         'customerName' => $row['customer_name'],
@@ -255,7 +275,7 @@ function operations_customer_lookup(PDO $pdo, array $scope, string $mobile): arr
 function operations_cases(PDO $pdo, array $scope, ?int $caseId = null, int $offset = 0): array
 {
     if (($scope['actor']['role'] ?? '') === 'warehouse_keeper') return [];
-    $sql = operations_case_select() . ' WHERE c.shop_id = :shop_id AND c.branch_id = :branch_id';
+    $sql = operations_case_select($caseId!==null && in_array($scope['actor']['role'],['repair_manager','reception'],true)) . ' WHERE c.shop_id = :shop_id AND c.branch_id = :branch_id';
     $params = ['shop_id' => $scope['shop_id'], 'branch_id' => $scope['branch_id']];
     if (in_array((string) ($scope['actor']['role'] ?? ''), ['technician', 'quality_control'], true)) {
         $sql .= ' AND c.assigned_to_user_id = :actor_id';
@@ -593,6 +613,11 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
     $model = $modelStatement->fetch();
     if (!is_array($model)) throw new TamiranApiException('نوع، برند و مدل باید از فهرست فعال تنظیمات انتخاب شود.', 409);
     $declaredIssue = operations_required($input, 'declaredIssue', 4000);
+    $initialEstimate=isset($input['initialEstimate'])?technician_money($input['initialEstimate']):null;
+    if (isset($input['receiptNotes'])&&!is_string($input['receiptNotes'])) {
+        throw new TamiranApiException('توضیح روی قبض معتبر نیست.');
+    }
+    $receiptNotes=operations_optional($input['receiptNotes']??'',1000);
     $declaredIssues=null;
     if (isset($input['declaredIssues'])) {
         $entries=$input['declaredIssues'];
@@ -605,6 +630,21 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
             $declaredIssues[]=v2_text($entry,'شرح ایراد پذیرش',4000);
         }
         $declaredIssue=operations_required(['declaredIssue'=>implode("\n",$declaredIssues)],'declaredIssue',4000);
+    }
+    $receiptIssueDetails=[];
+    if (isset($input['receiptIssueDetails'])) {
+        $entries=$input['receiptIssueDetails'];
+        if (!is_array($entries)||!array_is_list($entries)||count($entries)>count($declaredIssues??[])) {
+            throw new TamiranApiException('جزئیات ایرادهای قبض معتبر نیست.');
+        }
+        foreach ($entries as $index=>$entry) {
+            if (!is_array($entry)||($entry['issue']??null)!==$declaredIssues[$index]
+                || !is_string($entry['kind']??null)||!is_string($entry['note']??null)) {
+                throw new TamiranApiException('جزئیات ایرادهای قبض با ایراد ثبت‌شده سازگار نیست.');
+            }
+            $receiptIssueDetails[]=['issue'=>$entry['issue'],'kind'=>operations_optional($entry['kind'],80)??'',
+                'note'=>operations_optional($entry['note'],240)??''];
+        }
     }
     $unavailable=($input['identifierUnavailable']??false)===true;
     $unavailableReason=trim((string)($input['identifierUnavailableReason']??''));
@@ -770,7 +810,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         ]);
         $workflowId=(int)$pdo->lastInsertId();
         $pdo->prepare('INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at) VALUES(:public,:workflow,NULL,:status,:actor,:reason,:metadata,:idempotency,NOW())')->execute([
-            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'promisedAt'=>$promisedAt,'declaredIssues'=>$declaredIssues,'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
+            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'promisedAt'=>$promisedAt,'declaredIssues'=>$declaredIssues,'receiptIssueDetails'=>$receiptIssueDetails,'initialEstimate'=>$initialEstimate,'receiptNotes'=>$receiptNotes,'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
         ]);
         if ($assignedId !== null) {
             $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,created_by_user_id,started_at,accepted_at) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی تعمیر',:creator,NOW(),NULL)")

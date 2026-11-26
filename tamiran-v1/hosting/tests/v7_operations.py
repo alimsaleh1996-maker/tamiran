@@ -49,7 +49,7 @@ def run(args):
         policy = manager.api('workflow-v2.php')['operationsPolicy']
         manager.api('settings.php','PATCH',{'key':'operations_policy','value':{**policy, **patch}})
 
-    def create(promised_at=None,receive=True,declared_issues=None):
+    def create(promised_at=None,receive=True,declared_issues=None,receipt_fields=None):
         case = manager.api('operations.php','POST',{
             'action':'create_case','receiptMode':'issue_only','customerName':marker,'customerMobile':prefix+'09',
             'deviceModelId':model,'identifier':synthetic_imei(),'declaredIssue':'TEST شارژ قطع می‌شود',
@@ -57,6 +57,7 @@ def run(args):
             'preapprovedAmount':7500000,'devicePassword':' 0048 Ab ','color':'مشکی','idempotencyKey':secrets.token_hex(12),
             **({'promisedAt':promised_at} if promised_at else {}),
             **({'declaredIssues':declared_issues} if declared_issues else {}),
+            **(receipt_fields or {}),
         })['repairCase']['id']
         if receive: command(tech, case, 'technical_receive', lockVersion=row(case)['lockVersion'])
         return case
@@ -350,7 +351,37 @@ def run(args):
             "advance": row(no_charge)["receiptNumber"], "core": row(hot_case)["receiptNumber"],
             "multi": create(declared_issues=["شارژ قطع می‌شود", "صدا قطع می‌شود"]), "aged": bool(fixture),
         },args.browser_dir)
-        check_intake_print(log,args.url,manager,recall['receiptNumber'],args.browser_dir)
+        terms_text="\n".join([
+            "ایرادهای ثبت‌شده طبق گفتهٔ مشتری است. نتیجهٔ نهایی پس از بررسی فنی اعلام می‌شود.",
+            "در صورت تغییر مبلغ بیشتر از سقف توافق‌شده، تأیید مشتری برای ادامهٔ تعمیر ضروری است.",
+            "مشتری می‌تواند پیش از تحویل دستگاه از داده‌های خود نسخهٔ پشتیبان تهیه کند.",
+            "وضعیت ظاهری و متعلقات دستگاه در همین قبض ثبت شده است.",
+            "تحویل دستگاه پس از احراز هویت تحویل‌گیرنده و تعیین تکلیف مالی صورت می‌گیرد.",
+            "ضمانت خدمات و قطعات مطابق شرایط درج‌شده در فاکتور نهایی است.",
+        ])
+        manager.api('settings.php','PATCH',{'receiptTerms':{'title':'شرایط قبض آزمایشی','body':terms_text}})
+        sample_issues=['دستگاه روشن نمی‌شود','اختلال در شارژ']
+        sample = create(receive=False,declared_issues=sample_issues,receipt_fields={
+            'initialEstimate':25000000,'preapprovedAmount':30000000,'nationalCode':'1234567891',
+            'customerName':'مشتری آزمون قبض','receiptNotes':'بررسی سوکت شارژ به درخواست مشتری.',
+            'receptionNotes':'TEST INTERNAL RECEIPT NOTE', 'accessories':['قاب محافظ'],
+            'appearanceStates':['خط‌وخش'],
+            'receiptIssueDetails':[
+                {'issue':sample_issues[0],'kind':'سخت‌افزاری','note':'دستگاه پس از ضربه خاموش شده است.'},
+                {'issue':sample_issues[1],'kind':'شارژ','note':'شارژ به‌صورت متناوب قطع می‌شود.'},
+            ],
+        })
+        manager.api('finance-v2.php','POST',{'action':'advance','caseId':sample,'amount':5000000,
+            'method':'cash','idempotencyKey':secrets.token_hex(12)})
+        sample_number=row(sample)['receiptNumber']
+        printable=manager.api(f'operations.php?receipt={sample_number}')['repairCase']['receiptDetails']
+        log.check('receipt finance data separates estimate, agreed ceiling and received advance',lambda:expect(
+            printable['initialEstimate']==25000000 and printable['advance']==5000000
+            and printable['declaredIssues']==sample_issues and printable['terms']==terms_text, 'receipt facts are incomplete'))
+        log.check('restricted actor does not receive printable financial details',lambda:expect(
+            tech.api(f'operations.php?receipt={sample_number}')['repairCase']['receiptDetails'] is None,
+            'receipt detail available to technical role'))
+        check_intake_print(log,args.url,manager,sample_number,args.browser_dir)
 
     pending = create()
     command(tech,pending,'estimate_create',items=[{'type':'labor','title':'اجرت آزمایشی','quantity':1,'unitPrice':200000}])
@@ -806,28 +837,44 @@ def check_intake_print(log,url,manager,receipt,folder):
         browser=tooling.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
         ctx=open_as(browser,url,manager,width=1440)
         page=ctx.new_page()
-        page.goto(url+'/?view=receipts',wait_until='networkidle')
-        page.get_by_role('button',name=f'مشاهده رسید {receipt}',exact=True).click()
-        log.check('intake receipt has real tracking QR and no credential',lambda:expect(
-            page.locator('.tamiran-receipt svg').count()>=1
-            and '0048 Ab' not in page.locator('.tamiran-receipt').inner_text(),'receipt QR missing or password leaked'))
-        page.evaluate("""() => {
-          const open = window.open.bind(window);
-          window.open = (...args) => {
-            const popup = open(...args);
-            if (popup) popup.print = () => {};
-            return popup;
-          };
-        }""")
         for size, label in (('A4','a4'),('A5','a5'),('حرارتی','thermal')):
+            manager.api('settings.php','PATCH',{'key':'receipt_template','value':{
+                'printSize':size,'phone':'۰۲۱۰۰۰۰۰۰۰۰','shopAddress':'نشانی کارگاه آزمایشی',
+            }})
+            page.goto(url+'/?view=receipts',wait_until='networkidle')
+            page.get_by_role('button',name=f'مشاهده رسید {receipt}',exact=True).click()
             document=page.locator('.tamiran-receipt')
-            document.evaluate('(node, size) => node.dataset.printSize = size',size)
+            browser_expect(document).to_have_attribute('data-print-size',size)
+            browser_expect(document.get_by_role('img',name='QR پیگیری پرونده',exact=True)).to_be_visible()
+            if size=='A4':
+                log.check('A4 receipt displays all issue and financial columns',lambda:expect(
+                    all(x in document.inner_text() for x in ['نوع ایراد','سخت‌افزاری','توضیحات تکمیلی','۲٬۵۰۰٬۰۰۰','۳٬۰۰۰٬۰۰۰','۵۰۰٬۰۰۰']),
+                    'A4 layout or values missing'))
+                log.check('A4 masks customer identifiers and excludes internal notes',lambda:expect(
+                    '1234567891' not in document.inner_text()
+                    and 'TEST INTERNAL RECEIPT NOTE' not in document.inner_text()
+                    and '••••••••••' in document.inner_text(),'sensitive receipt fields exposed'))
+                page.set_viewport_size({'width':390,'height':900})
+                log.check('A4 receipt preview fits mobile',lambda:expect(document.evaluate(
+                    'node => node.scrollWidth <= node.clientWidth + 1'),'receipt content overflows on mobile'))
+                document.screenshot(path=str(output/'intake-mobile.png'))
+                page.set_viewport_size({'width':1440,'height':900})
+            page.evaluate("""() => {
+              const open = window.open.bind(window);
+              window.open = (...args) => {
+                const popup = open(...args);
+                if (popup) popup.print = () => {};
+                return popup;
+              };
+            }""")
             with page.expect_popup() as printed:
                 page.get_by_role('button',name='چاپ رسید',exact=True).click()
             print_page=printed.value
             browser_expect(print_page.locator('.tamiran-receipt')).to_contain_text(receipt)
             print_page.evaluate('document.fonts.ready')
-            print_page.pdf(path=str(output/f'intake-{label}.pdf'),prefer_css_page_size=True)
+            printed_pdf=print_page.pdf(path=str(output/f'intake-{label}.pdf'),prefer_css_page_size=True, print_background=True)
+            log.check(f'intake {label} fits one physical page for a regular case',lambda:expect(
+                len(re.findall(rb"/Type /Page\b",printed_pdf))==1,'a regular receipt spills across multiple pages'))
             log.check(f'intake {label} prints without a credential',lambda:expect(
                 '0048 Ab' not in print_page.locator('.tamiran-receipt').inner_text(),'credential leaked to print'))
             print_page.close()

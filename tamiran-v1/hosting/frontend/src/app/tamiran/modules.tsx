@@ -54,7 +54,8 @@ import {
 import * as React from "react";
 import { useModalFocus } from "../shared/use-modal-focus";
 import { useEffect, useState } from "react";
-import { CompactReceipt, printCompactReceipt } from "./compact-receipt";
+import type { ReceiptIssueDetail } from "./operations";
+import { CompactReceipt, DEFAULT_RECEIPT_SIZE, printCompactReceipt } from "./compact-receipt";
 import { MoneyInput } from "./money-input";
 import "./iteration-six.css";
 import { CustomerAddress } from "./customer-address";
@@ -76,6 +77,7 @@ import {
   discardReceptionDraft,
   isDirectAdminConflict,
   loadCatalog,
+  loadRepairCase,
   lookupCustomer,
   saveReceptionDraft,
   saveShopSetting,
@@ -745,6 +747,7 @@ function ReceptionPage({
     title?: string;
     phone?: string;
     portal?: string;
+    shopAddress?: string;
     clauses?: Array<{ enabled: boolean; text: string }>;
     appearanceOptions?: string[];
   };
@@ -795,6 +798,8 @@ function ReceptionPage({
   const [customerPostalCode, setCustomerPostalCode] = useState("");
   const [secondaryMobile, setSecondaryMobile] = useState("");
   const [preapprovedAmount, setPreapprovedAmount] = useState("");
+  const [initialEstimate, setInitialEstimate] = useState("");
+  const [receiptNotes, setReceiptNotes] = useState("");
   const [promisedAt, setPromisedAt] = useState("");
   const [devicePassword, setDevicePassword] = useState("");
   const [dataHandling, setDataHandling] = useState<
@@ -815,6 +820,14 @@ function ReceptionPage({
   const [selectedCatalogItem, setSelectedCatalogItem] =
     useState<DeviceCatalogItem | null>(null);
   const [declaredIssue, setDeclaredIssue] = useState("");
+  const [receiptIssueDetails, setReceiptIssueDetails] = useState<ReceiptIssueDetail[]>([]);
+  const receiptIssues = declaredIssue.split("\n").map(line => line.trim()).filter(Boolean);
+  const issueFields = (issue: string, index: number): ReceiptIssueDetail =>
+    receiptIssueDetails[index]?.issue === issue ? receiptIssueDetails[index] : { issue, kind: "", note: "" };
+  const updateIssueFields = (index: number, field: "kind" | "note", value: string) =>
+    setReceiptIssueDetails(receiptIssues.map((issue, position) => ({
+      ...issueFields(issue, position), ...(position === index ? { [field]: value } : {}),
+    })));
   const [receptionNotes, setReceptionNotes] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [identifierUnavailable, setIdentifierUnavailable] = useState(false);
@@ -991,8 +1004,11 @@ function ReceptionPage({
     setIdentifierUnavailableNote(String(draft.identifierUnavailableNote ?? ""));
     setDeviceColor(String(draft.color ?? ""));
     setDeclaredIssue(String(draft.declaredIssue ?? ""));
+    setReceiptIssueDetails(Array.isArray(draft.receiptIssueDetails) ? draft.receiptIssueDetails : []);
     setReceptionNotes(String(draft.receptionNotes ?? ""));
     setPreapprovedAmount(String(draft.preapprovedAmount ?? ""));
+    setInitialEstimate(String(draft.initialEstimate ?? ""));
+    setReceiptNotes(String(draft.receiptNotes ?? ""));
     setPromisedAt(String(draft.promisedAt ?? ""));
     if (["no_erasure", "coordinate_first", "erase_authorized"].includes(String(draft.dataHandling)))
       setDataHandling(draft.dataHandling as "no_erasure" | "coordinate_first" | "erase_authorized");
@@ -1033,8 +1049,11 @@ function ReceptionPage({
         accessories,
         appearanceStates,
         declaredIssue,
+        receiptIssueDetails,
         receptionNotes,
         preapprovedAmount,
+        initialEstimate,
+        receiptNotes,
         promisedAt,
         dataHandling,
       };
@@ -1091,8 +1110,11 @@ function ReceptionPage({
     accessories,
     appearanceStates,
     declaredIssue,
+    receiptIssueDetails,
     receptionNotes,
     preapprovedAmount,
+    initialEstimate,
+    receiptNotes,
     promisedAt,
     dataHandling,
     idempotencyKey,
@@ -1222,11 +1244,14 @@ function ReceptionPage({
     setSelectedDeviceType("");
     setIdentifier("");
     setDeclaredIssue("");
+    setReceiptIssueDetails([]);
     setReceptionNotes("");
     setAccessories(["بدون لوازم"]);
     setAppearanceStates([]);
     setFormError("");
     setPreapprovedAmount("");
+    setInitialEstimate("");
+    setReceiptNotes("");
     setPromisedAt("");
     setDevicePassword("");
     setDataHandling("");
@@ -1237,6 +1262,8 @@ function ReceptionPage({
     if (!device.recallEligible) return;
     setDevicePassword("");
     setPreapprovedAmount("");
+    setInitialEstimate("");
+    setReceiptNotes("");
     setPromisedAt("");
     setAssignedToUserId(null);
     setDataHandling("");
@@ -1246,6 +1273,7 @@ function ReceptionPage({
     setAccessories(["بدون لوازم"]);
     setAppearanceStates([]);
     setDeclaredIssue("");
+    setReceiptIssueDetails([]);
     setReceptionNotes("");
     setIdentifier(device.identifier);
     setIdentifierUnavailable(false); setIdentifierUnavailableReason(""); setIdentifierUnavailableNote("");
@@ -1459,7 +1487,8 @@ function ReceptionPage({
         identifier: identifierUnavailable ? undefined : identifier.trim(), identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
         color: deviceColor,
         declaredIssue: declaredIssue.trim(),
-        declaredIssues: declaredIssue.split("\n").map(line => line.trim()).filter(Boolean),
+        declaredIssues: receiptIssues,
+        receiptIssueDetails: receiptIssueDetails.length ? receiptIssues.map(issueFields) : undefined,
         accessories,
         appearanceStates,
         receptionNotes: receptionNotes.trim() || undefined,
@@ -1467,6 +1496,8 @@ function ReceptionPage({
         assignmentMode: assignedToUserId === "queue" ? "queue" : "automatic",
         ...versionedDevice,
         preapprovedAmount: Number(preapprovedAmount || 0),
+        initialEstimate: initialEstimate === "" ? undefined : Number(initialEstimate),
+        receiptNotes: receiptNotes.trim() || undefined,
         promisedAt: promisedAt ? `${promisedAt} 12:00:00` : undefined,
         devicePassword: devicePassword || undefined,
         customerConsent: {
@@ -2019,6 +2050,18 @@ function ReceptionPage({
                     placeholder="هر ایراد اعلامی را در یک خط بنویسید."
                   />
                 </label>
+                {(receiptTemplate.printSize ?? DEFAULT_RECEIPT_SIZE) === "A4" && receiptIssues.length > 0 && <details className="field-block form-row-gap">
+                  <summary>نوع ایراد و توضیح هر ردیف روی قبض <small>اختیاری</small></summary>
+                  {receiptIssues.map((issue, index) => <fieldset key={index} className="form-grid two-columns">
+                    <legend>{issue}</legend>
+                    <label className="field-block">نوع ایراد
+                      <input maxLength={80} value={issueFields(issue, index).kind} onChange={event => updateIssueFields(index, "kind", event.target.value)} />
+                    </label>
+                    <label className="field-block">توضیحات تکمیلی ایراد
+                      <input maxLength={240} value={issueFields(issue, index).note} onChange={event => updateIssueFields(index, "note", event.target.value)} />
+                    </label>
+                  </fieldset>)}
+                </details>}
                 <label className="field-block form-row-gap internal-reception-note">
                   <span>
                     <LockKeyhole size={15} />
@@ -2035,7 +2078,16 @@ function ReceptionPage({
                     قبض یا پرتال مشتری نمایش داده نخواهد شد.
                   </small>
                 </label>
+                <label className="field-block form-row-gap">
+                  <span>توضیح روی قبض مشتری <small>اختیاری</small></span>
+                  <textarea rows={2} maxLength={1000} value={receiptNotes}
+                    onChange={event => setReceiptNotes(event.target.value)} />
+                </label>
                 <div className="form-grid three-columns reception-v2-terms">
+                  <label className="field-block">
+                    <span>برآورد اولیه تعمیر (تومان) <small>اختیاری</small></span>
+                    <MoneyInput value={initialEstimate} onChange={setInitialEstimate} />
+                  </label>
                   <label className="field-block">
                     <span>سقف تأیید هزینه در پذیرش (تومان)</span>
                     <MoneyInput value={preapprovedAmount} onChange={setPreapprovedAmount}/>
@@ -2342,16 +2394,20 @@ function ReceptionPage({
             <ReceiptDocument
               workspace={workspace}
               receiptNumber={createdCase.receiptNumber}
+              nationalCode={createdCase.nationalCode}
+              deviceType={createdCase.deviceType}
+              details={createdCase.receiptDetails}
+              shopAddress={receiptTemplate.shopAddress}
               preapprovedAmount={createdCase.preapprovedAmount}
               issuedAt={createdCase.createdAt}
               acceptedByName={createdCase.createdByName}
-              customerName={customerName}
-              customerMobile={customerMobile}
-              catalogItem={selectedCatalogItem}
-              accessories={accessories}
-              appearanceStates={appearanceStates}
-              declaredIssue={declaredIssue}
-              dataHandling={dataHandling}
+              customerName={createdCase.customerName}
+              customerMobile={createdCase.customerMobile}
+              catalogItem={{ brand: createdCase.brand, model: createdCase.model }}
+              accessories={createdCase.accessories}
+              appearanceStates={createdCase.appearanceStates}
+              declaredIssue={createdCase.declaredIssue}
+              dataHandling={createdCase.dataHandling}
               previousReceipt={selectedPreviousDevice?.lastReceipt}
               identifier={createdCase.identifier}
               color={createdCase.color}
@@ -2374,12 +2430,12 @@ function ReceptionPage({
                 className="outline-action"
                 onClick={() => {
                   if (printCompactReceipt()) notify(
-                    `نسخه ${receiptTemplate.printSize ?? "A5"} به پنجره چاپ ارسال شد`,
+                    `نسخه ${receiptTemplate.printSize ?? DEFAULT_RECEIPT_SIZE} به پنجره چاپ ارسال شد`,
                   );
                 }}
               >
                 <Printer size={17} />
-                چاپ رسید {receiptTemplate.printSize ?? "A5"}
+                چاپ رسید {receiptTemplate.printSize ?? DEFAULT_RECEIPT_SIZE}
               </button>
               <button
                 type="button"
@@ -2770,6 +2826,36 @@ function SearchableCatalogSelect({
 
 const ReceiptDocument = CompactReceipt;
 
+function useA4Receipt(record: RepairCaseRecord | null, size?: string) {
+  const receipt = (size ?? DEFAULT_RECEIPT_SIZE) === "A4" ? record?.receiptNumber : undefined;
+  const [result, setResult] = useState<{ receipt: string; details?: RepairCaseRecord["receiptDetails"]; error?: string }>();
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (!receipt) return;
+    let current = true;
+    setResult(undefined);
+    loadRepairCase(receipt).then(({ repairCase }) => {
+      if (current) setResult({ receipt, details: repairCase.receiptDetails });
+    }).catch(error => {
+      if (current) setResult({ receipt, error: moduleErrorMessage(error, "اطلاعات قبض بارگذاری نشد") });
+    });
+    return () => { current = false; };
+  }, [receipt, retry]);
+  const state = result?.receipt === receipt ? result : undefined;
+  return {
+    details: state?.details,
+    pending: Boolean(receipt && !state),
+    error: state?.error,
+    retry: () => { setResult(undefined); setRetry(value => value + 1); },
+  };
+}
+
+function ReceiptLoadStatus({ status }: { status: ReturnType<typeof useA4Receipt> }) {
+  if (status.pending) return <p role="status">در حال دریافت اطلاعات قبض…</p>;
+  if (status.error) return <p role="alert">{status.error} <button type="button" onClick={status.retry}>تلاش دوباره</button></p>;
+  return null;
+}
+
 function ReceiptsPage({
   onNavigate,
   notify,
@@ -2794,8 +2880,10 @@ function ReceiptsPage({
     title?: string;
     phone?: string;
     portal?: string;
+    shopAddress?: string;
     clauses?: Array<{ enabled: boolean; text: string }>;
   };
+  const printData = useA4Receipt(selected, receiptTemplate.printSize);
   const conditions = (receiptTemplate.clauses ?? [])
     .filter((item) => item.enabled)
     .map((item) => item.text);
@@ -2898,9 +2986,14 @@ function ReceiptsPage({
           size="wide"
         >
           <div className="receipt-complete-view">
-            <ReceiptDocument
+            <ReceiptLoadStatus status={printData} />
+            {!printData.pending && !printData.error && <ReceiptDocument
               workspace={workspace}
               receiptNumber={selected.receiptNumber}
+              nationalCode={selected.nationalCode}
+              deviceType={selected.deviceType}
+              details={printData.details}
+              shopAddress={receiptTemplate.shopAddress}
               preapprovedAmount={selected.preapprovedAmount}
               customerName={selected.customerName}
               customerMobile={selected.customerMobile}
@@ -2920,11 +3013,12 @@ function ReceiptsPage({
               promisedAt={selected.promisedAt}
               trackingUrl={selected.trackingUrl}
               acceptedByName={selected.createdByName}
-            />
+            />}
             <div className="modal-actions receipt-modal-actions">
               <button
                 type="button"
                 className="outline-action"
+                disabled={printData.pending || Boolean(printData.error)}
                 onClick={() => printCompactReceipt()}
               >
                 <Printer size={17} />
@@ -2933,6 +3027,7 @@ function ReceiptsPage({
               <button
                 type="button"
                 className="outline-action"
+                disabled={printData.pending || Boolean(printData.error)}
                 onClick={() => {
                   if (printCompactReceipt()) notify(
                     "در پنجره چاپ، گزینه ذخیره به‌صورت PDF را انتخاب کنید.",
@@ -3764,8 +3859,10 @@ function DeliveryPage({
     title?: string;
     phone?: string;
     portal?: string;
+    shopAddress?: string;
     clauses?: Array<{ enabled: boolean; text: string }>;
   };
+  const printData = useA4Receipt(delivering, receiptTemplate.printSize);
   const normalized = query.trim().toLocaleLowerCase("fa");
   const ready = operations.cases.filter(
     (item) =>
@@ -4080,9 +4177,14 @@ function DeliveryPage({
                 />
               </label>
             </div>
-            <ReceiptDocument
+            <ReceiptLoadStatus status={printData} />
+            {!printData.pending && !printData.error && <ReceiptDocument
               workspace={workspace}
               receiptNumber={delivering.receiptNumber}
+              nationalCode={delivering.nationalCode}
+              deviceType={delivering.deviceType}
+              details={printData.details}
+              shopAddress={receiptTemplate.shopAddress}
               preapprovedAmount={delivering.preapprovedAmount}
               customerName={delivering.customerName}
               customerMobile={delivering.customerMobile}
@@ -4104,7 +4206,7 @@ function DeliveryPage({
               promisedAt={delivering.promisedAt}
               trackingUrl={delivering.trackingUrl}
               acceptedByName={delivering.createdByName}
-            />
+            />}
             <div className="modal-actions delivery-confirmation-actions">
               <button
                 type="button"
@@ -4117,6 +4219,7 @@ function DeliveryPage({
               <button
                 type="button"
                 className="outline-action"
+                disabled={printData.pending || Boolean(printData.error)}
                 onClick={() => printCompactReceipt()}
               >
                 <Printer size={16} />
@@ -6464,15 +6567,17 @@ function ReceiptSettings({
     title?: string;
     phone?: string;
     portal?: string;
+    shopAddress?: string;
     clauses?: Array<{ id: number; enabled: boolean; text: string }>;
     appearanceOptions?: string[];
   };
-  const [printSize, setPrintSize] = useState(savedTemplate.printSize ?? "A5");
+  const [printSize, setPrintSize] = useState(savedTemplate.printSize ?? DEFAULT_RECEIPT_SIZE);
   const [title, setTitle] = useState(
-    savedTemplate.title ?? "رسید پذیرش و شرایط تعمیر",
+    savedTemplate.title ?? "",
   );
   const [phone, setPhone] = useState(savedTemplate.phone ?? "");
   const [portal, setPortal] = useState(savedTemplate.portal ?? "");
+  const [shopAddress, setShopAddress] = useState(savedTemplate.shopAddress ?? "");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [newClause, setNewClause] = useState("");
   const [newAppearance, setNewAppearance] = useState("");
@@ -6531,6 +6636,7 @@ function ReceiptSettings({
       title,
       phone,
       portal,
+      shopAddress,
       clauses,
       appearanceOptions,
     };
@@ -6553,8 +6659,8 @@ function ReceiptSettings({
       />
       <div className="print-size-picker">
         {[
-          { id: "A4", note: "جزئیات کامل" },
-          { id: "A5", note: "پیشنهادی" },
+          { id: "A4", note: "قالب کامل قبض" },
+          { id: "A5", note: "نسخهٔ فشرده" },
           { id: "حرارتی", note: "عرض ۸۰ میلی‌متر" },
         ].map((size) => (
           <button
@@ -6593,6 +6699,10 @@ function ReceiptSettings({
             onChange={(event) => setPortal(event.target.value)}
             placeholder="نشانی اختصاصی تعمیرگاه"
           />
+        </label>
+        <label className="field-block">
+          <span>نشانی تعمیرگاه روی قبض A4</span>
+          <input value={shopAddress} maxLength={240} onChange={event => setShopAddress(event.target.value)} />
         </label>
         <SelectField
           label="محل امضای مشتری"
@@ -6807,6 +6917,8 @@ function ReceiptSettings({
               dataHandling="coordinate_first"
               color="مشکی"
               printSize={printSize}
+              shopAddress={shopAddress}
+              deviceType="موبایل"
               title={title}
               phone={phone}
               portal={portal}
