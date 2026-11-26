@@ -187,22 +187,41 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
     : section === "delivery" ? "نهایی‌سازی مالی و ثبت تحویل واقعی"
     : section === "supply" ? "رزرو، خرید و تحویل قطعات پرونده‌ها"
     : "";
-  const canFinance = ["repair_manager", "finance_cashier"].includes(profile.role)
-    || profile.permissions.includes("finance.view");
+  const canFinance = profile.modules.includes("finance") && (
+    ["repair_manager", "finance_cashier"].includes(profile.role)
+    || profile.permissions.includes("finance.view") || profile.permissions.includes("*"));
   const canDeliver = ["repair_manager", "reception", "finance_cashier"].includes(profile.role)
-    || profile.permissions.includes("delivery.view");
-  const [deliveryTab, setDeliveryTab] = useState(() => {
-    const url = new URL(location.href);
-    return canFinance && (url.searchParams.get("deliveryTab") === "finance"
-      || url.searchParams.get("view") === "case-finance" || !canDeliver) ? "finance" : "ready";
+    || profile.permissions.includes("delivery.view") || profile.permissions.includes("*");
+  const [deliveryTab, setDeliveryTab] = useState<"finance" | "ready">(() => {
+    const tab = new URL(location.href).searchParams.get("deliveryTab");
+    return canFinance && (tab !== "ready" || !canDeliver) ? "finance" : "ready";
   });
+  const chooseDeliveryTab = (tab: "finance" | "ready") => {
+    const url = new URL(location.href);
+    url.searchParams.set("deliveryTab", tab);
+    history.replaceState(history.state, "", url);
+    setDeliveryTab(tab);
+  };
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const base = await loadV2Workflow();
-      setWorkflow(base);
+      if (section === "delivery") {
+        const [base, financial, handover] = await Promise.allSettled([
+          loadV2Workflow(),
+          canFinance ? loadV2Finance() : null,
+          canDeliver ? loadV2Delivery() : null,
+        ]);
+        if (base.status === "fulfilled") setWorkflow(base.value);
+        if (financial.status === "fulfilled") setFinance(financial.value);
+        if (handover.status === "fulfilled") setDelivery(handover.value);
+        const errors = [base, financial, handover].flatMap(result =>
+          result.status === "rejected" ? [errorText(result.reason)] : []);
+        if (errors.length) setError(errors.join(" · "));
+        return;
+      }
+      setWorkflow(await loadV2Workflow());
       if (section === "inventory" || section === "supply") {
         const [stock, control, purchasing] = await Promise.all([
           loadV2Inventory(),
@@ -216,14 +235,6 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
         setProcurement(purchasing);
       }
       if (section === "quality") setQuality(await loadV2Quality());
-      if (section === "delivery") {
-        const [financeData, deliveryData] = await Promise.all([
-          canFinance && profile.modules.includes("finance") ? loadV2Finance() : null,
-          canDeliver ? loadV2Delivery() : null,
-        ]);
-        setFinance(financeData);
-        setDelivery(deliveryData);
-      }
       if (section === "sms") setSms(await loadV2Sms());
     } catch (cause) {
       setError(errorText(cause));
@@ -333,10 +344,10 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
       {section === "delivery" && (
         <>
           {!serviceCaseOpen && finance && delivery && <nav className="tech-handover-actions" aria-label="مراحل مالی و تحویل">
-            <button type="button" aria-pressed={deliveryTab === "finance"} onClick={() => setDeliveryTab("finance")}>نهایی‌سازی مالی</button>
-            <button type="button" aria-pressed={deliveryTab === "ready"} onClick={() => setDeliveryTab("ready")}>تحویل دستگاه</button>
+            <button type="button" aria-pressed={deliveryTab === "finance"} onClick={() => chooseDeliveryTab("finance")}>نهایی‌سازی مالی</button>
+            <button type="button" aria-pressed={deliveryTab === "ready"} onClick={() => chooseDeliveryTab("ready")}>تحویل دستگاه</button>
           </nav>}
-          {finance && (!delivery || deliveryTab === "finance") && <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={queueCases} profile={profile} busy={busy} run={run} />}
+          {finance && (!delivery || deliveryTab === "finance") && <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={workflow?.cases ?? []} search={queueSearch} profile={profile} busy={busy} run={run} />}
           {delivery && (!finance || deliveryTab === "ready") && <DeliveryBoard onCaseOpen={setServiceCaseOpen} data={delivery} cases={queueCases} profile={profile} busy={busy} run={run} />}
         </>
       )}
@@ -1391,6 +1402,7 @@ function FinanceBoard({
   onCaseOpen,
   data,
   cases,
+  search,
   profile,
   busy,
   run,
@@ -1398,6 +1410,7 @@ function FinanceBoard({
   onCaseOpen: (open: boolean) => void;
   data: { invoices: V2Invoice[]; drafts: V2InvoiceDraft[] };
   cases: V2Case[];
+  search: string;
   profile: WorkspaceProfile;
   busy: boolean;
   run: Run;
@@ -1424,27 +1437,36 @@ function FinanceBoard({
   const selectedDraft = data.drafts.find(
     (item) => item.caseId === Number(form.caseId),
   );
-  const visibleCaseIds = new Set(cases.map((item) => item.id));
-  const visibleDrafts = data.drafts.filter((item) => visibleCaseIds.has(item.caseId));
+  const casesById = new Map(cases.map(item => [item.id, item]));
+  const matchesCase = (
+    id: number, receipt: string, customer: string,
+    device: Pick<V2Invoice, "customer_mobile" | "identifier_snapshot" | "device_title">,
+  ) => {
+    const item = casesById.get(id);
+    return matchesQueueSearch(search, [receipt, customer, device.customer_mobile ?? item?.customerMobile ?? "",
+      device.identifier_snapshot ?? item?.identifier ?? "", device.device_title ?? item?.deviceTitle ?? ""]);
+  };
+  const visibleDrafts = data.drafts.filter(item => matchesCase(item.caseId, item.receiptNumber, item.customerName, item));
   const selectedInvoice = data.invoices.find((item) => item.public_id === payment.invoice);
   const selectedRefundInvoice = data.invoices.find((item) => item.public_id === refund.invoice);
   const selectedFinanceCase = cases.find(
     (item) => item.id === (selectedDraft?.caseId ?? selectedInvoice?.case_id ?? selectedRefundInvoice?.case_id),
   );
-  const openInvoices = data.invoices.filter((item) => item.balance > 0 && visibleCaseIds.has(item.case_id));
+  const openInvoices = data.invoices.filter(item =>
+    item.balance > 0 && matchesCase(item.case_id, item.receipt_number, item.customer_name, item));
   const financeQueue = [
     ...visibleDrafts.map(draft => ({
-      id: draft.caseId, receipt: draft.receiptNumber, customer: draft.customerName, action: "بررسی پیش‌نویس",
+      id: draft.caseId, receipt: draft.receiptNumber, customer: draft.customerName, title: draft.device_title, action: "بررسی پیش‌نویس",
       open: () => { setRefund({ ...refund, invoice: "" }); setPayment({ ...payment, invoice: "", amount: "" });
         setForm({ caseId: String(draft.caseId), title: "اجرت تعمیر", amount: "", tax: "0" }); },
     })),
     ...openInvoices.map(invoice => ({
-      id: invoice.case_id, receipt: invoice.receipt_number, customer: invoice.customer_name,
+      id: invoice.case_id, receipt: invoice.receipt_number, customer: invoice.customer_name, title: invoice.device_title,
       action: `مانده ${formatMoney(invoice.balance)} · ثبت پرداخت`,
       open: () => { setRefund({ ...refund, invoice: "" }); setForm({ ...form, caseId: "" });
         setPayment({ invoice: invoice.public_id, method: "card", amount: String(invoice.balance), tracking: "" }); },
     })),
-  ].map(row => ({...row, item: cases.find(item => item.id === row.id)})).sort((a,b) => compareQueueCases(a.item,b.item));
+  ].map(row => ({...row, item: casesById.get(row.id)})).sort((a,b) => compareQueueCases(a.item,b.item));
   const closeFinance = () => {
     setForm({ ...form, caseId: "" });
     setPayment({ ...payment, invoice: "" });
@@ -1474,7 +1496,7 @@ function FinanceBoard({
         <div className="service-card-line"><h3>صف نهایی‌سازی مالی</h3><b>{toman.format(financeQueue.length)} پرونده</b></div>
         <div className="service-card-grid">
           {financeQueue.map(row => <ServiceQueueCard key={row.receipt + row.action} receipt={row.receipt} item={row.item}
-            title={row.item?.deviceTitle ?? "دستگاه پرونده"} customer={row.customer} action={row.action} onOpen={row.open} />)}
+            title={row.item?.deviceTitle ?? row.title ?? "دستگاه پرونده"} customer={row.customer} action={row.action} onOpen={row.open} />)}
           {!financeQueue.length && <Empty text="پرونده‌ای نیازمند اقدام مالی نیست." />}
         </div>
       </section>}

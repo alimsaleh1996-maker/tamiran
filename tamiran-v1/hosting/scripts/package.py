@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text().strip()
 # A new release timestamp lets PHP OPcache detect replaced sources when ZIP
 # extractors preserve file mtimes. Keep it deterministic within this release.
-STAMP = (2026, 11, 26, 12, 0, 0)
+STAMP = (2026, 11, 26, 13, 0, 0)
 PRIVATE = (
     ".htaccess", "install.php", "config.example.php", "v2-core.php", "technician-service.php", "operations-policy.php", "external-purchase.php", "case-invoice.php", "manager-operations.php",
     "product-service.php", "capability-service.php", "catalog-similarity.php", "backup-engine.php",
@@ -152,9 +152,9 @@ def main() -> None:
         results.append(write_zip(output / f"tamiran-{VERSION}-update-from-{previous}.zip", update_files(runtime)))
     if VERSION == "1.0.0-rc.2":
         results.append(write_zip(output / f"tamiran-{VERSION}-update-from-php.10-or-dev.3.zip", update_files(runtime)))
-    if VERSION in {"1.0.0-rc.3", "1.0.0-rc.4"}:
-        previous = "rc.2" if VERSION.endswith("rc.3") else "rc.3"
-        results.append(write_zip(output / f"tamiran-{VERSION}-update-from-{previous}.zip", update_files(runtime)))
+    previous_candidate = {"1.0.0-rc.3": "rc.2", "1.0.0-rc.4": "rc.3", "1.0.0-rc.5": "rc.4"}.get(VERSION)
+    if previous_candidate:
+        results.append(write_zip(output / f"tamiran-{VERSION}-update-from-{previous_candidate}.zip", update_files(runtime)))
     (output / f"tamiran-{VERSION}-artifacts.json").write_text(json.dumps(results, indent=2) + "\n")
     for result in results:
         print(f"{result['file']}  {result['bytes']} bytes  SHA256 {result['sha256']}")

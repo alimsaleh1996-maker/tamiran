@@ -35,7 +35,8 @@ function finance_payload(PDO $pdo,array $scope):array
 {
     v2_require_permission($scope,'finance.view',['finance_cashier'],'مشاهده مالی پرونده مجاز نیست.');
     $statement=$pdo->prepare(
-        'SELECT i.*,c.receipt_number,cu.full_name AS customer_name
+        'SELECT i.*,c.receipt_number,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
+                c.identifier_snapshot,CONCAT_WS(\' \',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title
          FROM repair_invoices i
          INNER JOIN repair_cases c ON c.id=i.case_id AND c.shop_id=i.shop_id
          INNER JOIN repair_customers cu ON cu.id=c.customer_id AND cu.shop_id=i.shop_id
@@ -71,8 +72,16 @@ function finance_payload(PDO $pdo,array $scope):array
         $invoice['grossOperationalProfit']=(int)$invoice['total_amount']-(int)$invoice['tax_amount']-$directCost;
     }
     unset($invoice);
-    $draftStatement=$pdo->prepare("SELECT c.id AS caseId,c.receipt_number AS receiptNumber,cu.full_name AS customerName FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id INNER JOIN repair_customers cu ON cu.id=c.customer_id LEFT JOIN repair_invoices i ON i.case_id=c.id WHERE w.shop_id=:shop AND w.branch_id=:branch AND w.process_status IN ('finance_pending','qc_conditional') AND i.id IS NULL ORDER BY w.updated_at");
-    $draftStatement->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);$drafts=$draftStatement->fetchAll();
+    $draftStatement=$pdo->prepare("SELECT c.id AS caseId,c.receipt_number AS receiptNumber,
+            cu.full_name AS customerName,cu.mobile AS customer_mobile,c.identifier_snapshot,
+            CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title
+        FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id
+        INNER JOIN repair_customers cu ON cu.id=c.customer_id
+        LEFT JOIN repair_invoices i ON i.case_id=c.id
+        WHERE w.shop_id=:shop AND w.branch_id=:branch AND w.process_status IN ('finance_pending','qc_conditional') AND i.id IS NULL
+        ORDER BY w.updated_at");
+    $draftStatement->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
+    $drafts=$draftStatement->fetchAll();
     foreach($drafts as&$draft)$draft=array_merge($draft,finance_draft_items($pdo,(int)$draft['caseId']));unset($draft);
     return['invoices'=>$invoices,'drafts'=>$drafts];
 }

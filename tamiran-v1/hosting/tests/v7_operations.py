@@ -257,8 +257,29 @@ def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
         page=ctx.new_page()
         errors=[]
         page.on('pageerror',lambda error:errors.append(str(error)))
-        page.goto(url+'/?view=delivery&deliveryTab=finance',wait_until='networkidle')
+        def omit_case_from_general_feed(route):
+            response=route.fetch()
+            body=response.json()
+            payload=body.get('data',body)
+            payload['cases']=[row for row in payload['cases'] if row['id']!=case]
+            route.fulfill(response=response,json=body)
+        page.route(lambda address: urlsplit(address).path.endswith('/api/workflow-v2.php') and not urlsplit(address).query,
+            omit_case_from_general_feed)
+        page.goto(url+'/?view=delivery',wait_until='networkidle')
+        log.check('combined menu opens finance rather than delivery for a finance-authorized manager', lambda:
+            browser_expect(page.get_by_role('button',name='نهایی‌سازی مالی',exact=True)).to_have_attribute('aria-pressed','true'))
         card=page.locator('.service-queue-card').filter(has_text=receipt)
+        log.check('finance case remains visible when the general case feed omits it',lambda:browser_expect(card).to_be_visible())
+        draft=next(row for row in manager.api('finance-v2.php')['drafts'] if row['caseId']==case)
+        search=page.get_by_role('textbox',name='جست‌وجوی صف')
+        search.fill(draft['customer_mobile'])
+        log.check('finance search reads customer mobile from its own queue',lambda:browser_expect(card).to_be_visible())
+        search.fill('000-missing-case')
+        browser_expect(card).to_have_count(0)
+        search.fill(receipt)
+        browser_expect(card).to_be_visible()
+        page.unroute_all(behavior='wait')
+        search.fill('')
         card.click()
         browser_expect(page.get_by_role('heading',name='بررسی پیش‌نویس فاکتور',exact=True)).to_be_visible()
         log.check('finance case opens its stage without a delivery form',lambda:browser_expect(page.get_by_role('button',name='ثبت تحویل واقعی',exact=True)).to_have_count(0))
@@ -273,6 +294,9 @@ def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
         log.check('payment sets ready stage without physical delivery',lambda:expect(
             manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='ready_for_delivery','settlement did not prepare delivery'))
         page.get_by_role('button',name='تحویل دستگاه',exact=True).click()
+        page.reload(wait_until='networkidle')
+        log.check('explicit delivery selection survives reload',lambda:
+            browser_expect(page.get_by_role('button',name='تحویل دستگاه',exact=True)).to_have_attribute('aria-pressed','true'))
         card.click()
         submit=page.get_by_role('button',name='ثبت تحویل واقعی',exact=True)
         browser_expect(submit).to_be_disabled()

@@ -1,23 +1,23 @@
 # Graph Report - tamiran-v1  (2026-11-26)
 
 ## Corpus Check
-- 165 files · ~171,229 words
+- 165 files · ~171,661 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 22 file(s) not represented in the graph (top: .css 11, (none) 8, .woff2 3)
 
 ## Summary
-- 1604 nodes · 4820 edges · 90 communities (67 shown, 23 thin omitted)
-- Extraction: 78% EXTRACTED · 22% INFERRED · 0% AMBIGUOUS · INFERRED: 1084 edges (avg confidence: 0.85)
+- 1609 nodes · 4826 edges · 89 communities (64 shown, 25 thin omitted)
+- Extraction: 78% EXTRACTED · 22% INFERRED · 0% AMBIGUOUS · INFERRED: 1085 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e1625e3b`
+- Built from commit: `4cabfba9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - technician-service.php
-- catalog-import.tsx
+- tamiran_json_body
 - directadmin-api.ts
 - {closure#2}
 - v2-workspace.tsx
@@ -30,13 +30,13 @@
 - نصب تعمیران روی هاست PHP
 - bootstrap.php
 - backup-engine.php
-- synthetic_imei
+- workflowV2Action
 - modules.tsx
 - expect
 - client-diagnostics.ts
-- tamiran_json_body
-- v2-api.ts
-- package.json
+- {closure#2}
+- case_invoice_correct
+- catalog-import.tsx
 - v2-core.php
 - persian-date.ts
 - {closure#1}
@@ -48,7 +48,7 @@
 - tamiran_require_csrf
 - followups.php
 - compact-receipt.tsx
-- manager-operations.tsx
+- v2-api.ts
 - شواهد نسخهٔ PHP تعمیران
 - external_purchase_change
 - compilerOptions
@@ -60,11 +60,11 @@
 - customer-portal.tsx
 - catalog-similarity.php
 - DATABASE-MIGRATIONS.md
-- dependencies
+- case-stage-board.tsx
 - check_quality_browser
 - DEPLOYMENT.md
 - package_test.py
-- catalog.ts
+- issue_once_concurrently
 - TamiranApiException
 - run
 - ReceptionPage
@@ -77,20 +77,19 @@
 - run
 - finance_issue
 - moduleErrorMessage
-- case-stage-board.tsx
+- useModalFocus
 - shop-users.tsx
 - {closure#1}
 - reception-draft-mutations.ts
 - reception-ui-contract.ts
 - quality_run
-- catalog-similarity.ts
 - build.mjs
 - آزمون‌های نسخهٔ توسعه
 - {closure#1}
 - synthetic_imei
 - captcha_audio.py
 - tamiran_captcha_audio
-- frontend_contracts.test.mjs
+- operations.ts
 - design-qa.md
 
 ## God Nodes (most connected - your core abstractions)
@@ -108,51 +107,47 @@
 ## Surprising Connections (you probably didn't know these)
 - `1.0.0-dev.1 — تخصیص اتمی و ارجاع` --references--> `v2_transition()`  [INFERRED]
   docs/TEST-REPORT.md → hosting/private/v2-core.php
+- `technician_projection()` --calls--> `case_invoice_public()`  [INFERRED]
+  hosting/private/technician-service.php → hosting/private/case-invoice.php
 - `{closure#2}()` --calls--> `tamiran_sms_provider_from_row()`  [INFERRED]
   hosting/tests/services_test.php → hosting/private/sms-service.php
 - `{closure#3}()` --calls--> `tamiran_sms_verify_otp()`  [INFERRED]
   hosting/tests/services_test.php → hosting/private/sms-service.php
-- `{closure#1}()` --calls--> `TamiranApiException`  [INFERRED]
-  hosting/public_html/api/inventory-v2.php → hosting/public_html/api/bootstrap.php
 - `ReceptionPage()` --indirect_call--> `createReceptionDraftMutationQueue()`  [INFERRED]
   hosting/frontend/src/app/tamiran/modules.tsx → hosting/frontend/src/app/software/reception-draft-mutations.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (90 total, 23 thin omitted)
+## Communities (89 total, 25 thin omitted)
 
 ### Community 0 - "technician-service.php"
-Cohesion: 0.21
-Nodes (26): case_invoice_correct(), case_invoice_default(), case_invoice_preview(), case_invoice_public(), case_invoice_record(), case_invoice_saved(), case_invoice_service_line(), technician_access() (+18 more)
+Cohesion: 0.29
+Nodes (23): technician_access(), technician_activities(), technician_activity_add(), technician_billable_parts(), technician_confirm_receipt(), technician_cost_state(), technician_diagnosis(), technician_editable() (+15 more)
 
-### Community 1 - "catalog-import.tsx"
-Cohesion: 0.24
-Nodes (12): fflate@0.8.3, CatalogImport(), CatalogImportRow, catalogTemplate(), parseCatalogRows(), importCatalogItems(), normalizeQueueSearch(), columnIndex() (+4 more)
+### Community 1 - "tamiran_json_body"
+Cohesion: 0.17
+Nodes (9): tamiran_json_body(), client_error_text(), {closure#1}(), {closure#1}(), {closure#2}(), price_catalog_rows(), {closure#1}(), ticket_require_access() (+1 more)
 
 ### Community 2 - "directadmin-api.ts"
-Cohesion: 0.07
-Nodes (43): invoke(), loadOperationalBootstrap(), OperationalBootstrapCore, OperationalBootstrapLoaders, AccessSessionLoader(), createInventoryItem(), createPartRequest(), createRepairCase() (+35 more)
+Cohesion: 0.09
+Nodes (36): invoke(), loadOperationalBootstrap(), OperationalBootstrapCore, OperationalBootstrapLoaders, AccessSessionLoader(), createInventoryItem(), createPartRequest(), createRepairCase() (+28 more)
 
 ### Community 3 - "{closure#2}"
 Cohesion: 0.10
 Nodes (28): tamiran_product_apply(), tamiran_product_assert_transition(), tamiran_product_change_precheck(), tamiran_product_change_service(), tamiran_product_config(), tamiran_product_modules(), tamiran_product_offerings(), tamiran_product_snapshot() (+20 more)
 
 ### Community 4 - "v2-workspace.tsx"
-Cohesion: 0.11
-Nodes (38): directAdminRequest(), loadV2Delivery(), loadV2Finance(), loadV2Inventory(), loadV2InventoryControl(), loadV2Procurement(), loadV2Quality(), loadV2QualityCase() (+30 more)
+Cohesion: 0.09
+Nodes (48): directAdminRequest(), createV2Estimate(), deliveryV2Action(), financeV2Action(), inventoryControlV2Action(), jsonPost(), loadV2Delivery(), loadV2Finance() (+40 more)
 
 ### Community 5 - "v2_case"
-Cohesion: 0.15
-Nodes (27): manager_followup_queue(), manager_operations_report(), manager_update_case(), v2_case(), v2_json(), v2_notify(), v2_require_case_access(), {closure#8}() (+19 more)
-
-### Community 6 - "smoke.py"
-Cohesion: 0.10
-Nodes (3): upload(), issue_once_concurrently(), main()
+Cohesion: 0.14
+Nodes (28): manager_followup_queue(), manager_operations_report(), manager_update_case(), v2_case(), v2_json(), v2_notify(), v2_require_case_access(), v2_transition_role_allowed() (+20 more)
 
 ### Community 7 - "operations.php"
 Cohesion: 0.10
-Nodes (25): tamiran_tracking_token(), tamiran_uuid_v7(), tamiran_validate_national_code(), {closure#10}(), {closure#13}(), {closure#4}(), operations_appearance_options(), operations_canonical_value() (+17 more)
+Nodes (39): tamiran_encrypt_secret(), tamiran_tracking_token(), tamiran_uuid_v7(), tamiran_validate_national_code(), {closure#10}(), {closure#13}(), {closure#14}(), {closure#4}() (+31 more)
 
 ### Community 8 - "admin-panel.tsx"
 Cohesion: 0.05
@@ -164,95 +159,95 @@ Nodes (32): tamiran_install(), tamiran_install_check_config_publication(), tamir
 
 ### Community 10 - "Client"
 Cohesion: 0.13
-Nodes (22): manager_for(), run(), shop(), main(), submit(), run(), ready(), sql() (+14 more)
+Nodes (21): manager_for(), run(), shop(), main(), submit(), run(), ready(), sql() (+13 more)
 
 ### Community 11 - "نصب تعمیران روی هاست PHP"
 Cohesion: 0.05
-Nodes (34): HTTPS و پراکسی, ثبت رویداد و عیب‌یابی, دامنهٔ آزمون این نسخه, عیب‌یابی, نصب تعمیران روی هاست PHP, نگهداری کلیدها و داده‌ها, پیامک و زمان‌بندی, پیش‌نیازها (+26 more)
+Nodes (35): HTTPS و پراکسی, ثبت رویداد و عیب‌یابی, دامنهٔ آزمون این نسخه, عیب‌یابی, نصب تعمیران روی هاست PHP, نگهداری کلیدها و داده‌ها, پیامک و زمان‌بندی, پیش‌نیازها (+27 more)
 
 ### Community 12 - "bootstrap.php"
-Cohesion: 0.10
-Nodes (24): admin_shop_summary(), {closure#5}(), tamiran_actor(), tamiran_api(), tamiran_credential_stamp(), tamiran_domain_root(), tamiran_fail(), tamiran_forget_actor() (+16 more)
+Cohesion: 0.08
+Nodes (35): admin_shop_summary(), {closure#1}(), {closure#5}(), tamiran_actor(), tamiran_api(), tamiran_db(), tamiran_domain_root(), tamiran_fail() (+27 more)
 
 ### Community 13 - "backup-engine.php"
-Cohesion: 0.17
-Nodes (25): {closure#1}(), {closure#2}(), tamiran_backup_capture(), tamiran_backup_cleanup(), tamiran_backup_config(), tamiran_backup_file_key(), tamiran_backup_health(), tamiran_backup_identifier() (+17 more)
+Cohesion: 0.16
+Nodes (26): {closure#1}(), {closure#2}(), tamiran_backup_capture(), tamiran_backup_cleanup(), tamiran_backup_config(), tamiran_backup_file_key(), tamiran_backup_health(), tamiran_backup_identifier() (+18 more)
 
-### Community 14 - "synthetic_imei"
-Cohesion: 0.12
-Nodes (17): run(), main(), run(), create_all(), expect(), run(), check_ledger(), delivered_state() (+9 more)
+### Community 14 - "workflowV2Action"
+Cohesion: 0.24
+Nodes (11): disposals, ExternalPurchasePanel(), addCatalog(), submit(), labels, toman(), changeExternalPurchase(), ExternalPurchase (+3 more)
 
 ### Community 15 - "modules.tsx"
-Cohesion: 0.06
-Nodes (38): Address, CustomerAddress(), defaultAppearanceStates, defaultDeviceColors, DeviceColorOption, EmptyState(), followUpHistoryBody(), hotReturnLabels (+30 more)
+Cohesion: 0.08
+Nodes (26): Address, CustomerAddress(), FollowUpKind, FollowUpPriority, followUpPriorityLabels, FollowUpStatus, followUpStatusLabels, initialCaseFollowUps (+18 more)
 
 ### Community 16 - "expect"
-Cohesion: 0.18
-Nodes (11): run(), assert_true(), back(), check(), create(), no_complexity(), receive(), row() (+3 more)
+Cohesion: 0.12
+Nodes (19): expect(), run(), check_ledger(), delivered_state(), installed_wizard(), make_role(), stock_balanced(), run() (+11 more)
 
 ### Community 17 - "client-diagnostics.ts"
 Cohesion: 0.29
 Nodes (5): ClientDiagnosticKind, installClientDiagnostics(), reportClientDiagnostic(), DiagnosticBoundary, State
 
-### Community 18 - "tamiran_json_body"
-Cohesion: 0.13
-Nodes (17): tamiran_json_body(), tamiran_require_actor(), tamiran_require_shop_manager(), tamiran_require_writable_actor(), catalog_rows(), catalog_value(), {closure#1}(), {closure#1}() (+9 more)
+### Community 18 - "{closure#2}"
+Cohesion: 0.46
+Nodes (5): {closure#2}(), purchase_list(), purchase_optional(), purchase_scope(), purchase_update()
 
-### Community 19 - "v2-api.ts"
-Cohesion: 0.11
-Nodes (25): WorkspaceProfile, OperationsCaseWorkspace(), Task, tasks, assignV2Case(), deliveryV2Action(), financeV2Action(), inventoryControlV2Action() (+17 more)
+### Community 19 - "case_invoice_correct"
+Cohesion: 0.36
+Nodes (8): case_invoice_correct(), case_invoice_default(), case_invoice_preview(), case_invoice_public(), case_invoice_record(), case_invoice_saved(), case_invoice_service_line(), technician_money()
 
-### Community 20 - "package.json"
-Cohesion: 0.11
-Nodes (22): devDependencies, @types/node@22.19.19, @types/qrcode@1.5.6, @types/react@19.2.14, @types/react-dom@19.2.3, typescript@5.9.3, vite@8.3.7, @vitejs/plugin-react@6.0.2 (+14 more)
+### Community 20 - "catalog-import.tsx"
+Cohesion: 0.06
+Nodes (51): dependencies, fflate@0.8.3, lucide-react@1.31.0, qrcode@1.5.4, react@19.2.6, react-dom@19.2.6, devDependencies, @types/node@22.19.19 (+43 more)
 
 ### Community 21 - "v2-core.php"
-Cohesion: 0.13
-Nodes (29): inventory_v2_route_after_parts(), v2_case_blockers(), v2_closure_outcome(), v2_delivery_identity(), v2_delivery_replay(), v2_finance_blockers(), v2_hold_reason(), v2_identity_normalized() (+21 more)
+Cohesion: 0.12
+Nodes (24): inventory_v2_route_after_parts(), v2_case_blockers(), v2_closure_outcome(), v2_delivery_identity(), v2_delivery_replay(), v2_hold_reason(), v2_identity_normalized(), v2_identity_value() (+16 more)
 
 ### Community 22 - "persian-date.ts"
 Cohesion: 0.20
 Nodes (23): InvoiceCatalogForm(), addGregorianDays(), addPersianMonths(), daysInPersianMonth(), formatPersianDate(), gregorianToPersian(), isoFromUtcDate(), isSamePersianDay() (+15 more)
 
 ### Community 23 - "{closure#1}"
-Cohesion: 0.13
-Nodes (24): tamiran_sms_otp_hash(), tamiran_sms_provider_from_row(), tamiran_sms_queue_event(), tamiran_sms_verify_otp(), TamiranKavenegarProvider, admin_user_mobile(), tamiran_client_ip(), tamiran_config() (+16 more)
+Cohesion: 0.14
+Nodes (21): tamiran_sms_otp_hash(), tamiran_sms_provider_from_row(), tamiran_sms_queue_event(), tamiran_sms_verify_otp(), TamiranKavenegarProvider, admin_user_mobile(), tamiran_config(), tamiran_decrypt_secret() (+13 more)
 
 ### Community 24 - "admin-users.php"
-Cohesion: 0.19
-Nodes (13): admin_user_assert_mobile_available(), admin_user_assign_branches(), admin_user_branch_ids(), admin_user_clean_email(), admin_user_display_name(), admin_user_payload(), {closure#9}(), shop_user_assert_managed() (+5 more)
+Cohesion: 0.18
+Nodes (14): admin_user_assert_mobile_available(), admin_user_assign_branches(), admin_user_branch_ids(), admin_user_clean_email(), admin_user_display_name(), admin_user_payload(), {closure#9}(), shop_user_assert_managed() (+6 more)
 
 ### Community 25 - "case-procurement.tsx"
-Cohesion: 0.20
-Nodes (19): fa, ProcurementDocuments(), ProcurementForm(), ReceiveDocument(), Run, statusLabels, formatToman(), MoneyInput() (+11 more)
+Cohesion: 0.18
+Nodes (20): fa, ProcurementDocuments(), ProcurementForm(), ReceiveDocument(), Run, statusLabels, formatToman(), MoneyInput() (+12 more)
 
 ### Community 26 - "technical-case-workspace.tsx"
-Cohesion: 0.10
-Nodes (36): blank(), costLabels, date(), Draft, message(), TechnicalCaseWorkspace(), titles, TechnicalFile (+28 more)
+Cohesion: 0.11
+Nodes (34): blank(), costLabels, date(), Draft, message(), TechnicalCaseWorkspace(), titles, TechnicalFile (+26 more)
 
 ### Community 27 - "tamiran_audit"
-Cohesion: 0.18
-Nodes (32): v2_require_permission(), v2_stock_mutate(), v2_text(), tamiran_audit(), {closure#2}(), inventory_adjustment(), inventory_adjustment_decide(), inventory_control_payload() (+24 more)
+Cohesion: 0.24
+Nodes (23): v2_require_permission(), v2_text(), tamiran_audit(), {closure#2}(), inventory_adjustment(), inventory_adjustment_decide(), inventory_control_payload(), inventory_hot_review() (+15 more)
 
 ### Community 28 - "access.tsx"
-Cohesion: 0.16
-Nodes (21): diagnosticFetch(), accessErrorMessage(), AccessGateway(), normalizeMobile(), planLabels, profileFromActor(), repairTypeLabels, changeInitialPassword() (+13 more)
+Cohesion: 0.15
+Nodes (22): diagnosticFetch(), accessErrorMessage(), AccessGateway(), normalizeMobile(), planLabels, profileFromActor(), repairTypeLabels, changeInitialPassword() (+14 more)
 
 ### Community 29 - "tamiran_require_csrf"
-Cohesion: 0.19
-Nodes (21): auth_begin_actor(), auth_candidate_users(), auth_change_initial_password(), auth_contexts(), auth_identify(), auth_profile_from_row(), auth_select_context(), auth_throttle_check() (+13 more)
+Cohesion: 0.21
+Nodes (20): auth_begin_actor(), auth_candidate_users(), auth_change_initial_password(), auth_contexts(), auth_identify(), auth_profile_from_row(), auth_select_context(), auth_throttle_check() (+12 more)
 
 ### Community 30 - "followups.php"
 Cohesion: 0.26
 Nodes (17): {closure#2}(), {closure#3}(), followup_activity(), followup_due_at(), followup_due_label(), followup_find(), followup_get(), followup_histories() (+9 more)
 
 ### Community 31 - "compact-receipt.tsx"
-Cohesion: 0.16
-Nodes (14): Activity, Attachment, CaseTools(), CaseToolsDisclosure(), CompactReceipt(), CompactReceiptProps, dateText(), RECEIPT_CSS (+6 more)
+Cohesion: 0.12
+Nodes (18): WorkspaceProfile, Activity, Attachment, CaseTools(), CaseToolsDisclosure(), CompactReceipt(), CompactReceiptProps, dateText() (+10 more)
 
-### Community 32 - "manager-operations.tsx"
-Cohesion: 0.11
-Nodes (29): disposals, ExternalPurchasePanel(), addCatalog(), submit(), labels, toman(), fa(), FollowReason (+21 more)
+### Community 32 - "v2-api.ts"
+Cohesion: 0.07
+Nodes (34): fa(), FollowReason, followTitles, OperationsFollowups(), loadMore(), openCase(), saveNote(), OperationsPerformance() (+26 more)
 
 ### Community 33 - "شواهد نسخهٔ PHP تعمیران"
 Cohesion: 0.12
@@ -275,12 +270,12 @@ Cohesion: 0.36
 Nodes (20): AuditPage(), CaseDetailsModal(), DeliveryPage(), DetailValue(), downloadCsv(), FollowUpComposer(), FollowUpDetailsModal(), HotReturnsPage() (+12 more)
 
 ### Community 38 - "CHANGELOG.md"
-Cohesion: 0.20
-Nodes (8): تغییرات 1.0.0-dev.1, تغییرات 1.0.0-dev.2, تغییرات 1.0.0-dev.3, تغییرات 1.0.0-rc.1, تغییرات 1.0.0-rc.2, تغییرات 1.0.0-rc.3, تغییرات 1.0.0-rc.4, موارد باز
+Cohesion: 0.18
+Nodes (9): تغییرات 1.0.0-dev.1, تغییرات 1.0.0-dev.2, تغییرات 1.0.0-dev.3, تغییرات 1.0.0-rc.1, تغییرات 1.0.0-rc.2, تغییرات 1.0.0-rc.3, تغییرات 1.0.0-rc.4, تغییرات 1.0.0-rc.5 (+1 more)
 
 ### Community 39 - "directadmin-api.ts"
-Cohesion: 0.08
-Nodes (28): CapabilityCatalog(), stateLabels, AdminBranch, AdminDashboard, AdminShop, AdminUser, BackupDashboard, BackupHealth (+20 more)
+Cohesion: 0.07
+Nodes (31): CapabilityCatalog(), stateLabels, DeviceCatalogItem, initialDeviceCatalog, legacyDeviceTypeLabels, AdminBranch, AdminDashboard, AdminShop (+23 more)
 
 ### Community 40 - "{closure#2}"
 Cohesion: 0.27
@@ -294,36 +289,32 @@ Nodes (9): CustomerPortal(), money(), normalizeDigits(), portalError(), statusLa
 Cohesion: 0.47
 Nodes (9): catalog_brand(), catalog_compact(), catalog_distance(), catalog_existing_match(), catalog_existing_spelling(), catalog_match(), catalog_model_signature(), catalog_text() (+1 more)
 
-### Community 44 - "dependencies"
-Cohesion: 0.29
-Nodes (7): dependencies, lucide-react@1.31.0, qrcode@1.5.4, react@19.2.6, react-dom@19.2.6, qrcode, react-dom
+### Community 44 - "case-stage-board.tsx"
+Cohesion: 0.71
+Nodes (4): CaseStageBoard(), initialStageForStatuses(), repairStages, stageForStatus()
 
 ### Community 45 - "check_quality_browser"
 Cohesion: 0.36
 Nodes (5): assert_fits(), assert_no_errors(), assert_single_column(), check_quality_browser(), contrast()
 
-### Community 48 - "catalog.ts"
-Cohesion: 0.50
-Nodes (3): DeviceCatalogItem, initialDeviceCatalog, legacyDeviceTypeLabels
-
 ### Community 49 - "TamiranApiException"
-Cohesion: 0.17
-Nodes (24): technician_require_receipt(), v2_require_capability(), tamiran_encrypt_secret(), TamiranApiException, tamiran_captcha_image(), {closure#14}(), operations_create_inventory_item(), operations_create_part_request() (+16 more)
+Cohesion: 0.18
+Nodes (19): v2_require_capability(), v2_scope(), v2_stock_mutate(), TamiranApiException, tamiran_captcha_image(), {closure#1}(), {closure#2}(), inventory_v2_finalize_issue() (+11 more)
 
 ### Community 50 - "run"
 Cohesion: 0.50
 Nodes (3): run(), check(), save()
 
 ### Community 52 - "ReceptionPage"
-Cohesion: 0.15
-Nodes (17): displayDeviceType(), printCompactReceipt(), createCatalogItem(), discardReceptionDraft(), lookupCustomer(), saveReceptionDraft(), updateCatalogItem(), BaseDataSettings() (+9 more)
+Cohesion: 0.16
+Nodes (15): displayDeviceType(), printCompactReceipt(), createCatalogItem(), discardReceptionDraft(), lookupCustomer(), saveReceptionDraft(), Field(), normalizeDeviceColors() (+7 more)
 
 ### Community 70 - "WORKFLOW.md"
 Cohesion: 0.50
 Nodes (3): دریافت فیزیکی, عیب‌یابی، خرید و پایان تعمیر, گردش مرحلهٔ اول
 
 ### Community 72 - "run"
-Cohesion: 0.20
+Cohesion: 0.18
 Nodes (10): check_case_procurement(), check_finance_delivery_browser(), check_operations_browser(), check_quality_browser(), check_supply_browser(), open_as(), run(), command() (+2 more)
 
 ### Community 73 - "run"
@@ -331,16 +322,16 @@ Cohesion: 0.25
 Nodes (8): run(), capture(), check(), create(), save(), simple(), visit(), yes()
 
 ### Community 74 - "finance_issue"
-Cohesion: 0.40
-Nodes (12): technician_unrepaired(), v2_financial_event(), tamiran_id(), {closure#2}(), finance_advance_readiness(), finance_draft_items(), finance_invoice_case(), finance_issue() (+4 more)
+Cohesion: 0.44
+Nodes (11): v2_financial_event(), tamiran_id(), {closure#2}(), finance_advance_readiness(), finance_draft_items(), finance_invoice_case(), finance_issue(), finance_payload() (+3 more)
 
 ### Community 75 - "moduleErrorMessage"
-Cohesion: 0.28
-Nodes (16): saveShopSetting(), updateShopSettings(), save(), AccountSettings(), InventorySettings(), moduleErrorMessage(), ReceiptSettings(), SectionTitle() (+8 more)
+Cohesion: 0.27
+Nodes (17): saveShopSetting(), updateCatalogItem(), updateShopSettings(), AccountSettings(), BaseDataSettings(), InventorySettings(), moduleErrorMessage(), ReceiptSettings() (+9 more)
 
-### Community 76 - "case-stage-board.tsx"
-Cohesion: 0.29
-Nodes (10): layers, lock(), locks, unlock(), useModalFocus(), CaseActionDialog(), CaseStageBoard(), initialStageForStatuses() (+2 more)
+### Community 76 - "useModalFocus"
+Cohesion: 0.38
+Nodes (6): layers, lock(), locks, unlock(), useModalFocus(), CaseActionDialog()
 
 ### Community 77 - "shop-users.tsx"
 Cohesion: 0.23
@@ -362,47 +353,43 @@ Nodes (11): ActiveReceiptTerms, buildDraftSubmissionSelection(), buildPreviousDe
 Cohesion: 0.38
 Nodes (13): v2_has_permission(), {closure#2}(), quality_ack(), quality_authorize_case(), quality_case_context(), quality_payload(), quality_receipt(), quality_replace_template() (+5 more)
 
-### Community 82 - "catalog-similarity.ts"
-Cohesion: 0.32
-Nodes (11): brandAliases, catalogBrand(), catalogDistance(), catalogMatch(), CatalogName, catalogText(), catalogType(), compact() (+3 more)
-
 ### Community 83 - "build.mjs"
 Cohesion: 0.22
 Nodes (5): document, localVite, output, result, root
 
 ### Community 85 - "آزمون‌های نسخهٔ توسعه"
-Cohesion: 0.22
-Nodes (8): 1.0.0-dev.1 — تخصیص اتمی و ارجاع, 1.0.0-dev.2 — دریافت فیزیکی دستگاه, 1.0.0-dev.3 — رسید ارجاع و رسیدگی به مغایرت, 1.0.0-rc.1 — گردش کامل تعمیر در محیط آزمایشی, 1.0.0-rc.2 — صف پیگیری و بازکاری, 1.0.0-rc.3 — تطبیق پنل تکنسین با نمونهٔ نسخهٔ هفتم, 1.0.0-rc.4 — تأمین قطعه، مدیریت، کنترل کیفیت و تحویل, آزمون‌های نسخهٔ توسعه
+Cohesion: 0.20
+Nodes (9): 1.0.0-dev.1 — تخصیص اتمی و ارجاع, 1.0.0-dev.2 — دریافت فیزیکی دستگاه, 1.0.0-dev.3 — رسید ارجاع و رسیدگی به مغایرت, 1.0.0-rc.1 — گردش کامل تعمیر در محیط آزمایشی, 1.0.0-rc.2 — صف پیگیری و بازکاری, 1.0.0-rc.3 — تطبیق پنل تکنسین با نمونهٔ نسخهٔ هفتم, 1.0.0-rc.4 — تأمین قطعه، مدیریت، کنترل کیفیت و تحویل, 1.0.0-rc.5 — نمایش پرونده در صف مالی (+1 more)
 
 ### Community 86 - "{closure#1}"
-Cohesion: 0.15
-Nodes (11): backup_job_view(), {closure#1}(), tamiran_require_central_admin(), {closure#1}(), {closure#2}(), price_catalog_rows(), {closure#1}(), product_change_count() (+3 more)
+Cohesion: 0.57
+Nodes (5): {closure#1}(), product_change_count(), product_change_operation_row(), product_change_precheck(), product_change_shop()
 
 ### Community 87 - "synthetic_imei"
-Cohesion: 0.13
-Nodes (14): synthetic_imei(), run(), capture(), create(), passes(), run(), create(), estimate() (+6 more)
+Cohesion: 0.09
+Nodes (23): run(), main(), run(), create_all(), Runner, synthetic_imei(), run(), create() (+15 more)
 
 ### Community 88 - "captcha_audio.py"
-Cohesion: 0.25
-Nodes (3): check(), save(), svg_captcha()
+Cohesion: 0.20
+Nodes (4): check(), save(), SmokeFailure, svg_captcha()
 
-### Community 91 - "frontend_contracts.test.mjs"
-Cohesion: 0.25
-Nodes (5): buildCaseMutationRequest(), CaseMutationRequest, checkedInteger(), RepairCaseStatus, vectors
+### Community 91 - "operations.ts"
+Cohesion: 0.09
+Nodes (22): buildCaseMutationRequest(), CaseMutationRequest, checkedInteger(), CreateInventoryItemInput, CreatePartRequestInput, CreateRepairCaseInput, CustomerLookupResult, emptyOperationalSnapshot (+14 more)
 
 ## Knowledge Gaps
-- **23 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **25 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `TamiranApiException` connect `TamiranApiException` to `technician-service.php`, `{closure#2}`, `v2_case`, `operations.php`, `installer_test.php`, `bootstrap.php`, `backup-engine.php`, `tamiran_json_body`, `v2-core.php`, `{closure#1}`, `admin-users.php`, `tamiran_audit`, `tamiran_require_csrf`, `followups.php`, `external_purchase_change`, `{closure#2}`, `finance_issue`, `{closure#1}`, `quality_run`, `{closure#1}`, `tamiran_captcha_audio`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+- **Why does `TamiranApiException` connect `TamiranApiException` to `technician-service.php`, `tamiran_json_body`, `{closure#2}`, `v2_case`, `operations.php`, `installer_test.php`, `bootstrap.php`, `backup-engine.php`, `{closure#2}`, `case_invoice_correct`, `v2-core.php`, `{closure#1}`, `admin-users.php`, `tamiran_audit`, `tamiran_require_csrf`, `followups.php`, `external_purchase_change`, `{closure#2}`, `finance_issue`, `{closure#1}`, `quality_run`, `{closure#1}`, `tamiran_captcha_audio`?**
+  _High betweenness centrality (0.076) - this node is a cross-community bridge._
 - **Are the 208 inferred relationships involving `TamiranApiException` (e.g. with `tamiran_backup_capture()` and `tamiran_backup_file_key()`) actually correct?**
   _`TamiranApiException` has 208 INFERRED edges - model-reasoned connections that need verification._
 - **Should `directadmin-api.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.06938020351526364 - nodes in this community are weakly interconnected._
-- **Why does `react` connect `technical-case-workspace.tsx` to `manager-operations.tsx`, `catalog-import.tsx`, `directadmin-api.ts`, `v2-workspace.tsx`, `directadmin-api.ts`, `admin-panel.tsx`, `customer-portal.tsx`, `dependencies`, `case-stage-board.tsx`, `shop-users.tsx`, `modules.tsx`, `client-diagnostics.ts`, `v2-api.ts`, `package.json`, `persian-date.ts`, `case-procurement.tsx`, `access.tsx`, `compact-receipt.tsx`?**
+  _Cohesion score 0.08636977058029689 - nodes in this community are weakly interconnected._
+- **Why does `react` connect `case-procurement.tsx` to `v2-api.ts`, `directadmin-api.ts`, `v2-workspace.tsx`, `directadmin-api.ts`, `admin-panel.tsx`, `customer-portal.tsx`, `useModalFocus`, `case-stage-board.tsx`, `workflowV2Action`, `modules.tsx`, `shop-users.tsx`, `client-diagnostics.ts`, `catalog-import.tsx`, `persian-date.ts`, `technical-case-workspace.tsx`, `operations.ts`, `access.tsx`, `compact-receipt.tsx`?**
   _High betweenness centrality (0.017) - this node is a cross-community bridge._
 - **Are the 61 inferred relationships involving `v2_text()` (e.g. with `case_invoice_correct()` and `case_invoice_preview()`) actually correct?**
   _`v2_text()` has 61 INFERRED edges - model-reasoned connections that need verification._

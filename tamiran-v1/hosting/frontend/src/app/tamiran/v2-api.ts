@@ -344,7 +344,12 @@ export const startV2Quality = (caseId: number) =>
 export const qualityV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/quality-v2.php", payload);
 
-export type V2Invoice = {
+type V2FinanceDevice = {
+  customer_mobile?: string;
+  identifier_snapshot?: string | null;
+  device_title?: string;
+};
+export type V2Invoice = V2FinanceDevice & {
   id: number;
   public_id: string;
   invoice_number: string;
@@ -361,7 +366,7 @@ export type V2Invoice = {
   refunds: Array<Record<string, string | number>>;
   receivables: Array<Record<string, string | number>>;
 };
-export type V2InvoiceDraft = {
+export type V2InvoiceDraft = V2FinanceDevice & {
   caseId: number;
   receiptNumber: string;
   customerName: string;
