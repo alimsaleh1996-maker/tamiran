@@ -1,6 +1,46 @@
 <?php
 declare(strict_types=1);
 
+function manager_pulse(PDO $pdo,array $scope):array
+{
+    if ($scope['role']!=='repair_manager') throw new TamiranApiException('نبض تعمیرگاه فقط برای مدیر تعمیرگاه است.',403);
+    $params=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];
+    $receipt=v2_receipt_pending_sql();
+    $work=$pdo->prepare("SELECT w.process_status,w.primary_technician_user_id AS technician_id,COUNT(*) AS amount,
+        SUM($receipt) AS receipt_pending,
+        SUM(w.promised_at IS NOT NULL AND w.promised_at<UTC_TIMESTAMP()
+            AND w.process_status NOT IN ('ready_for_delivery','returned_unrepaired')) AS overdue
+        FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id
+        WHERE w.shop_id=:shop AND w.branch_id=:branch AND c.delivered_at IS NULL
+        AND w.process_status NOT IN ('closed','cancelled','delivered')
+        GROUP BY w.process_status,w.primary_technician_user_id");
+    $work->execute($params);
+    $users=$pdo->prepare("SELECT u.id,u.display_name FROM tamiran_users u INNER JOIN tamiran_user_branches b
+        ON b.user_id=u.id AND b.shop_id=u.shop_id WHERE b.shop_id=:shop AND b.branch_id=:branch
+        AND b.branch_role_code='technician' AND u.is_active=1 ORDER BY u.display_name,u.id");
+    $users->execute($params);
+    $technicians=[];
+    while ($user=$users->fetch()) {
+        $id=(int)$user['id'];
+        $technicians[$id]=['id'=>$id,'name'=>$user['display_name'],'active'=>0,'awaitingReceipt'=>0,'overdue'=>0];
+    }
+    $stages=[];$unreceived=0;$overdue=0;
+    while ($row=$work->fetch()) {
+        $stage=$row['process_status'];$id=(int)$row['technician_id'];
+        $stages[$stage]=($stages[$stage]??0)+(int)$row['amount'];
+        $unreceived+=(int)$row['receipt_pending'];$overdue+=(int)$row['overdue'];
+        if (!isset($technicians[$id])||in_array($stage,['ready_for_delivery','returned_unrepaired'],true)) continue;
+        $technicians[$id]['active']+=(int)$row['amount'];
+        $technicians[$id]['awaitingReceipt']+=(int)$row['receipt_pending'];
+        $technicians[$id]['overdue']+=(int)$row['overdue'];
+    }
+    $hot=$pdo->prepare("SELECT COUNT(*) FROM repair_hot_returns WHERE shop_id=:shop AND branch_id=:branch
+        AND status IN ('pending_return','waiting_review','rejected')");
+    $hot->execute($params);
+    return ['stages'=>(object)$stages,'technicians'=>array_values($technicians),'awaitingReceipt'=>$unreceived,
+        'overdue'=>$overdue,'openHotReturns'=>(int)$hot->fetchColumn()];
+}
+
 function manager_operations_report(PDO $pdo, array $scope, mixed $from, mixed $to): array
 {
     if ($scope['role']!=='repair_manager') throw new TamiranApiException('گزارش عملکرد فقط برای مدیر تعمیرگاه است.',403);
@@ -22,25 +62,23 @@ function manager_operations_report(PDO $pdo, array $scope, mixed $from, mixed $t
     $report=[];
     while ($u=$who->fetch()) {
         $report[$u['id']]=['id'=>(int)$u['id'],'name'=>$u['display_name'],'active'=>0,'delivered'=>0,
-            'repaired'=>0,'unrepaired'=>0,'technicalFailures'=>0,'qcRuns'=>0,'qcFailures'=>0,'transferReasons'=>[],'stageTimes'=>[],'withInitialDue'=>0,'onTime'=>0];
+            'assigned'=>0,'repaired'=>0,'unrepaired'=>0,'technicalFailures'=>0,'trend'=>[],'completedCases'=>[],'qcRuns'=>0,'qcFailures'=>0,'transferReasons'=>[],'stageTimes'=>[],'withInitialDue'=>0,'onTime'=>0];
     }
     $queries=[
         ['active',"SELECT w.primary_technician_user_id AS user_id,COUNT(*) AS amount FROM repair_case_workflows w
             WHERE w.shop_id=:shop AND w.branch_id=:branch
             AND w.process_status NOT IN ('ready_for_delivery','returned_unrepaired','delivered','cancelled','closed')
             GROUP BY w.primary_technician_user_id",false],
+        ['assigned',"SELECT first_assignment.technician_user_id AS user_id,COUNT(*) AS amount
+            FROM repair_case_workflows w JOIN repair_case_assignments first_assignment ON first_assignment.workflow_id=w.id
+            WHERE w.shop_id=:shop AND w.branch_id=:branch AND first_assignment.assignment_type='primary'
+            AND first_assignment.started_at>=:from AND first_assignment.started_at<:to
+            AND NOT EXISTS (SELECT 1 FROM repair_case_assignments earlier
+                WHERE earlier.workflow_id=w.id AND earlier.assignment_type='primary' AND earlier.id<first_assignment.id)
+            GROUP BY first_assignment.technician_user_id",true],
         ['delivered',"SELECT w.primary_technician_user_id AS user_id,COUNT(*) AS amount FROM repair_case_workflows w JOIN repair_cases c ON c.id=w.case_id
             WHERE w.shop_id=:shop AND w.branch_id=:branch AND c.delivered_at>=:from AND c.delivered_at<:to
             GROUP BY w.primary_technician_user_id",true],
-        ['repaired',"SELECT COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.response.technicianId')) AS UNSIGNED),e.actor_user_id) AS user_id,
-            SUM(JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.payload.result'))='repaired') AS amount,
-            SUM(JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.payload.result'))='not_repaired') AS unrepaired,
-            SUM(JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.payload.result'))='not_repaired'
-                AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.payload.reasonCode'))='technical_failure') AS technicalFailures
-            FROM repair_case_workflows w JOIN repair_case_events e ON e.case_id=w.case_id
-            WHERE w.shop_id=:shop AND w.branch_id=:branch AND e.event_type='technical_finish' AND e.created_at>=:from AND e.created_at<:to
-            AND NOT EXISTS(SELECT 1 FROM repair_case_events later WHERE later.case_id=e.case_id AND later.event_type='technical_finish' AND later.id>e.id)
-            GROUP BY user_id",true],
         ['qcRuns',"SELECT q.repaired_by_user_id AS user_id,COUNT(*) AS amount, SUM(q.result='failed') AS qcFailures
             FROM repair_case_workflows w JOIN repair_qc_runs q ON q.case_id=w.case_id
             WHERE w.shop_id=:shop AND w.branch_id=:branch AND q.completed_at>=:from AND q.completed_at<:to
@@ -55,6 +93,28 @@ function manager_operations_report(PDO $pdo, array $scope, mixed $from, mixed $t
             $report[$id][$metric]=(int)$row['amount'];
             foreach (['unrepaired','technicalFailures','qcFailures'] as $key) if (isset($row[$key])) $report[$id][$key]=(int)$row[$key];
         }
+    }
+    $completed=$pdo->prepare("SELECT COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.response.technicianId')) AS UNSIGNED),e.actor_user_id) AS user_id,
+        JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.payload.result')) AS result,
+        JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.payload.reasonCode')) AS reason,
+        DATE(DATE_ADD(e.created_at,INTERVAL 210 MINUTE)) AS local_day,w.case_id,c.receipt_number
+        FROM repair_case_workflows w JOIN repair_case_events e ON e.case_id=w.case_id
+        JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id
+        WHERE w.shop_id=:shop AND w.branch_id=:branch AND e.event_type='technical_finish' AND e.created_at>=:from AND e.created_at<:to
+        AND NOT EXISTS(SELECT 1 FROM repair_case_events later WHERE later.case_id=e.case_id AND later.event_type='technical_finish' AND later.id>e.id)
+        ORDER BY e.created_at DESC,e.id DESC");
+    $completed->execute($params);
+    while ($row=$completed->fetch()) {
+        $id=$row['user_id'];
+        if (!isset($report[$id])||!in_array($row['result'],['repaired','not_repaired'],true)) continue;
+        $result=$row['result']==='repaired'?'repaired':'unrepaired';
+        $report[$id][$result]++;
+        if ($result==='unrepaired'&&$row['reason']==='technical_failure') $report[$id]['technicalFailures']++;
+        $day=$row['local_day'];
+        $report[$id]['trend'][$day]=($report[$id]['trend'][$day]??0)+1;
+        if (count($report[$id]['completedCases'])<50) $report[$id]['completedCases'][]=[
+            'id'=>(int)$row['case_id'],'receiptNumber'=>$row['receipt_number'],'result'=>$result,
+        ];
     }
     $reasons=$pdo->prepare("SELECT h.from_user_id AS user_id,COALESCE(JSON_UNQUOTE(JSON_EXTRACT(h.assets_json,'$.reasonLabel')),'بدون دسته‌بندی') AS label,COUNT(*) AS amount
         FROM repair_case_workflows w JOIN repair_case_handovers h ON h.workflow_id=w.id

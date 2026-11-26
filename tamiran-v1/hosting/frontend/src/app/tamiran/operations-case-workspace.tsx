@@ -352,7 +352,7 @@ export function OperationsCaseWorkspace({
                   .filter((user) => user.role === "technician")
                   .map((user) => (
                     <option key={user.id} value={user.id}>
-                      {user.display_name}
+                      {user.display_name}{user.workload ? ` · ${user.workload.active.toLocaleString("fa-IR")} فعال، ${user.workload.awaitingReceipt.toLocaleString("fa-IR")} منتظر دریافت، ${user.workload.overdue.toLocaleString("fa-IR")} تأخیر` : ""}
                     </option>
                   ))}
               </select>

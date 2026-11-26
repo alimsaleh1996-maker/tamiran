@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { saveShopSetting } from "./directadmin-api";
+import type { WorkspaceProfile } from "./access";
+import { ExternalPurchasePanel } from "./external-purchase-panel";
 import { MoneyInput } from "./money-input";
+import { formatPersianDate, todayGregorianIso } from "./persian-date";
 import { PersianDatePicker } from "./persian-date-picker";
-import { loadManagerPerformance, loadOperationsFollowups, loadV2Workflow, workflowV2Action, type ManagerPerformance, type OperationsFollowup, type OperationsPolicy, type V2Case, type V2User } from "./v2-api";
+import { loadManagerPulse, type ManagerPulseData, loadManagerPerformance, loadOperationsFollowups, loadV2Workflow, workflowV2Action, type ManagerPerformance, type OperationsFollowup, type OperationsPolicy, type V2Case, type V2User } from "./v2-api";
 
 const followTitles = {
   customer: "عدم پاسخ مشتری", parts: "انتظار تأمین قطعه", pickup: "عدم مراجعه برای تحویل", late: "عبور از موعد",
@@ -10,6 +13,95 @@ const followTitles = {
 type FollowReason = keyof typeof followTitles;
 const hours = 3_600_000;
 const fa = (value: number) => Number(value).toLocaleString("fa-IR");
+
+export function ManagerPulse({ profile, onNavigate }: {
+  profile: WorkspaceProfile; onNavigate: (page: string) => void;
+}) {
+  const [data, setData] = useState<ManagerPulseData>();
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [view, setView] = useState(() => new URLSearchParams(location.search).get("view") === "purchase-approvals" ? "purchases" : "followups");
+  const multiTechnician = profile.productProfile !== "solo";
+  const inventoryEnabled = profile.modules.includes("inventory");
+  useEffect(() => {
+    let current = true;
+    void loadManagerPulse().then(result => { if (current) { setData(result); setError(""); } })
+      .catch(error => { if (current) setError(error instanceof Error ? error.message : "نبض تعمیرگاه بارگذاری نشد."); });
+    return () => { current = false; };
+  }, [revision]);
+  function assign(active = false, technician?: number, stage?: string) {
+    if (!multiTechnician) return onNavigate("کارهای من");
+    onNavigate("مدیریت ارجاع تعمیرات");
+    const url = new URL(location.href);
+    url.searchParams.set("assignmentTab", active ? "active" : "pending");
+    if (technician) url.searchParams.set("assignmentTech", String(technician));
+    if (stage) url.searchParams.set("assignmentStage", stage);
+    history.replaceState(history.state, "", url);
+  }
+  function open(item: V2Case) {
+    const target = ["ready_for_delivery", "returned_unrepaired", "finance_pending"].includes(item.status)
+      ? (item.status === "finance_pending" ? "مالی پرونده" : "تحویل تعمیرات")
+      : item.status === "awaiting_customer_approval" ? "تأیید هزینه"
+      : item.status === "awaiting_parts" && inventoryEnabled ? "درخواست‌های قطعات پرونده‌ها"
+      : item.status === "qc_pending" || item.status === "qc_conditional" ? "کنترل کیفیت"
+      : multiTechnician ? "مدیریت ارجاع تعمیرات" : "کارهای من";
+    if (["تأیید هزینه", "مدیریت ارجاع تعمیرات"].includes(target)) sessionStorage.setItem("tamiran:focused-workflow-case", String(item.id));
+    if (["درخواست‌های قطعات پرونده‌ها", "کنترل کیفیت", "مالی پرونده", "تحویل تعمیرات"].includes(target)) sessionStorage.setItem("tamiran:focused-module-receipt", item.receiptNumber);
+    onNavigate(target);
+    const url = new URL(location.href);
+    if (target === "کارهای من") url.searchParams.set("techCase", String(item.id));
+    if (target === "تأیید هزینه") url.searchParams.set("opsTask", "approval");
+    if (target === "مالی پرونده") url.searchParams.set("financeCase", String(item.id));
+    if (target === "تحویل تعمیرات") url.searchParams.set("deliveryCase", String(item.id));
+    if (target === "کنترل کیفیت") url.searchParams.set("qcCase", String(item.id));
+    history.replaceState(history.state, "", url);
+  }
+  function focusFollowups() {
+    setView("followups");
+    const section = document.getElementById("manager-followups");
+    section?.focus();
+    section?.scrollIntoView({ block: "start" });
+  }
+  const stages = data?.stages ?? {};
+  const sum = (...status: string[]) => status.reduce((total, key) => total + (stages[key] ?? 0), 0);
+  const tiles = [
+    { label: "پرونده‌های فعال", count: Object.values(stages).reduce((a, b) => a + b, 0), open: () => assign(true) },
+    { label: "در انتظار ارجاع", count: sum("reception", "awaiting_assignment"), open: () => assign() },
+    { label: "ارجاع‌شده و دریافت‌نشده", count: data?.awaitingReceipt, open: () => assign(true, undefined, "receipt") },
+    { label: "در حال بررسی یا تعمیر", count: sum("assigned", "diagnosing", "estimate_pending", "repairing", "parts_closeout"), open: () => assign(true, undefined, "repairing") },
+    { label: "دارای تأخیر", count: data?.overdue, open: focusFollowups },
+    { label: "در انتظار مشتری", count: sum("awaiting_customer_approval"), open: () => onNavigate("تأیید هزینه") },
+    { label: "در انتظار قطعه", count: sum("awaiting_parts"), open: () => inventoryEnabled ? onNavigate("درخواست‌های قطعات پرونده‌ها") : assign(true) },
+    ...(profile.inventoryMode === "pro" ? [{ label: "تعهد داغی باز", count: data?.openHotReturns, open: () => onNavigate("تعهدات داغی") }] : []),
+    { label: "کنترل کیفیت", count: sum("qc_pending", "qc_conditional"), open: () => onNavigate("کنترل کیفیت") },
+    { label: "برگشتی از کنترل کیفیت", count: sum("qc_rework"), open: () => assign(true, undefined, "qc_rework") },
+    { label: "در انتظار مالی", count: sum("finance_pending"), open: () => onNavigate("مالی پرونده") },
+    { label: "آماده تحویل", count: sum("ready_for_delivery", "returned_unrepaired"), open: () => onNavigate("تحویل تعمیرات") },
+  ];
+  return <div className="technical-desk manager-workspace manager-pulse" dir="rtl">
+    <header className="manager-section-header"><h2>{profile.shopName}</h2><button type="button" onClick={() => setRevision(value => value + 1)}>تازه‌سازی</button></header>
+    {error && <p role="alert" className="tech-error">{error}</p>}
+    {!data && !error && <p role="status">در حال دریافت وضعیت تعمیرگاه…</p>}
+    {data && <div className="manager-pulse-grid" aria-label="صف‌های عملیاتی">
+      {tiles.map(tile => <button type="button" key={tile.label} onClick={tile.open}><span>{tile.label}</span><strong>{fa(tile.count ?? 0)}</strong></button>)}
+    </div>}
+    <section className="tech-task manager-pulse-work" id="manager-followups" tabIndex={-1}>
+      <div className="manager-switch" role="group" aria-label="درخواست‌ها و پیگیری‌ها">
+        <button type="button" aria-pressed={view === "followups"} onClick={() => setView("followups")}>پرونده‌های نیازمند پیگیری</button>
+        <button type="button" aria-pressed={view === "purchases"} onClick={() => setView("purchases")}>مجوز خرید قطعه</button>
+      </div>
+      {view === "followups" ? <OperationsFollowups key={revision} open={open} />
+        : <ExternalPurchasePanel key={revision} actorId={profile.actorId} />}
+    </section>
+    {data && multiTechnician && <section className="tech-task manager-pulse-load">
+      <h3>بار کاری تکنسین‌ها</h3>
+      {data.technicians.length ? <ul className="manager-workload-list">{data.technicians.map(person =>
+        <li key={person.id}><button type="button" onClick={() => assign(true, person.id)}>
+          <strong>{person.name}</strong><span>{fa(person.active)} فعال · {fa(person.awaitingReceipt)} منتظر دریافت · {fa(person.overdue)} دارای تأخیر</span>
+        </button></li>)}</ul> : <p>تکنسین فعالی در این شعبه ثبت نشده است.</p>}
+    </section>}
+  </div>;
+}
 
 export function OperationsPolicyForm({ policy, users, onSaved }: {
   policy: OperationsPolicy; users: V2User[]; onSaved: () => Promise<void>;
@@ -35,7 +127,7 @@ export function OperationsPolicyForm({ policy, users, onSaved }: {
     }
   }
   return <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-    <fieldset disabled={busy} className="tech-form-grid">
+    <fieldset disabled={busy} className="tech-form-grid manager-policy-grid">
       <legend>سیاست‌های تعمیرگاه</legend>
       <label>سیاست ارجاع
         <select aria-label="سیاست ارجاع" value={form.handover} onChange={(event) => patch({ handover: event.target.value as OperationsPolicy["handover"] })}>
@@ -175,12 +267,13 @@ export function OperationsFollowups({ open }: { open: (item: V2Case) => void }) 
   </section>;
 }
 
-export function OperationsPerformance() {
+export function OperationsPerformance({ open }: { open: (item: V2Case) => void }) {
   const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 24 * hours).toISOString().slice(0, 10));
-  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [to, setTo] = useState(todayGregorianIso);
   const [rows, setRows] = useState<ManagerPerformance[]>();
   const [selected, setSelected] = useState("");
   const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<number>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const filtered = rows?.filter((row) => row.name.includes(search.trim())) ?? [];
@@ -197,10 +290,19 @@ export function OperationsPerformance() {
       setBusy(false);
     }
   }
-  return <section>
+  async function openCompleted(id: number) {
+    try {
+      const item = (await loadV2Workflow(id)).cases[0];
+      if (!item) throw new Error("پرونده در دسترسی فعلی موجود نیست.");
+      open(item);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "پرونده باز نشد.");
+    }
+  }
+  return <section className="manager-performance">
     <h3>عملکرد تکنسین‌ها</h3>
     <form onSubmit={(event) => { event.preventDefault(); void load(); }}>
-      <div className="tech-form-grid">
+      <div className="tech-form-grid manager-report-filters">
         <div><span>از تاریخ</span><PersianDatePicker ariaLabel="تاریخ آغاز گزارش" value={from} onChange={setFrom} /></div>
         <div><span>تا تاریخ</span><PersianDatePicker ariaLabel="تاریخ پایان گزارش" value={to} onChange={setTo} /></div>
       </div>
@@ -208,23 +310,35 @@ export function OperationsPerformance() {
     </form>
     {error && <p role="alert" className="tech-error">{error}</p>}
     {rows && <>
+      {!visible.length && <p role="status">تکنسینی با این فیلتر یافت نشد.</p>}
       <label>جست‌وجوی تکنسین<input value={search} onChange={(event) => { setSearch(event.target.value); setSelected(""); }} /></label>
       <label>تکنسین<select value={selected} onChange={(event) => setSelected(event.target.value)}>
         <option value="">مقایسه همه</option>
         {filtered.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
       </select></label>
-      <ul className="tech-plain-list">{visible.map((row) => {
+      <ul className="tech-plain-list manager-report-grid">{visible.map((row) => {
         const total = row.repaired + row.unrepaired;
         const successBasis = row.repaired + row.technicalFailures;
         return <li key={row.id}>
           <h4>{row.name}</h4>
           <label>تعداد پایان فنی <meter min={0} max={maximum} value={total}>{fa(total)}</meter> {fa(total)}</label>
-          <p>پروندهٔ فعال فعلی: {fa(row.active)} · تحویل ثبت‌شده: {fa(row.delivered)}</p>
-          <p>تعمیر موفق: {successBasis ? `${fa(Math.round(100 * row.repaired / successBasis))}٪` : "داده کافی نیست"} · مردودی کنترل کیفیت: {row.qcRuns ? `${fa(Math.round(100 * row.qcFailures / row.qcRuns))}٪` : "داده کافی نیست"}</p>
+          <p>تعمیر موفق {fa(row.repaired)} · پایان بدون تعمیر {fa(row.unrepaired)}</p>
+          <p>ارجاع اولیه در بازه {fa(row.assigned)} · پروندهٔ فعال فعلی: {fa(row.active)} · تحویل ثبت‌شده: {fa(row.delivered)}</p>
+          <p>تعمیر موفق: {successBasis ? `${fa(Math.round(100 * row.repaired / successBasis))}٪ (${fa(row.repaired)} از ${fa(successBasis)})` : "داده کافی نیست"} · مردودی کنترل کیفیت: {row.qcRuns ? `${fa(Math.round(100 * row.qcFailures / row.qcRuns))}٪ (${fa(row.qcFailures)} از ${fa(row.qcRuns)})` : "داده کافی نیست"}</p>
           <p>رعایت موعد اولیه: {row.withInitialDue ? `${fa(row.onTime)} از ${fa(row.withInitialDue)} پروندهٔ دارای موعد` : "داده کافی نیست"}</p>
           {row.unrepaired > row.technicalFailures && <p>پایان بدون تعمیر با علت غیرفنی یا نامشخص: {fa(row.unrepaired - row.technicalFailures)}</p>}
           {!!Object.keys(row.stageTimes).length && <ul aria-label="میانگین زمان مرحله‌های تکمیل‌شده">{Object.entries(row.stageTimes).map(([key, second]) =>
             <li key={key}>{({ diagnosing: "عیب‌یابی", repairing: "تعمیر", awaiting_customer_approval: "انتظار مشتری", awaiting_parts: "انتظار قطعه", purchase: "انتظار مجوز خرید", transfer: "انتظار انتقال" } as Record<string, string>)[key]} · {fa(Math.round(second / 60))} دقیقه</li>)}</ul>}
+          {selected && !!Object.keys(row.trend).length && <section>
+            <h5>روند پایان فنی در روزهای دارای ثبت</h5>
+            <ul className="manager-trend">{Object.entries(row.trend).sort(([first], [second]) => first.localeCompare(second)).map(([day, total]) =>
+              <li key={day}><span>{formatPersianDate(day)}</span><meter min={0} max={Math.max(1, ...Object.values(row.trend))} value={total} /> <span>{fa(total)}</span></li>)}</ul>
+          </section>}
+          {row.completedCases.length > 0 && <button type="button" aria-expanded={expanded === row.id} onClick={() => setExpanded(expanded === row.id ? undefined : row.id)}>پرونده‌های پایان فنی</button>}
+          {expanded === row.id && <ul className="manager-workload-list" aria-label="پرونده‌های پایان فنی">
+            {row.completedCases.map(item => <li key={item.id}><button type="button" onClick={() => void openCompleted(item.id)}>
+              <bdi>{item.receiptNumber}</bdi><span>{item.result === "repaired" ? "تعمیر موفق" : "پایان بدون تعمیر"}</span></button></li>)}
+          </ul>}
           {!!row.transferReasons.length && <ul>{row.transferReasons.map((reason) =>
             <li key={reason.label}>{reason.label} · {fa(reason.count)}</li>)}</ul>}
         </li>;

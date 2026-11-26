@@ -1,6 +1,6 @@
 "use client";
-import { ExternalPurchasePanel } from "./external-purchase-panel";
-import { OperationsFollowups, OperationsPerformance, OperationsPolicyForm } from "./manager-operations";
+import { createInventoryItem } from "./directadmin-api";
+import { OperationsPerformance, OperationsPolicyForm } from "./manager-operations";
 import { ProcurementDocuments, ProcurementForm } from "./case-procurement";
 import { CaseStageBoard } from "./case-stage-board";
 import { OperationsCaseWorkspace } from "./operations-case-workspace";
@@ -10,6 +10,7 @@ import { DeliveryCaseForm } from "./delivery-case-form";
 import { formatToman } from "./money-input";
 import { isOpenFinanceInvoice, RepairInvoiceView, SettlementView } from "./finance-case-view";
 import "./iteration-six.css";
+import "./manager-operations.css";
 
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -31,13 +32,15 @@ import {
 } from "lucide-react";
 import type { WorkspaceProfile } from "./access";
 import { FollowUpApiError } from "./followups-api";
-import { matchesQueueSearch } from "./queue-search";
+import { matchesQueueSearch, queueTimestamp } from "./queue-search";
 import {
   deliveryV2Action,
   handoverDiscrepancy,
   handoverNeedsApproval,
   inventoryControlV2Action,
   inventoryV2Action,
+  loadManagerPulse,
+  type ManagerWorkload,
   loadV2Delivery,
   loadV2FinanceWorkspace,
   loadV2Inventory,
@@ -102,9 +105,9 @@ const localDate = (value: string | null | undefined) =>
         dateStyle: "medium",
         timeStyle: "short",
         calendar: "persian",
-      }).format(
-        new Date(value.replace(" ", "T") + (value.includes("Z") ? "" : "Z")),
-      )
+        timeZone: "Asia/Tehran",
+        hourCycle: "h23",
+      }).format(queueTimestamp(value))
     : "—";
 const errorText = (error: unknown) =>
   error instanceof FollowUpApiError
@@ -138,11 +141,11 @@ type Section =
   | "delivery"
   | "sms";
 const pageSection = (page: string): Section => {
-  if (page === "صف تأمین قطعات") return "supply";
+  if (page === "درخواست‌های قطعات پرونده‌ها") return "supply";
   if (page === "کنترل کیفیت") return "quality";
   if (page === "مالی و تحویل") return "delivery";
   if (page === "پیامک و پرتال") return "sms";
-  if (["انبار قطعات", "گردش‌ها", "تعهدهای داغی"].includes(page)) return "inventory";
+  if (["انبار قطعات", "گردش‌ها", "تعهدات داغی"].includes(page)) return "inventory";
   return "workflow";
 };
 
@@ -173,7 +176,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [queueSearch, setQueueSearch] = useState(() => {
-    if (!["quality","delivery"].includes(section)) return "";
+    if (!["supply","quality","delivery"].includes(section)) return "";
     const receipt=window.sessionStorage.getItem("tamiran:focused-module-receipt") ?? "";
     window.sessionStorage.removeItem("tamiran:focused-module-receipt"); return receipt;
   });
@@ -225,19 +228,22 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
         if (errors.length) setError(errors.join(" · "));
         return;
       }
-      setWorkflow(await loadV2Workflow());
       if (section === "inventory" || section === "supply") {
-        const [stock, control, purchasing] = await Promise.all([
-          loadV2Inventory(),
-          section === "inventory" && profile.inventoryMode === "pro" ? loadV2InventoryControl() : null,
+        const [stock, control, purchasing] = await Promise.allSettled([
+          page !== "تعهدات داغی" ? loadV2Inventory(undefined, page === "انبار قطعات") : null,
+          ["گردش‌ها", "تعهدات داغی"].includes(page) && profile.inventoryMode === "pro" ? loadV2InventoryControl() : null,
           section === "supply" && profile.inventoryMode === "pro" && (
             ["repair_manager", "warehouse_keeper"].includes(profile.role) || profile.permissions.includes("procurement.view"))
             ? loadV2Procurement() : null,
         ]);
-        setInventory(stock);
-        setInventoryControl(control);
-        setProcurement(purchasing);
+        setInventory(stock.status === "fulfilled" ? stock.value : null);
+        setInventoryControl(control.status === "fulfilled" ? control.value : null);
+        setProcurement(purchasing.status === "fulfilled" ? purchasing.value : null);
+        const errors = [stock, control, purchasing].flatMap(result => result.status === "rejected" ? [errorText(result.reason)] : []);
+        if (errors.length) setError(errors.join(" · "));
+        return;
       }
+      setWorkflow(await loadV2Workflow());
       if (section === "quality") setQuality(await loadV2Quality());
       if (section === "sms") setSms(await loadV2Sms());
     } catch (cause) {
@@ -245,7 +251,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [section, profile.inventoryMode, profile.role, profile.permissions, profile.modules, canFinance, canDeliver]);
+  }, [section, page, profile.inventoryMode, profile.role, profile.permissions, profile.modules, canFinance, canDeliver]);
   useEffect(() => {
     void reload();
   }, [reload]);
@@ -299,7 +305,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
             aria-label="جست‌وجوی صف"
             value={queueSearch}
             onChange={(event) => setQueueSearch(event.target.value)}
-            placeholder="جست‌وجو با شماره قبض، موبایل، IMEI یا سریال"
+            placeholder={section === "supply" ? "شماره پرونده، دستگاه، قطعه یا تکنسین" : "جست‌وجو با شماره قبض، موبایل، IMEI یا سریال"}
           />
         </label>
       )}
@@ -323,13 +329,14 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
           onCaseChanged={fresh=>setWorkflow(current=>current?{...current,cases:current.cases.map(item=>item.id===fresh.id?fresh:item)}:current)}
         />
       )}
-      {["inventory", "supply"].includes(section) && workflow && inventory && (
+      {["inventory", "supply"].includes(section) && (inventory || inventoryControl) && (
         <InventoryBoard
-          data={inventory}
+          page={page}
+          data={inventory ?? { items: [], requests: [], issues: [], warehouse: null }}
           control={inventoryControl}
           profile={profile}
           supply={section === "supply"}
-          caseIds={queueSearch.trim() ? new Set(queueCases.map(item => item.id)) : undefined}
+          search={queueSearch}
           procurement={procurement}
           busy={busy}
           run={run}
@@ -412,9 +419,42 @@ function WorkflowBoard({
     );
   });
   const [search, setSearch] = useState("");
+  const [assignmentTab, setAssignmentTab] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("view") === "handovers" || params.get("assignmentTab") === "active" ? "active" : "pending";
+  });
+  const [matching, setMatching] = useState<V2Case[] | null>(null);
+  const [workload, setWorkload] = useState<ManagerWorkload[]>([]);
+  useEffect(() => {
+    if (page !== "مدیریت ارجاع تعمیرات" || profile.role !== "repair_manager") return;
+    let current = true;
+    void loadManagerPulse().then(result => { if (current) setWorkload(result.technicians); }).catch(() => {});
+    return () => { current = false; };
+  }, [page, profile.role, data]);
+  const [searchError, setSearchError] = useState("");
+  const [, setAssignmentFilterRevision] = useState(0);
+  const assignmentPage = page === "مدیریت ارجاع تعمیرات";
+  const filters = new URLSearchParams(location.search);
+  const technicianFilter = Number(filters.get("assignmentTech"));
+  const assignmentStage = filters.get("assignmentStage");
+  const activeStages = assignmentStage === "repairing" ? ["assigned", "diagnosing", "estimate_pending", "repairing", "parts_closeout"] : [assignmentStage];
+  useEffect(() => {
+    if (!assignmentPage || !search.trim()) {
+      setMatching(null);
+      setSearchError("");
+      return;
+    }
+    let current = true;
+    setMatching(null);
+    setSearchError("");
+    const timer = window.setTimeout(() => {
+      void loadV2Workflow(undefined, search.trim()).then(reply => {
+        if (current) setMatching(reply.cases);
+      }).catch(error => { if (current) setSearchError(errorText(error)); });
+    }, 250);
+    return () => { current = false; window.clearTimeout(timer); };
+  }, [assignmentPage, search]);
   const managerPage = {
-    "مجوز خرید قطعه": "purchases",
-    "پیگیری پرونده‌ها": "followups",
     "عملکرد تکنسین‌ها": "performance",
     "سیاست‌های تعمیرگاه": "policy",
   }[page] ?? "cases";
@@ -478,7 +518,7 @@ function WorkflowBoard({
         <OperationsCaseWorkspace
           key={selected.id}
           selected={selected}
-          data={data}
+          data={{ ...data, users: data.users.map(user => ({ ...user, workload: workload.find(row => row.id === user.id) })) }}
           profile={profile}
           busy={busy}
           run={run}
@@ -499,44 +539,51 @@ function WorkflowBoard({
         </p>
       )}
       {managerPage !== "cases" && profile.role === "repair_manager" && (
-        <div className="technical-desk"><section className="tech-task">
-          {managerPage === "purchases" && <ExternalPurchasePanel actorId={profile.actorId} />}
-          {managerPage === "followups" && <OperationsFollowups open={open} />}
-          {managerPage === "performance" && <OperationsPerformance />}
+        <div className="technical-desk manager-workspace"><section className="tech-task">
+          {managerPage === "performance" && <OperationsPerformance open={open} />}
           {managerPage === "policy" && <OperationsPolicyForm policy={data.operationsPolicy} users={data.users}
             onSaved={async () => { await run(async () => {}, ""); }} />}
         </section></div>
       )}
       {managerPage === "cases" && <>
-      {page !== "ارجاع تکنسین‌ها" && <><label className="module-search v2-queue-search">
+      <label className="module-search v2-queue-search">
         <FileText size={17} />
         <input
           aria-label="جست‌وجوی دستگاه‌ها"
           value={search}
+          maxLength={120}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="رسید، نام مشتری یا سریال"
         />
       </label>
-      <CaseStageBoard
-        cases={data.cases.filter((item) =>
-          (page === "تأیید هزینه" ? (item.status === "awaiting_customer_approval" ||
-            (["finance_pending", "qc_conditional"].includes(item.status) &&
-              ["sent", "explanation_requested"].includes(item.latestEstimate?.status ?? "")))
-            : search.trim() !== "" || ["reception", "awaiting_assignment"].includes(item.status)) &&
-          matchesQueueSearch(search, [
-            item.receiptNumber,
-            item.customerName,
-            item.customerMobile,
-            item.identifier,
-            item.deviceTitle,
-          ]),
-        )}
-        onOpen={open}
-        openCaseId={selectedId}
-        busy={busy}
-      />
-      </>}
-      {page === "ارجاع تکنسین‌ها" && (
+      {assignmentPage ? <>
+        <div className="manager-switch" role="group" aria-label="صف ارجاع">
+          {["pending", "active"].map(tab => <button type="button" key={tab} aria-pressed={assignmentTab === tab}
+            onClick={() => {
+              const url = new URL(location.href);
+              url.searchParams.set("view", "assignments");
+              url.searchParams.set("assignmentTab", tab);
+              url.searchParams.delete("assignmentStage");
+              url.searchParams.delete("assignmentTech");
+              history.replaceState(history.state, "", url);
+              setAssignmentTab(tab);
+              setAssignmentFilterRevision(value => value + 1);
+            }}>{tab === "pending" ? "در انتظار ارجاع" : "پرونده‌های فعال ارجاع‌شده"}</button>)}
+        </div>
+        {searchError && <p role="alert" className="v2-alert">{searchError}</p>}
+        {!searchError && search.trim() && !matching && <p role="status">در حال جست‌وجوی پرونده‌ها…</p>}
+        <ManagerAssignmentQueue cases={(search.trim() ? matching ?? [] : data.cases).filter(item => assignmentTab !== "active" || (
+            (!technicianFilter || item.primaryTechnicianUserId === technicianFilter) &&
+            (!assignmentStage || (assignmentStage === "receipt" ? item.receiptPending : activeStages.includes(item.status)))
+          ))} active={assignmentTab === "active"} open={open} />
+      </> : <CaseStageBoard
+        cases={data.cases.filter(item =>
+          (item.status === "awaiting_customer_approval" || (["finance_pending", "qc_conditional"].includes(item.status)
+            && ["sent", "explanation_requested"].includes(item.latestEstimate?.status ?? ""))) &&
+          matchesQueueSearch(search, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle]))}
+        onOpen={open} openCaseId={selectedId} busy={busy}
+      />}
+      {assignmentPage && assignmentTab === "active" && (
         <section className="tech-handover-list">
           <h3>تحویل‌های رسمی در انتظار</h3>
           {!openHandovers.length && <p>ارجاعی در انتظار رسیدگی نیست.</p>}
@@ -601,20 +648,95 @@ function WorkflowBoard({
   );
 }
 
+const hotStatusLabels: Record<string, string> = {
+  pending_return: "منتظر تحویل داغی",
+  waiting_review: "منتظر بررسی دریافت",
+  settled: "تحویل‌شده",
+  accepted: "تحویل‌شده",
+  rejected: "مغایرت در دریافت",
+  waived: "رفع تعهد",
+};
+
+function intakeAge(acceptedAt: string) {
+  const minutes = Math.floor(Math.max(0, Date.now() - queueTimestamp(acceptedAt).getTime()) / 60_000);
+  if (!Number.isFinite(minutes)) return "";
+  if (minutes >= 1440) return `${toman.format(Math.floor(minutes / 1440))} روز از پذیرش`;
+  if (minutes >= 60) return `${toman.format(Math.floor(minutes / 60))} ساعت از پذیرش`;
+  return minutes > 0 ? `${toman.format(minutes)} دقیقه از پذیرش` : "تازه‌پذیرش‌شده";
+}
+
+function ManagerAssignmentQueue({ cases, active, open }: { cases: V2Case[]; active: boolean; open: (item: V2Case) => void }) {
+  const entries = cases.filter(item => active
+    ? !!item.primaryTechnicianUserId && !["ready_for_delivery", "delivered", "returned_unrepaired", "cancelled", "closed"].includes(item.status)
+    : ["reception", "awaiting_assignment"].includes(item.status));
+  return entries.length ? <div className="manager-assignment-grid">
+    {entries.sort(compareQueueCases).map(item => <ServiceQueueCard key={item.id} receipt={item.receiptNumber} title={item.deviceTitle}
+      customer={[item.customerName, item.technicianName].filter(Boolean).join(" · ")} item={item}
+      metadata={intakeAge(item.acceptedAt)}
+      action={active ? (item.receiptPending ? "منتظر دریافت دستگاه" : statusLabels[item.status]) : "ارجاع به تکنسین"} onOpen={() => open(item)} />)}
+  </div> : <p role="status">پرونده‌ای در این صف نیست.</p>;
+}
+
+function InventoryCatalog({ data, profile, busy, run }: {
+  data: V2InventoryPayload; profile: WorkspaceProfile; busy: boolean; run: Run;
+}) {
+  const [query, setQuery] = useState("");
+  const [defining, setDefining] = useState(false);
+  const canDefine = profile.role === "repair_manager";
+  const items = data.items.filter(item => matchesQueueSearch(query, [item.title, item.item_code, item.category]));
+  return <section className="v2-table-panel">
+    <div className="v2-panel-title">
+      <div><Boxes /><strong>فهرست قطعات</strong></div>
+      {canDefine && <button type="button" className="secondary-button" onClick={() => setDefining(!defining)}>{defining ? "انصراف" : "تعریف قطعه"}</button>}
+    </div>
+    {defining && <form className="v2-inline-form" onSubmit={event => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      void run(async () => {
+        await createInventoryItem({
+          code: String(form.get("code") ?? ""), title: String(form.get("title") ?? ""),
+          category: String(form.get("category") ?? ""), physicalQuantity: 0,
+          minimumQuantity: 0, hotReturnRequired: form.has("hot"),
+        });
+        setDefining(false);
+      }, "قطعه در کاتالوگ تعریف شد.");
+    }}>
+      <label>نام قطعه<input required name="title" maxLength={180} /></label>
+      <label>کد کالا<input required name="code" maxLength={80} dir="ltr" /></label>
+      <label>دسته‌بندی<input name="category" maxLength={120} /></label>
+      <label className="tech-inline-check"><input name="hot" type="checkbox" />نیازمند داغی</label>
+      <button type="submit" className="tech-primary" disabled={busy}>ثبت قطعه</button>
+    </form>}
+    <label className="module-search"><Boxes size={17} /><input aria-label="جست‌وجوی قطعات" value={query} onChange={event => setQuery(event.target.value)} placeholder="نام قطعه، کد یا دسته‌بندی" /></label>
+    <ResponsiveTable headers={["قطعه", "دسته‌بندی", "موجودی", "قابل تخصیص", "قیمت فروش"]}>
+      {items.map(item => <tr key={`${item.id}:${item.warehouse_id}`}>
+        <td data-label="قطعه"><strong>{item.title}</strong><small><bdi>{item.item_code}</bdi></small></td>
+        <td data-label="دسته‌بندی">{item.category || "بدون دسته‌بندی"}</td>
+        <td data-label="موجودی">{toman.format(item.physical_quantity)} {item.unit_title}</td>
+        <td data-label="قابل تخصیص">{item.available_quantity > 0 ? toman.format(item.available_quantity) : "ناموجود"}</td>
+        <td data-label="قیمت فروش">{item.sale_price > 0 ? formatMoney(item.sale_price) : "تعیین نشده"}</td>
+      </tr>)}
+    </ResponsiveTable>
+    {!items.length && <p role="status">{query ? "قطعه‌ای با این جست‌وجو پیدا نشد." : "قطعه‌ای در کاتالوگ ثبت نشده است."}</p>}
+  </section>;
+}
+
 function InventoryBoard({
+  page,
   data,
   control,
   supply,
-  caseIds,
+  search,
   procurement,
   profile,
   busy,
   run,
 }: {
+  page: string;
   data: V2InventoryPayload;
   control: Record<string, unknown[]> | null;
   supply: boolean;
-  caseIds?: Set<number>;
+  search: string;
   procurement: V2ProcurementPayload | null;
   profile: WorkspaceProfile;
   busy: boolean;
@@ -664,35 +786,16 @@ function InventoryBoard({
     : [];
   return (
     <div className="v2-stack">
-      <div className="v2-metrics">
-        {data.items.slice(0, 4).map((item) => (
-          <article
-            key={item.id}
-            className={
-              item.available_quantity <= item.minimum_quantity ? "warn" : ""
-            }
-          >
-            <Boxes />
-            <span>
-              <small>{item.item_code}</small>
-              <strong>{item.title}</strong>
-            </span>
-            <em>
-              {toman.format(item.available_quantity)} {item.unit_title}
-              <small>قابل استفاده</small>
-            </em>
-          </article>
-        ))}
-      </div>
+      {page === "انبار قطعات" && <InventoryCatalog data={data} profile={profile} busy={busy} run={run} />}
       {supply && procurement && purchaseRequest && <ProcurementForm
         key={purchaseRequest.id} selected={purchaseRequest} eligible={eligible} suppliers={procurement.suppliers}
         busy={busy} run={run} close={() => setPurchaseRequestId(undefined)} />}
-      <section className="v2-table-panel">
+      {supply && <section className="v2-table-panel">
         <div className="v2-panel-title"><div><PackageOpen /><strong>درخواست‌های پرونده‌ها</strong></div></div>
         <ResponsiveTable
           headers={["پرونده", "کالا", "درخواست/تحویل", "وضعیت", "عملیات"]}
         >
-          {data.requests.filter(item => !caseIds || caseIds.has(item.case_id)).map((item) => {
+          {data.requests.filter(item => matchesQueueSearch(search, [item.receipt_number, item.device_title ?? "", item.item_title, item.item_code, item.requester_name])).map((item) => {
             const reservable = Math.max(
               0,
               item.quantity - item.reserved_quantity,
@@ -705,7 +808,8 @@ function InventoryBoard({
               <tr key={item.id}>
                 <td data-label="پرونده">
                   <strong>{item.receipt_number}</strong>
-                  <small>{item.requester_name}</small>
+                  <small>{item.device_title}</small>
+                  <small>{item.requester_name} · {localDate(item.created_at)}</small>
                 </td>
                 <td data-label="کالا">
                   {item.item_code} · {item.item_title}
@@ -788,8 +892,8 @@ function InventoryBoard({
             );
           })}
         </ResponsiveTable>
-      </section>
-      {data.issues.some((item) =>
+      </section>}
+      {supply && data.issues.some((item) =>
         ["awaiting_technician", "delivered"].includes(item.status),
       ) && (
         <section className="v2-table-panel">
@@ -870,7 +974,7 @@ function InventoryBoard({
         </section>
       )}
       {supply && procurement && <ProcurementDocuments data={procurement} profile={profile} busy={busy} run={run} />}
-      {warehouseActions && control && (
+      {page === "گردش‌ها" && warehouseActions && control && (
         <section className="v2-table-panel">
           <div className="v2-panel-title">
             <div>
@@ -1039,17 +1143,18 @@ function InventoryBoard({
           )}
         </section>
       )}
-      {openHot.length > 0 && (
+      {page === "تعهدات داغی" && (
         <section className="v2-table-panel">
           <div className="v2-panel-title">
             <div>
               <Archive />
               <span>
-                <strong>تعهدهای داغی</strong>
+                <strong>تعهدات داغی</strong>
                 <small>پایان کار فنی تا تسویه همه تعهدها مسدود است.</small>
               </span>
             </div>
           </div>
+          {!openHot.length && <p role="status">تعهد داغی ثبت نشده است.</p>}
           {["technician", "repair_manager"].includes(profile.role) &&
             openHot.some((item) =>
               ["pending_return", "rejected"].includes(String(item.status)),
@@ -1149,10 +1254,10 @@ function InventoryBoard({
           >
             {openHot.map((item) => (
               <tr key={String(item.public_id)}>
-                <td data-label="پرونده">{item.receipt_number}</td>
-                <td data-label="قطعه">{item.item_title}</td>
+                <td data-label="پرونده">{item.receipt_number}<small>{item.device_title}</small></td>
+                <td data-label="قطعه">{item.item_title}<small>{toman.format(Number(item.quantity ?? 1))} · {localDate(String(item.created_at ?? ""))}</small></td>
                 <td data-label="تکنسین">{item.technician_name}</td>
-                <td data-label="وضعیت">{String(item.status)}</td>
+                <td data-label="وضعیت">{hotStatusLabels[String(item.status)] ?? "در دست بررسی"}</td>
                 <td data-label="عملیات">
                   {warehouseActions && item.status === "waiting_review" && (
                     <button
@@ -1189,8 +1294,8 @@ const compareQueueCases = (a?: V2Case, b?: V2Case) =>
   (a?.promisedAt ?? "9999").localeCompare(b?.promisedAt ?? "9999") ||
   (a?.acceptedAt ?? "").localeCompare(b?.acceptedAt ?? "");
 
-function ServiceQueueCard({ receipt, title, customer, action, item, onOpen }: {
-  receipt: string; title: string; customer: string; action: string; item?: V2Case; onOpen: () => void;
+function ServiceQueueCard({ receipt, title, customer, action, item, metadata, onOpen }: {
+  receipt: string; title: string; customer: string; action: string; item?: V2Case; metadata?: string; onOpen: () => void;
 }) {
   const priority = item?.priority ?? "normal";
   return <button type="button" className="service-queue-card" onClick={onOpen}>
@@ -1198,6 +1303,7 @@ function ServiceQueueCard({ receipt, title, customer, action, item, onOpen }: {
     <strong>{title}</strong>
     <span>{customer}</span>
     {item?.declaredIssue && <p>{item.declaredIssue}</p>}
+    {metadata && <small>{metadata}</small>}
     <span className="service-card-line"><span>{action}</span><ArrowLeft size={16} aria-hidden="true" /></span>
   </button>;
 }

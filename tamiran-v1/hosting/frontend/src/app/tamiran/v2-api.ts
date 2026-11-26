@@ -76,10 +76,12 @@ export type V2Case = {
     publicId: string;
     status: string;
     totalAmount: number;
+    partsAmount?: number;
+    laborAmount?: number;
     sentAt: string | null;
   } | null;
 };
-export type V2User = { id: number; display_name: string; role: string };
+export type V2User = { id: number; display_name: string; role: string; workload?: ManagerWorkload };
 export type V2Assignment = {
   id: number;
   public_id: string;
@@ -238,6 +240,8 @@ export type V2PartRequest = {
   item_id: number;
   item_code: string;
   item_title: string;
+  device_title?: string;
+  created_at?: string;
   quantity: number;
   reserved_quantity: number;
   delivered_quantity: number;
@@ -270,9 +274,9 @@ export type V2InventoryPayload = {
   issues: V2PartIssue[];
   warehouse: { id: number; public_id: string; title: string } | null;
 };
-export const loadV2Inventory = (caseId?: number) =>
+export const loadV2Inventory = (caseId?: number, catalog = false) =>
   directAdminRequest<V2InventoryPayload>(
-    `/api/inventory-v2.php${caseId ? `?caseId=${caseId}` : ""}`,
+    `/api/inventory-v2.php${caseId ? `?caseId=${caseId}` : catalog ? "?catalog=1" : ""}`,
   );
 export const inventoryV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/inventory-v2.php", payload);
@@ -454,7 +458,7 @@ export type TechnicalActivity = {
 export type TechnicalProjection = {
   receiptPending?: boolean;
   invoice: TechnicalInvoice;
-  summary?: { diagnosedIssues: string[]; qcResult: string | null };
+  summary?: { diagnosedIssues: string[]; customerIssueAssessment?: string | null; qcResult: string | null };
   reworkDestination?: "diagnosing" | "repairing" | null;
   unrepairedAmount: number;
   unrepairedFinanceBlockers: string[];
@@ -486,6 +490,7 @@ export type TechnicalProjection = {
   result: string | null;
   permissions: {
     receive?: boolean;
+    devicePassword?: boolean;
     refer: boolean;
     activity: boolean;
     parts: boolean;
@@ -521,7 +526,7 @@ export type ExternalPurchase = {
   total?: number;
   requestedBy: number;
   disposition?: string;
-  status: "pending" | "approved" | "rejected" | "bought" | "used" | "returning" | "returned" | "cancelled";
+  status: "pending" | "approved" | "rejected" | "bought" | "received" | "used" | "returning" | "returned" | "cancelled";
   decisionNote?: string;
 };
 export type ExternalPurchasePayload = {
@@ -529,11 +534,16 @@ export type ExternalPurchasePayload = {
   catalog: Array<{ id: number; code: string; title: string; salePrice: number }>;
   policy: OperationsPolicy["purchase"];
   ownLimit: number;
+  ownCommitted: number;
   canManageCatalog: boolean;
 };
 export const loadExternalPurchases = (caseId?: number) =>
   directAdminRequest<ExternalPurchasePayload>(
-    `/api/workflow-v2.php?externalPurchase=1${caseId ? `&caseId=${caseId}` : ""}`,
+    `/api/workflow-v2.php?externalPurchase=1&summary=1${caseId ? `&caseId=${caseId}` : ""}`,
+  );
+export const searchExternalCatalog = (caseId: number, q: string) =>
+  directAdminRequest<{ items: ExternalPurchasePayload["catalog"] }>(
+    `/api/workflow-v2.php?${new URLSearchParams({ externalCatalog: "1", caseId: String(caseId), q })}`,
   );
 export const changeExternalPurchase = (payload: Record<string, unknown>) =>
   workflowV2Action({ action: "external_purchase", ...payload });
@@ -561,6 +571,17 @@ export type TechnicalInvoice = {
   mayEditPartPrices: boolean;
 };
 
+export type ManagerWorkload = { id: number; name: string; active: number; awaitingReceipt: number; overdue: number };
+export type ManagerPulseData = {
+  stages: Record<string, number>;
+  technicians: ManagerWorkload[];
+  awaitingReceipt: number;
+  overdue: number;
+  openHotReturns: number;
+};
+export const loadManagerPulse = () =>
+  directAdminRequest<ManagerPulseData>("/api/workflow-v2.php?managerPulse=1");
+
 export type ManagerPerformance = {
   id: number;
   name: string;
@@ -569,6 +590,9 @@ export type ManagerPerformance = {
   repaired: number;
   unrepaired: number;
   technicalFailures: number;
+  assigned: number;
+  trend: Record<string, number>;
+  completedCases: Array<{ id: number; receiptNumber: string; result: "repaired" | "unrepaired" }>;
   withInitialDue: number;
   onTime: number;
   stageTimes: Record<string, number>;

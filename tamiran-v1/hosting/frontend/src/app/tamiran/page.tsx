@@ -81,6 +81,7 @@ import {
 import { assignV2Case } from "./v2-api";
 import { V2Workspace } from "./v2-workspace";
 import { RepairQueue } from "./repair-queue";
+import { ManagerPulse } from "./manager-operations";
 import { TechnicianWorkbench } from "./technician-workbench";
 import { CustomerPortal } from "./customer-portal";
 import { APP_VERSION } from "./version";
@@ -121,11 +122,8 @@ const navGroups = [
   {
     label: "مدیریت تعمیرگاه",
     items: [
-      { label: "تخصیص تعمیرات", icon: UsersRound },
-      { label: "ارجاع تکنسین‌ها", icon: ArrowLeftRight },
+      { label: "مدیریت ارجاع تعمیرات", icon: UsersRound },
       { label: "تأیید هزینه", icon: CircleCheckBig },
-      { label: "مجوز خرید قطعه", icon: PackageOpen },
-      { label: "پیگیری پرونده‌ها", icon: FileSearch },
       { label: "عملکرد تکنسین‌ها", icon: Gauge },
       { label: "سیاست‌های تعمیرگاه", icon: Settings },
     ],
@@ -135,8 +133,8 @@ const navGroups = [
     items: [
       { label: "انبار قطعات", icon: Boxes },
       { label: "گردش‌ها", icon: ArrowLeftRight },
-      { label: "صف تأمین قطعات", icon: PackageOpen },
-      { label: "تعهدهای داغی", icon: Archive },
+      { label: "درخواست‌های قطعات پرونده‌ها", icon: PackageOpen },
+      { label: "تعهدات داغی", icon: Archive },
     ],
   },
   {
@@ -168,8 +166,8 @@ const rolePageAccess: Record<string, Set<string>> = {
     "نبض تعمیرگاه",
     "انبار قطعات",
     "گردش‌ها",
-    "صف تأمین قطعات",
-    "تعهدهای داغی",
+    "درخواست‌های قطعات پرونده‌ها",
+    "تعهدات داغی",
   ]),
   finance_cashier: new Set([
     "نبض تعمیرگاه",
@@ -181,17 +179,14 @@ const rolePageAccess: Record<string, Set<string>> = {
 const pageRequiredModule: Record<string, string> = {
   "انبار قطعات": "inventory",
   گردش‌ها: "inventory",
-  "صف تأمین قطعات": "inventory",
-  "تعهدهای داغی": "inventory",
+  "درخواست‌های قطعات پرونده‌ها": "inventory",
+  "تعهدات داغی": "inventory",
   "پیامک و پرتال": "sms",
 };
 
 const pageRequiredPermission: Record<string, string> = {
-  "تخصیص تعمیرات": "repair_operations.view",
-  "ارجاع تکنسین‌ها": "repair_operations.view",
+  "مدیریت ارجاع تعمیرات": "repair_operations.view",
   "تأیید هزینه": "repair_operations.view",
-  "مجوز خرید قطعه": "repair_operations.view",
-  "پیگیری پرونده‌ها": "repair_operations.view",
   "عملکرد تکنسین‌ها": "repair_operations.view",
   "سیاست‌های تعمیرگاه": "repair_operations.view",
   "کارهای من": "technician_workbench.view",
@@ -199,17 +194,17 @@ const pageRequiredPermission: Record<string, string> = {
   "مالی و تحویل": "delivery.view",
   "انبار قطعات": "inventory.view",
   گردش‌ها: "inventory.view",
-  "صف تأمین قطعات": "inventory.request.view",
-  "تعهدهای داغی": "inventory.hot_return.view",
+  "درخواست‌های قطعات پرونده‌ها": "inventory.request.view",
+  "تعهدات داغی": "inventory.hot_return.view",
 };
 
 function permissionAllows(profile: WorkspaceProfile, page: string) {
-  if (page === "صف تأمین قطعات" && profile.role === "technician") return false;
+  if (page === "درخواست‌های قطعات پرونده‌ها" && profile.role === "technician") return false;
   if (rolePageAccess[profile.role]?.has(page)) return true;
   const required = pageRequiredPermission[page];
   const grants = page === "گردش‌ها" ? [required, "inventory.control.view"]
     : page === "مالی و تحویل" ? [required, "finance.view"]
-    : page === "صف تأمین قطعات" ? [required, "procurement.view"]
+    : page === "درخواست‌های قطعات پرونده‌ها" ? [required, "procurement.view"]
     : [required];
   return Boolean(required && (profile.permissions.includes("*") || grants.some(grant => profile.permissions.includes(grant))));
 }
@@ -219,19 +214,16 @@ function pagesForProfile(profile: WorkspaceProfile) {
 }
 
 const v2Pages = new Set([
-  "تخصیص تعمیرات",
-  "ارجاع تکنسین‌ها",
+  "مدیریت ارجاع تعمیرات",
   "تأیید هزینه",
-  "مجوز خرید قطعه",
-  "پیگیری پرونده‌ها",
   "عملکرد تکنسین‌ها",
   "سیاست‌های تعمیرگاه",
   "کنترل کیفیت",
   "مالی و تحویل",
   "انبار قطعات",
   "گردش‌ها",
-  "صف تأمین قطعات",
-  "تعهدهای داغی",
+  "درخواست‌های قطعات پرونده‌ها",
+  "تعهدات داغی",
   "پیامک و پرتال",
 ]);
 
@@ -239,11 +231,8 @@ const pageSlugs: Record<string, string> = {
   "نبض تعمیرگاه": "home",
   "پذیرش تعمیرات": "reception",
   رسیدها: "receipts",
-  "تخصیص تعمیرات": "assignments",
-  "ارجاع تکنسین‌ها": "handovers",
+  "مدیریت ارجاع تعمیرات": "assignments",
   "تأیید هزینه": "cost-approval",
-  "مجوز خرید قطعه": "purchase-approvals",
-  "پیگیری پرونده‌ها": "case-followups",
   "عملکرد تکنسین‌ها": "technician-performance",
   "سیاست‌های تعمیرگاه": "repair-policy",
   "کارهای من": "my-work",
@@ -252,8 +241,8 @@ const pageSlugs: Record<string, string> = {
   "پیگیری مشتری": "follow-ups",
   "انبار قطعات": "inventory",
   گردش‌ها: "inventory-movements",
-  "صف تأمین قطعات": "parts-supply",
-  "تعهدهای داغی": "hot-returns",
+  "درخواست‌های قطعات پرونده‌ها": "parts-supply",
+  "تعهدات داغی": "hot-returns",
   گزارش‌ها: "reports",
   "ممیزی و رویدادها": "audit",
   "پشتیبانی تعمیران": "support",
@@ -262,19 +251,24 @@ const pageSlugs: Record<string, string> = {
 };
 
 const legacyPageNames: Record<string, string> = {
-  "مرکز عملیات تعمیرات": "تخصیص تعمیرات",
+  "مرکز عملیات تعمیرات": "مدیریت ارجاع تعمیرات",
+  "تخصیص تعمیرات": "مدیریت ارجاع تعمیرات",
+  "ارجاع تکنسین‌ها": "مدیریت ارجاع تعمیرات",
   "مالی پرونده": "مالی و تحویل",
   "تحویل تعمیرات": "مالی و تحویل",
-  "درخواست‌های قطعه": "صف تأمین قطعات",
-  "سفارش خرید": "صف تأمین قطعات",
+  "درخواست‌های قطعه": "درخواست‌های قطعات پرونده‌ها",
+  "صف تأمین قطعات": "درخواست‌های قطعات پرونده‌ها",
+  "تعهدهای داغی": "تعهدات داغی",
+  "سفارش خرید": "درخواست‌های قطعات پرونده‌ها",
 };
 
 function pageFromLocation() {
   if (typeof window === "undefined") return null;
   const slug = new URLSearchParams(window.location.search).get("view");
-  if (slug === "operations") return "تخصیص تعمیرات";
+  if (slug === "operations" || slug === "handovers") return "مدیریت ارجاع تعمیرات";
+  if (slug === "purchase-approvals" || slug === "case-followups") return "نبض تعمیرگاه";
   if (slug === "case-finance") return "مالی و تحویل";
-  if (slug === "procurement" || slug === "part-requests") return "صف تأمین قطعات";
+  if (slug === "procurement" || slug === "part-requests") return "درخواست‌های قطعات پرونده‌ها";
   return Object.entries(pageSlugs).find(([, value]) => value === slug)?.[0] ?? null;
 }
 
@@ -493,6 +487,9 @@ export default function Home() {
     url.searchParams.delete("techTask");
     url.searchParams.delete("techReturn");
     url.searchParams.delete("opsTask");
+    url.searchParams.delete("assignmentTab");
+    url.searchParams.delete("assignmentTech");
+    url.searchParams.delete("assignmentStage");
     url.searchParams.delete("deliveryCase");
     url.searchParams.delete("financeCase");
     if (requested === "مالی پرونده") url.searchParams.set("deliveryTab", "finance");
@@ -953,7 +950,7 @@ export default function Home() {
         if (!allowedPages.has(item.label)) return false;
         if (!permissionAllows(workspaceProfile, item.label)) return false;
         if (
-          ["تخصیص تعمیرات", "ارجاع تکنسین‌ها"].includes(item.label) &&
+          item.label === "مدیریت ارجاع تعمیرات" &&
           workspaceProfile.productProfile === "solo"
         )
           return false;
@@ -1187,7 +1184,7 @@ export default function Home() {
             </section>
           ) : null}
           {activePage === "نبض تعمیرگاه" ? (
-            <Dashboard
+            workspaceProfile.role === "repair_manager" ? <ManagerPulse profile={workspaceProfile} onNavigate={selectPage} /> : <Dashboard
               onNavigate={selectPage}
               profile={workspaceProfile}
               followUps={followUps}
@@ -1273,7 +1270,7 @@ function Dashboard({
   const isTechnical = ["technician", "quality_control"].includes(profile.role);
   const followUpTarget = isTechnical ? "کارهای من" : "پیگیری مشتری";
   const caseTarget = isManager
-    ? "تخصیص تعمیرات"
+    ? "مدیریت ارجاع تعمیرات"
     : isReception
       ? "رسیدها"
       : "کارهای من";
@@ -1419,7 +1416,7 @@ function Dashboard({
         )}
         {isManager &&
           profile.modules.includes("inventory") && (
-            <button onClick={() => onNavigate("صف تأمین قطعات")}>
+            <button onClick={() => onNavigate("درخواست‌های قطعات پرونده‌ها")}>
               <span className="quick-icon tone-teal">
                 <PackageOpen />
               </span>
@@ -1438,7 +1435,7 @@ function Dashboard({
             </button>
           )}
         {isManager && profile.modules.includes("inventory") && (
-          <button onClick={() => onNavigate("تعهدهای داغی")}>
+          <button onClick={() => onNavigate("تعهدات داغی")}>
             <span className="quick-icon tone-coral">
               <Archive />
             </span>
@@ -1592,7 +1589,7 @@ function Dashboard({
             <PanelHeader
               icon={<UsersRound size={20} />}
               title="بار کاری تکنسین‌ها"
-              description="فعال و تحویل‌شده در این صفحه؛ تعهدهای داغی دریافت‌شده"
+              description="فعال و تحویل‌شده در این صفحه؛ تعهدات داغی دریافت‌شده"
             />
             <div className="technician-list">
               {technicians.map((technician, index) => (
