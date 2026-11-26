@@ -54,7 +54,7 @@ def run(args):
             'action':'create_case','receiptMode':'issue_only','customerName':marker,'customerMobile':prefix+'09',
             'deviceModelId':model,'identifier':synthetic_imei(),'declaredIssue':'TEST شارژ قطع می‌شود',
             'customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':technician,'accessories':['بدون لوازم'],
-            'preapprovedAmount':7500000,'devicePassword':' 0048 Ab ','idempotencyKey':secrets.token_hex(12),
+            'preapprovedAmount':7500000,'devicePassword':' 0048 Ab ','color':'مشکی','idempotencyKey':secrets.token_hex(12),
             **({'promisedAt':promised_at} if promised_at else {}),
         })['repairCase']['id']
         command(tech, case, 'technical_receive', lockVersion=row(case)['lockVersion'])
@@ -86,7 +86,7 @@ def run(args):
         if entry['lastReceipt']==row(case)['receiptNumber'])
     recall_payload = {
         'action':'create_case','receiptMode':'issue_only','customerName':marker,
-        'customerMobile':prefix+'09','deviceModelId':model,'identifier':active_device['identifier'],
+        'customerMobile':prefix+'09','deviceModelId':model,'identifier':active_device['identifier'],'color':active_device['color'],
         'declaredIssue':'TEST ایراد جدید','preapprovedAmount':0,'customerConsent':{'dataHandling':'no_erasure'},
         'previousDeviceId':active_device['id'],'expectedDeviceVersion':active_device['expectedDeviceVersion'],
     }
@@ -134,6 +134,9 @@ def run(args):
     log.check('catalog-only parts are visible at zero stock',lambda:expect(
         any(part['item_code']=='TEST-V7-OTHER' and part['physical_quantity']==0 for part in warehouse.api('inventory-v2.php?catalog=1')['items']),
         'zero-stock catalog item is hidden'))
+    log.check('inventory catalog search operates before pagination',lambda:expect(
+        [part['item_code'] for part in warehouse.api('inventory-v2.php?catalog=1&q=TEST-V7-OTHER')['items']]==['TEST-V7-OTHER'],
+        'server-side inventory search returned unrelated rows'))
     log.check('case catalog search stays scoped to the assigned technician',lambda:destination.api(
         f'workflow-v2.php?externalCatalog=1&caseId={case}&q=TEST-V7-OTHER',expected=403))
 
@@ -247,9 +250,9 @@ def run(args):
         recall = manager.api('operations.php','POST',{**recall_payload,'expectedDeviceVersion':delivered_device['expectedDeviceVersion'],
             'idempotencyKey':secrets.token_hex(12),'devicePassword':''})['repairCase']
         log.check('repeat intake creates a new case without a password',lambda:expect(
-            recall['id'] != case and recall['identifier']==active_device['identifier'] and row(case)['status']=='delivered',
+            recall['id'] != case and recall['identifier']==active_device['identifier'] and recall['color']=='مشکی' and row(case)['status']=='delivered',
             'repeat intake changed previous case'))
-        check_operations_browser(log,args.url,manager,tech,stock_case,args.browser_dir)
+        check_operations_browser(log,args.url,manager,tech,stock_case,create(),args.browser_dir)
         check_intake_print(log,args.url,manager,recall['receiptNumber'],args.browser_dir)
 
     pending = create()
@@ -619,7 +622,7 @@ def check_quality_browser(log,url,client,folder,receipt):
         browser.close()
 
 
-def check_operations_browser(log,url,manager,tech,case,folder):
+def check_operations_browser(log,url,manager,tech,case,diagnostic,folder):
     from playwright.sync_api import sync_playwright, expect as browser_expect
     output=Path(folder)
     with sync_playwright() as tooling:
@@ -656,6 +659,20 @@ def check_operations_browser(log,url,manager,tech,case,folder):
         entry.get_by_label('جست‌وجوی بانک قطعات').fill('کابل آزمایشی')
         log.check('technician browser sees authorized catalog',lambda:browser_expect(entry.get_by_role('button',name=re.compile('کابل آزمایشی')).first).to_be_visible())
         entry.screenshot(path=str(output/'external-purchase-mobile.png'),full_page=True)
+        entry.goto(url+f'/?view=my-work&techCase={diagnostic}&techTask=diagnosis',wait_until='networkidle')
+        log.check('diagnosis has three direct options and no preselected result',lambda:browser_expect(
+            entry.locator('input[name="diagnosis-assessment"]:checked')).to_have_count(0))
+        browser_expect(entry.locator('input[name="diagnosis-assessment"]')).to_have_count(3)
+        entry.get_by_role('radio',name='ایراد مشاهده شد',exact=True).check()
+        entry.get_by_role('button',name='فردا',exact=True).click()
+        log.check('next-day promise exposes Persian 24-hour choices',lambda:browser_expect(
+            entry.get_by_role('button',name='۱۵:۰۰',exact=True)).to_be_visible())
+        entry.get_by_role('button',name='۱۵:۰۰',exact=True).click()
+        for width in (360,390,768,1024,1280,1440,1920):
+            entry.set_viewport_size({'width':width,'height':900})
+            log.check(f'diagnosis fits {width}px',lambda:entry.wait_for_function(
+                'document.documentElement.scrollWidth <= innerWidth + 1',timeout=10000))
+            if width in (390,1440): entry.screenshot(path=str(output/f'diagnosis-{width}.png'),full_page=True)
         browser.close()
 
 

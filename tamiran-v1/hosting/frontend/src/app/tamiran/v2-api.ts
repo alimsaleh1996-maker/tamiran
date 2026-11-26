@@ -273,11 +273,18 @@ export type V2InventoryPayload = {
   requests: V2PartRequest[];
   issues: V2PartIssue[];
   warehouse: { id: number; public_id: string; title: string } | null;
+  catalogPage?: { offset: number; nextOffset: number | null };
 };
-export const loadV2Inventory = (caseId?: number, catalog = false) =>
-  directAdminRequest<V2InventoryPayload>(
-    `/api/inventory-v2.php${caseId ? `?caseId=${caseId}` : catalog ? "?catalog=1" : ""}`,
-  );
+export function loadV2Inventory(caseId?: number, catalog = false, search = "", offset = 0) {
+  const params = new URLSearchParams();
+  if (caseId) params.set("caseId", String(caseId));
+  if (catalog) {
+    params.set("catalog", "1");
+    if (search) params.set("q", search);
+    if (offset) params.set("offset", String(offset));
+  }
+  return directAdminRequest<V2InventoryPayload>(`/api/inventory-v2.php${params.size ? `?${params}` : ""}`);
+}
 export const inventoryV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/inventory-v2.php", payload);
 export const loadV2InventoryControl = () =>

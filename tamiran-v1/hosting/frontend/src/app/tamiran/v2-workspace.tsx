@@ -683,7 +683,27 @@ function InventoryCatalog({ data, profile, busy, run }: {
   const [query, setQuery] = useState("");
   const [defining, setDefining] = useState(false);
   const canDefine = profile.role === "repair_manager";
-  const items = data.items.filter(item => matchesQueueSearch(query, [item.title, item.item_code, item.category]));
+  const [offset, setOffset] = useState(0);
+  const [catalog, setCatalog] = useState<V2InventoryPayload>();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!query.trim() && !offset) { setCatalog(undefined); setLoading(false); setError(""); return; }
+    let active = true;
+    setError("");
+    setLoading(true);
+    const debounce = window.setTimeout(() => {
+      void loadV2Inventory(undefined, true, query.trim(), offset).then(result => {
+        if (active) setCatalog(result);
+      }).catch(failure => {
+        if (active) setError(errorText(failure));
+      }).finally(() => { if (active) setLoading(false); });
+    }, 250);
+    return () => { active = false; window.clearTimeout(debounce); };
+  }, [query, offset, data]);
+  const current = query.trim() || offset ? catalog : data;
+  const items = loading || error ? [] : current?.items ?? [];
+  const next = current?.catalogPage?.nextOffset;
   return <section className="v2-table-panel">
     <div className="v2-panel-title">
       <div><Boxes /><strong>فهرست قطعات</strong></div>
@@ -707,7 +727,7 @@ function InventoryCatalog({ data, profile, busy, run }: {
       <label className="tech-inline-check"><input name="hot" type="checkbox" />نیازمند داغی</label>
       <button type="submit" className="tech-primary" disabled={busy}>ثبت قطعه</button>
     </form>}
-    <label className="module-search"><Boxes size={17} /><input aria-label="جست‌وجوی قطعات" value={query} onChange={event => setQuery(event.target.value)} placeholder="نام قطعه، کد یا دسته‌بندی" /></label>
+    <label className="module-search"><Boxes size={17} /><input aria-label="جست‌وجوی قطعات" maxLength={120} value={query} onChange={event => { setQuery(event.target.value); setOffset(0); }} placeholder="نام قطعه، کد یا دسته‌بندی" /></label>
     <ResponsiveTable headers={["قطعه", "دسته‌بندی", "موجودی", "قابل تخصیص", "قیمت فروش"]}>
       {items.map(item => <tr key={`${item.id}:${item.warehouse_id}`}>
         <td data-label="قطعه"><strong>{item.title}</strong><small><bdi>{item.item_code}</bdi></small></td>
@@ -717,7 +737,13 @@ function InventoryCatalog({ data, profile, busy, run }: {
         <td data-label="قیمت فروش">{item.sale_price > 0 ? formatMoney(item.sale_price) : "تعیین نشده"}</td>
       </tr>)}
     </ResponsiveTable>
-    {!items.length && <p role="status">{query ? "قطعه‌ای با این جست‌وجو پیدا نشد." : "قطعه‌ای در کاتالوگ ثبت نشده است."}</p>}
+    {loading && <p role="status">در حال بارگذاری قطعات…</p>}
+    {error && <p role="alert" className="v2-alert">{error}</p>}
+    {!loading && !error && !items.length && <p role="status">{query ? "قطعه‌ای با این جست‌وجو پیدا نشد." : "قطعه‌ای در کاتالوگ ثبت نشده است."}</p>}
+    <nav aria-label="صفحه‌بندی قطعات" className="v2-row-actions">
+      {offset > 0 && <button type="button" disabled={loading} className="secondary-button" onClick={() => setOffset(Math.max(0, offset - 100))}>صفحه قبل</button>}
+      {next != null && <button type="button" disabled={loading} className="secondary-button" onClick={() => setOffset(next)}>صفحه بعد</button>}
+    </nav>
   </section>;
 }
 

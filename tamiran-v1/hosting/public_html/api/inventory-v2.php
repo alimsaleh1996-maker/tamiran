@@ -7,19 +7,39 @@ require_once tamiran_private_root().'/v2-core.php';
 function inventory_v2_payload(PDO $pdo,array $scope,?int $caseId=null,bool $catalog=false):array
 {
     if($caseId!==null){$case=v2_case($pdo,$scope,$caseId);v2_require_case_access($pdo,$scope,$case);}
-    if($catalog)v2_require_permission($scope,'inventory.view',['warehouse_keeper'],'مشاهده فهرست انبار مجاز نیست.');
-    $join=$catalog ? 'LEFT JOIN' : 'INNER JOIN';
+    $params=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];
+    $filter='';$window='LIMIT 1000';$offset=0;$nextOffset=null;
+    $stock='INNER JOIN repair_branch_stock s ON s.item_id=i.id AND s.shop_id=i.shop_id AND s.branch_id=:branch';
+    if ($catalog) {
+        v2_require_permission($scope,'inventory.view',['warehouse_keeper'],'مشاهده فهرست انبار مجاز نیست.');
+        $offset=filter_var($_GET['offset']??0,FILTER_VALIDATE_INT,['options'=>['min_range'=>0,'max_range'=>1000000]]);
+        if ($offset===false) throw new TamiranApiException('صفحهٔ فهرست قطعات معتبر نیست.');
+        $query=v2_text($_GET['q']??'','جست‌وجوی فهرست قطعات',120,false);
+        if ($query!==null) {
+            $term='%'.strtr($query,['!'=>'!!','%'=>'!%','_'=>'!_']).'%';
+            $filter=" AND (i.title LIKE :title ESCAPE '!' OR i.item_code LIKE :code ESCAPE '!' OR i.category LIKE :category ESCAPE '!')";
+            $params+=['title'=>$term,'code'=>$term,'category'=>$term];
+        }
+        $stock="LEFT JOIN (SELECT item_id,shop_id,MIN(warehouse_id) AS warehouse_id,MAX(row_version) AS row_version,
+            SUM(physical_quantity) AS physical_quantity,SUM(reserved_quantity) AS reserved_quantity,
+            COALESCE(FLOOR(SUM(physical_quantity*average_unit_cost)/NULLIF(SUM(physical_quantity),0)),0) AS average_unit_cost
+            FROM repair_branch_stock WHERE branch_id=:branch AND shop_id=:stock_shop GROUP BY item_id,shop_id) s ON s.item_id=i.id AND s.shop_id=i.shop_id";
+        $params['stock_shop']=$scope['shop_id'];
+        $window="LIMIT 101 OFFSET {$offset}";
+    }
     $statement=$pdo->prepare("SELECT i.id,i.public_id,i.item_code,i.title,i.category,i.unit_title,i.purchase_price,i.sale_price,
         i.minimum_quantity,i.hot_return_required,i.hot_evidence_rules_json,
         COALESCE(s.warehouse_id,0) AS warehouse_id,COALESCE(s.physical_quantity,0) AS physical_quantity,
         COALESCE(s.reserved_quantity,0) AS reserved_quantity,COALESCE(s.physical_quantity-s.reserved_quantity,0) AS available_quantity,
         COALESCE(s.average_unit_cost,0) AS average_unit_cost,COALESCE(s.row_version,0) AS row_version
-        FROM repair_inventory_items i {$join} repair_branch_stock s
-          ON s.item_id=i.id AND s.shop_id=i.shop_id AND s.branch_id=:branch
-        WHERE i.shop_id=:shop AND i.is_active=1 ORDER BY i.title,i.id,s.warehouse_id LIMIT 1000");
-    $statement->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);$items=$statement->fetchAll();
+        FROM repair_inventory_items i {$stock}
+        WHERE i.shop_id=:shop AND i.is_active=1 {$filter} ORDER BY i.title,i.id,s.warehouse_id {$window}");
+    $statement->execute($params);
+    $items=$statement->fetchAll();
+    if ($catalog&&count($items)>100) { array_pop($items); $nextOffset=$offset+100; }
     foreach($items as &$item){$item['id']=(int)$item['id'];foreach(['purchase_price','sale_price','minimum_quantity','physical_quantity','reserved_quantity','available_quantity','average_unit_cost','row_version']as$key)$item[$key]=(int)$item[$key];$item['hot_return_required']=(bool)$item['hot_return_required'];if(!in_array($scope['role'],['repair_manager','finance_cashier','warehouse_keeper'],true)){unset($item['purchase_price'],$item['average_unit_cost']);}}
     unset($item);
+    if ($catalog) return ['items'=>$items,'requests'=>[],'issues'=>[],'warehouse'=>null,'catalogPage'=>['offset'=>$offset,'nextOffset'=>$nextOffset]];
     $requestWhere='r.shop_id=:shop AND r.branch_id=:branch';$params=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];
     if($caseId!==null){$requestWhere.=' AND r.case_id=:case';$params['case']=$caseId;}elseif($scope['role']==='technician'){$requestWhere.=' AND r.requested_by_user_id=:actor';$params['actor']=$scope['actor']['id'];}
     $requests=$pdo->prepare("SELECT r.*,CASE WHEN r.reservation_expires_at IS NOT NULL AND r.reservation_expires_at<NOW() AND r.status IN ('reserved','partially_delivered') THEN 1 ELSE 0 END AS reservation_is_expired,i.item_code,i.title AS item_title,c.receipt_number,CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title,u.display_name AS requester_name FROM repair_part_requests r LEFT JOIN repair_inventory_items i ON i.id=r.item_id INNER JOIN repair_cases c ON c.id=r.case_id INNER JOIN tamiran_users u ON u.id=r.requested_by_user_id WHERE {$requestWhere} ORDER BY r.updated_at DESC LIMIT 1000");$requests->execute($params);
