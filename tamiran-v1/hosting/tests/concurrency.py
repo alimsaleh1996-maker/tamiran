@@ -13,7 +13,7 @@ import secrets
 import threading
 import time
 from urllib.parse import urlsplit
-from smoke import Client, expect
+from smoke import Client, expect, synthetic_imei
 
 
 def main(args):
@@ -37,7 +37,7 @@ def main(args):
     manager.api('settings.php', 'PATCH', {'receiptTerms': {'title': marker, 'body': marker+' synthetic terms'}})
     terms = manager.api('settings.php')['activeReceiptTerms']
     payload = {'action': 'create_case', 'customerName': marker, 'customerMobile': prefix+'02',
-        'deviceModelId': model, 'identifier': marker+'-DEVICE', 'declaredIssue': marker,
+        'deviceModelId': model, 'identifier': synthetic_imei(), 'declaredIssue': marker,
         'customerConsent': {'dataHandling': 'no_erasure'}, 'assignmentMode': 'queue', 'idempotencyKey': marker+'-CASE',
         'receiptAcceptance': {'accepted': True, 'publicId': terms['public_id'], 'contentSha256': terms['content_sha256']}}
     barrier = threading.Barrier(args.requests)

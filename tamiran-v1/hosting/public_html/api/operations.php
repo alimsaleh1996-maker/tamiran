@@ -206,6 +206,15 @@ function operations_case_to_api(array $row, string $role, array $events = []): a
     ];
 }
 
+function operations_case_recallable(array $row): bool
+{
+    if (empty($row['delivered_at'])) return false;
+    if (!empty($row['process_status'])) {
+        return in_array($row['process_status'], ['delivered', 'returned_unrepaired', 'closed'], true);
+    }
+    return in_array($row['status'] ?? null, ['delivered', 'returned'], true);
+}
+
 function operations_customer_lookup(PDO $pdo, array $scope, string $mobile): array
 {
     operations_require_role($scope, ['repair_manager','reception'], 'مشاهده سابقه مشتری فقط برای مدیر یا پذیرش مجاز است.');
@@ -216,19 +225,25 @@ function operations_customer_lookup(PDO $pdo, array $scope, string $mobile): arr
     if (!is_array($customer)) return ['customer'=>null];
     $devicesStatement = $pdo->prepare(
         "SELECT d.id,d.row_version,d.device_model_id,d.device_type_title,d.brand_title,d.model_title,d.identifier_value,d.color_title,d.last_accepted_at,
-                latest.receipt_number,latest.declared_issue,latest.status,latest.updated_at
+                latest.receipt_number,latest.declared_issue,latest.status,latest.updated_at,latest.branch_id,latest.delivered_at,w.process_status
          FROM repair_customer_devices d
          LEFT JOIN repair_cases latest ON latest.id=(SELECT c.id FROM repair_cases c WHERE c.device_id=d.id AND c.shop_id=:case_shop ORDER BY c.created_at DESC,c.id DESC LIMIT 1)
+         LEFT JOIN repair_case_workflows w ON w.case_id=latest.id AND w.shop_id=d.shop_id
          WHERE d.shop_id=:device_shop AND d.customer_id=:customer ORDER BY COALESCE(d.last_accepted_at,d.created_at) DESC,d.id DESC"
     );
     $devicesStatement->execute(['case_shop'=>$scope['shop_id'],'device_shop'=>$scope['shop_id'],'customer'=>(int)$customer['id']]);
-    $devices = array_map(static fn(array $row): array => [
+    $devices = array_map(static function (array $row) use ($scope): array {
+        $sameBranch = (int)($row['branch_id'] ?? 0) === (int)$scope['branch_id'];
+        return [
         'id'=>(int)$row['id'], 'expectedDeviceVersion'=>(int)$row['row_version'], 'deviceModelId'=>$row['device_model_id']===null?null:(int)$row['device_model_id'],
         'deviceType'=>(string)$row['device_type_title'], 'brand'=>(string)$row['brand_title'], 'model'=>(string)$row['model_title'],
-        'identifier'=>(string)($row['identifier_value']??''), 'color'=>(string)($row['color_title']??''), 'lastReceipt'=>(string)($row['receipt_number']??''),
-        'lastVisit'=>(string)($row['updated_at']??$row['last_accepted_at']??''), 'lastIssue'=>(string)($row['declared_issue']??''),
-        'lastStatus'=>$row['status']??null,
-    ], $devicesStatement->fetchAll());
+        'identifier'=>(string)($row['identifier_value']??''), 'color'=>(string)($row['color_title']??''), 'lastReceipt'=>$sameBranch ? (string)($row['receipt_number']??'') : '',
+        'lastVisit'=>$sameBranch ? (string)($row['updated_at']??$row['last_accepted_at']??'') : '',
+        'lastIssue'=>$sameBranch ? (string)($row['declared_issue']??'') : '',
+        'lastStatus'=>$sameBranch ? ($row['status']??null) : null,
+        'recallEligible'=>$sameBranch && operations_case_recallable($row),
+        ];
+    }, $devicesStatement->fetchAll());
     return ['customer'=>[
         'id'=>(int)$customer['id'], 'name'=>(string)$customer['full_name'], 'mobile'=>(string)$customer['mobile'],
         'nationalCode'=>(string)($customer['national_code']??''), 'address'=>(string)($customer['address']??''),
@@ -657,6 +672,14 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
             $deviceRow=$deviceCheck->fetch();$deviceId=is_array($deviceRow)?(int)$deviceRow['id']:0;
             if(is_array($deviceRow)&&(int)$deviceRow['row_version']!==$expectedDeviceVersion)throw new TamiranApiException('اطلاعات دستگاه هم‌زمان تغییر کرده است؛ سابقه را تازه‌سازی کنید.',409);
             if ($deviceId < 1) throw new TamiranApiException('دستگاه قبلی برای این مشتری معتبر نیست.', 409);
+            $lastCase=$pdo->prepare('SELECT c.branch_id,c.delivered_at,c.status,w.process_status
+                FROM repair_cases c LEFT JOIN repair_case_workflows w ON w.case_id=c.id AND w.shop_id=c.shop_id
+                WHERE c.shop_id=:shop AND c.device_id=:device ORDER BY c.created_at DESC,c.id DESC LIMIT 1');
+            $lastCase->execute(['shop'=>$scope['shop_id'],'device'=>$deviceId]);
+            $previous=$lastCase->fetch();
+            if (!is_array($previous) || (int)$previous['branch_id']!==(int)$scope['branch_id'] || !operations_case_recallable($previous)) {
+                throw new TamiranApiException('پذیرش مجدد بعد از ثبت تحویل واقعی آخرین پرونده در این شعبه امکان‌پذیر است.',409);
+            }
             $pdo->prepare('UPDATE repair_customer_devices SET device_model_id=:model,device_type_title=:type,brand_title=:brand,model_title=:model_title,color_title=:color,identifier_value=COALESCE(:identifier,identifier_value),normalized_identifier=COALESCE(:normalized,normalized_identifier),row_version=row_version+1,last_accepted_at=NOW() WHERE id=:id')->execute([
                 'model'=>$modelId, 'type'=>$model['type'], 'brand'=>$model['brand'], 'model_title'=>$model['model'], 'color'=>$color, 'identifier'=>$identifier, 'normalized'=>$normalizedIdentifier, 'id'=>$deviceId,
             ]);
@@ -718,8 +741,10 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         }
         $workflowCode = preg_match('/(کامپیوتر|رایانه|لپ.?تاپ|computer|laptop)/iu', (string)$model['type']) ? 'computer_laptop' : 'mobile_tablet';
         $processStatus = $policy['profile']==='solo' ? 'diagnosing' : ($assignedId === null ? 'awaiting_assignment' : 'assigned');
-        $temporarySecret = trim((string)($input['temporaryDeviceSecret'] ?? ''));
-        if (strlen($temporarySecret) > 500) throw new TamiranApiException('رمز موقت دستگاه بیش از حد طولانی است.');
+        $temporarySecret = $input['devicePassword'] ?? ($input['temporaryDeviceSecret'] ?? '');
+        if (!is_string($temporarySecret) || strlen($temporarySecret) > 500) {
+            throw new TamiranApiException('رمز دستگاه باید متن معتبر و حداکثر ۵۰۰ بایت باشد.');
+        }
         $workflowPublicId = tamiran_id();
         $pdo->prepare('INSERT INTO repair_case_workflows(public_id,shop_id,branch_id,case_id,workflow_code,process_status,primary_technician_user_id,preapproved_amount,diagnostic_fee_policy_json,customer_consent_json,promised_at,temporary_device_secret_ciphertext,temporary_secret_expires_at) VALUES(:public,:shop,:branch,:case,:workflow,:status,:technician,:preapproved,:diagnostic,:consent,:promised,:secret,:secret_expires)')->execute([
             'public'=>$workflowPublicId,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'case'=>$caseId,'workflow'=>$workflowCode,'status'=>$processStatus,

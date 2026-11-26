@@ -292,8 +292,10 @@ def run(args):
     second_request.pop("draftPublicId")
     second_request.pop("draftExpectedVersion")
     runner.check("existing device stale version rejected", lambda: reception.api("operations.php", "POST", {**second_request, "expectedDeviceVersion": device["expectedDeviceVersion"] + 1}, expected=409))
-    second = runner.check("existing device accepted with authoritative version", lambda: reception.api("operations.php", "POST", second_request))
-    runner.check("repeat visit preserves customer and device IDs", lambda: expect(second["repairCase"]["deviceId"] == case["deviceId"] and second["repairCase"]["customerId"] == case["customerId"], "repeat visit duplicated device or customer"))
+    runner.check("active device cannot be recalled even with authoritative version", lambda: reception.api("operations.php", "POST", second_request, expected=409))
+    next_intake = {k:v for k,v in second_request.items() if k not in ("previousDeviceId","expectedDeviceVersion")}
+    second = runner.check("same customer can register another device", lambda: reception.api("operations.php", "POST", {**next_intake, "identifier": synthetic_imei()}))
+    runner.check("unrelated second device has the same customer only", lambda: expect(second["repairCase"]["deviceId"] != case["deviceId"] and second["repairCase"]["customerId"] == case["customerId"], "customer or device identity incorrect"))
     runner.check("first case estimate stays within reception authorization", lambda: technician.api("workflow-v2.php", "POST", estimate_input))
     estimate_input["caseId"] = second["repairCase"]["id"]
     estimate_input["items"][0]["unitPrice"] = 1000000

@@ -185,6 +185,7 @@ export type CreateRepairCaseInput = {
   preapprovedAmount?: number;
   promisedAt?: string;
   temporaryDeviceSecret?: string;
+  devicePassword?: string;
   customerConsent?: Record<string, unknown>;
   receiptMode?: "issue_only";
   receiptAcceptance?: {
@@ -207,6 +208,7 @@ export type PreviousCustomerDevice = {
   lastVisit: string;
   lastIssue: string;
   lastStatus: RepairCaseStatus | null;
+  recallEligible: boolean;
 };
 
 export type CustomerLookupResult = {

@@ -796,7 +796,7 @@ function ReceptionPage({
   const [secondaryMobile, setSecondaryMobile] = useState("");
   const [preapprovedAmount, setPreapprovedAmount] = useState("");
   const [promisedAt, setPromisedAt] = useState("");
-  const [temporaryDeviceSecret, setTemporaryDeviceSecret] = useState("");
+  const [devicePassword, setDevicePassword] = useState("");
   const [dataHandling, setDataHandling] = useState<
     "" | "no_erasure" | "coordinate_first" | "erase_authorized"
   >("");
@@ -875,7 +875,7 @@ function ReceptionPage({
           "برند",
           "مدل",
           "وضعیت ظاهری",
-        ].includes(field.label) &&
+        ].includes(field.label) && !field.label.startsWith("رمز") &&
         formSettings.policies?.[`${profileKey}|${field.label}`]?.mode !==
           "پنهان",
     );
@@ -948,6 +948,7 @@ function ReceptionPage({
             lastVisit: item.updatedAt,
             lastIssue: item.declaredIssue,
             lastStatus: item.status,
+            recallEligible: Boolean(item.deliveredAt && ["delivered", "returned"].includes(item.status)),
           })),
         }
       : null;
@@ -1165,8 +1166,8 @@ function ReceptionPage({
             const previousId = restoredPreviousDeviceIdRef.current;
             if (previousId !== null) {
               const ownedDevice = customer.devices.find(device => device.id === previousId);
-              if (!ownedDevice) {
-                setFormError("دستگاه پیش‌نویس در سابقه این مشتری پیدا نشد؛ دستگاه را دوباره انتخاب کنید.");
+              if (!ownedDevice?.recallEligible) {
+                setFormError("دستگاه پیش‌نویس برای پذیرش مجدد در این شعبه آماده نیست.");
                 setStep(1);
               } else {
                 setSelectedPreviousDevice(ownedDevice);
@@ -1227,12 +1228,18 @@ function ReceptionPage({
     setFormError("");
     setPreapprovedAmount("");
     setPromisedAt("");
-    setTemporaryDeviceSecret("");
+    setDevicePassword("");
     setDataHandling("");
     setStep(1);
   };
 
   const selectPreviousDevice = (device: PreviousCustomerDevice) => {
+    if (!device.recallEligible) return;
+    setDevicePassword("");
+    setPreapprovedAmount("");
+    setPromisedAt("");
+    setAssignedToUserId(null);
+    setDataHandling("");
     setCustomerChoice("history");
     setSelectedPreviousDevice(device);
     setSelectedDeviceType(device.deviceType);
@@ -1460,7 +1467,7 @@ function ReceptionPage({
         ...versionedDevice,
         preapprovedAmount: Number(preapprovedAmount || 0),
         promisedAt: promisedAt ? `${promisedAt} 12:00:00` : undefined,
-        temporaryDeviceSecret: temporaryDeviceSecret || undefined,
+        devicePassword: devicePassword || undefined,
         customerConsent: {
           dataHandling,
           acceptanceMethod: "recorded_consent",
@@ -1765,6 +1772,7 @@ function ReceptionPage({
                             ? "selected"
                             : ""
                         }
+                        disabled={!device.recallEligible}
                         onClick={() => selectPreviousDevice(device)}
                       >
                         <span>
@@ -1779,7 +1787,7 @@ function ReceptionPage({
                             {device.lastIssue || "بدون شرح قبلی"} ·{" "}
                             {operationalDate(device.lastVisit)}
                           </small>
-                          <em>{device.lastReceipt || "رسید قبلی نامشخص"}</em>
+                          <em>{device.recallEligible ? device.lastReceipt : "پذیرش مجدد فعلاً امکان‌پذیر نیست"}</em>
                         </div>
                         <b>
                           {device.lastStatus
@@ -1875,8 +1883,8 @@ function ReceptionPage({
                       field.label === "شناسه" ? (
                       <div className="field-block reception-identity-field" key={field.label}>
                         <label htmlFor="reception-device-identifier">
-                          {terminology?.identifierLabel || field.label}{" "}
-                          {!identifierUnavailable && <b>*</b>}
+                          <span>{terminology?.identifierLabel || field.label}</span>
+                          {!identifierUnavailable && <b aria-hidden="true">*</b>}
                         </label>
                         <div className="input-with-icon">
                           <Fingerprint size={17} />
@@ -1895,7 +1903,7 @@ function ReceptionPage({
                           <small className="field-helper">{field.helper}</small>
                         )}
                         <div className="identity-availability-row">
-                          <label className="identity-missing-choice"><input type="checkbox" checked={identifierUnavailable} onChange={(e) => {setIdentifierUnavailable(e.target.checked); if(e.target.checked) setIdentifier("");}}/><span>سریال ندارد</span></label>
+                          <label className="identity-missing-choice"><input type="checkbox" checked={identifierUnavailable} onChange={(e) => {setIdentifierUnavailable(e.target.checked); if(e.target.checked) setIdentifier("");}}/><span>شناسه در دسترس نیست</span></label>
                           {identifierUnavailable && <label className="identity-reason"><span>علت در دسترس نبودن سریال *</span><select value={identifierUnavailableReason} onChange={(e) => setIdentifierUnavailableReason(e.target.value)}><option value="">انتخاب علت</option><option value="unreadable">سریال ناخوانا است</option><option value="missing_label">برچسب سریال مفقود است</option><option value="powered_off">دستگاه خاموش است</option><option value="other">سایر موارد</option></select></label>}
                         </div>
                         <small>اگر شناسه اکنون قابل خواندن نیست، علت را ثبت کنید. دستگاه تعمیرشده پیش از تحویل باید شناسه داشته باشد.</small>
@@ -1924,6 +1932,11 @@ function ReceptionPage({
                       />
                     ),
                   )}
+                  <label className="field-block">
+                    <span>رمز دستگاه <small>اختیاری</small></span>
+                    <input type="text" autoComplete="off" dir="auto" maxLength={500}
+                      value={devicePassword} onChange={(event) => setDevicePassword(event.target.value)} />
+                  </label>
                 </div>
               </section>
 
@@ -2040,21 +2053,6 @@ function ReceptionPage({
                       تاریخ به تقویم شمسی انتخاب و نمایش داده می‌شود.
                     </small>
                   </div>
-                  <label className="field-block">
-                    <span>رمز موقت دستگاه</span>
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      value={temporaryDeviceSecret}
-                      onChange={(event) =>
-                        setTemporaryDeviceSecret(event.target.value)
-                      }
-                      placeholder="اختیاری · پس از تحویل حذف می‌شود"
-                    />
-                    <small className="field-helper">
-                      رمزگذاری می‌شود و با ثبت تحویل برای همیشه حذف خواهد شد.
-                    </small>
-                  </label>
                 </div>
                 <div className="data-handling-choice">
                   <strong>

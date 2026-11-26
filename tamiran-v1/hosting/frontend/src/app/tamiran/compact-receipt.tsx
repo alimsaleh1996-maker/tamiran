@@ -32,8 +32,31 @@ export const RECEIPT_CSS = `
 .tamiran-receipt *{box-sizing:border-box}.tamiran-receipt p,.tamiran-receipt h2,.tamiran-receipt h3,.tamiran-receipt dl,.tamiran-receipt dd{margin:0}.tamiran-receipt header{display:flex;justify-content:space-between;align-items:start;gap:5mm;border-bottom:2px solid #173f3c;padding-bottom:3mm;margin-bottom:3mm}.tamiran-receipt header h2{font-size:20px;line-height:1.4;color:#111}.tamiran-receipt header p{font-size:11px;color:#444}.tamiran-receipt .cr-number{text-align:left;font-size:17px;font-weight:800;white-space:nowrap}.tamiran-receipt .cr-number small{display:block;font-size:10px;font-weight:400}.tamiran-receipt h3{font-size:12px;font-weight:700;margin-bottom:2mm}.tamiran-receipt section{padding:2.5mm 0;border-bottom:1px solid #d3ddda;break-inside:avoid}.tamiran-receipt .cr-facts{display:grid;grid-template-columns:1fr 1fr;gap:1.5mm 5mm}.tamiran-receipt .cr-facts>div{display:flex;gap:2mm;min-width:0;align-items:baseline}.tamiran-receipt dt{color:#444;font-size:11px;flex:none}.tamiran-receipt dd{font-weight:600;overflow-wrap:anywhere}.tamiran-receipt .cr-wide{grid-column:1/-1}.tamiran-receipt .cr-text{display:grid;grid-template-columns:auto 1fr;gap:2mm;font-size:12px}.tamiran-receipt .cr-text dt{font-weight:700}.tamiran-receipt .cr-text dd{font-weight:400;white-space:pre-wrap;overflow-wrap:anywhere}.tamiran-receipt .cr-footer{display:grid;grid-template-columns:1fr 35mm;gap:5mm;padding-top:3mm;align-items:start}.tamiran-receipt .cr-conditions{font-size:10.5px;line-height:1.65}.tamiran-receipt .cr-conditions p{margin-bottom:1.5mm}.tamiran-receipt .secure-qr{width:34mm;max-width:100%;display:block;padding:0;background:#fff;border:0;text-align:center}.tamiran-receipt .secure-qr svg{display:block;width:34mm;height:34mm;max-width:100%;background:#fff}.tamiran-receipt .secure-qr>span{font-size:10px;display:block;color:#111}.tamiran-receipt .cr-link{font-size:8px;word-break:break-all;line-height:1.3;direction:ltr;text-align:left;margin-top:1mm}.tamiran-receipt .cr-signatures{display:grid;grid-template-columns:1fr 1fr;gap:10mm;padding-top:5mm;font-size:11px}.tamiran-receipt .cr-signatures>span{border-bottom:1px solid #889e96;padding-bottom:6mm}.tamiran-receipt .cr-muted{font-size:10px;color:#444}
 @media(max-width:480px){.tamiran-receipt{padding:5mm;font-size:12px}.tamiran-receipt .cr-number{font-size:14px}.tamiran-receipt header h2{font-size:17px}.tamiran-receipt .cr-facts{gap:2mm;grid-template-columns:1fr}.tamiran-receipt .cr-footer{grid-template-columns:1fr 32mm}.tamiran-receipt .secure-qr svg{width:32mm;height:32mm}}
 @media print{html,body{margin:0!important;padding:0!important;background:white!important;width:auto!important;height:auto!important;min-height:0!important;overflow:visible!important} .tamiran-receipt{border:0!important;border-radius:0!important;margin:0!important;width:100%!important;max-width:none!important;padding:8mm!important;font-size:10pt;box-shadow:none!important}.tamiran-receipt header h2{font-size:15pt}.tamiran-receipt .cr-number{font-size:13pt}.tamiran-receipt section{break-inside:avoid}.tamiran-receipt .cr-facts{grid-template-columns:1fr 1fr}.tamiran-receipt .cr-footer{grid-template-columns:1fr 35mm}.tamiran-receipt .secure-qr svg{width:34mm;height:34mm}.tamiran-receipt .cr-conditions{font-size:8.5pt}}
+@media print {
+  .tamiran-receipt { color: #111; background: #fff; font-size: 9.5pt; line-height: 1.6; }
+  .tamiran-receipt header { border-bottom: 1px solid #444; }
+  .tamiran-receipt header h2 { color: #111; font-size: 13pt; }
+  .tamiran-receipt h3 { color: #222; font-size: 10pt; margin-block-end: 1mm; break-after: avoid; }
+  .tamiran-receipt section { padding-block: 2mm; border-color: #aaa; }
+  .tamiran-receipt .cr-number, .tamiran-receipt dt, .tamiran-receipt .cr-muted { color: #333; }
+  .tamiran-receipt .cr-facts, .tamiran-receipt .cr-text { gap: 1mm 4mm; }
+  .tamiran-receipt dd, .tamiran-receipt .cr-conditions { overflow-wrap: anywhere; }
+  .tamiran-receipt .cr-conditions { font-size: 8.5pt; }
+  .tamiran-receipt .cr-signatures { break-inside: avoid; }
+  .tamiran-receipt .cr-signatures > span { border-color: #555; }
+  .tamiran-receipt[data-print-size="حرارتی"] { font-size: 8.5pt; line-height: 1.48; padding: 4mm !important; }
+  .tamiran-receipt[data-print-size="حرارتی"] header { gap: 2mm; margin-block-end: 1mm; padding-block-end: 1.5mm; }
+  .tamiran-receipt[data-print-size="حرارتی"] header h2, .tamiran-receipt[data-print-size="حرارتی"] .cr-number { font-size: 10pt; }
+  .tamiran-receipt[data-print-size="حرارتی"] section { padding-block: 1mm; }
+  .tamiran-receipt[data-print-size="حرارتی"] .cr-signatures { padding-block-start: 2mm; }
+  .tamiran-receipt[data-print-size="حرارتی"] .cr-signatures > span { padding-block-end: 4mm; }
+  .tamiran-receipt[data-print-size="حرارتی"] .cr-facts { grid-template-columns: minmax(0, 1fr); }
+  .tamiran-receipt[data-print-size="حرارتی"] .cr-footer { grid-template-columns: minmax(0, 1fr); gap: 2mm; padding-block-start: 2mm; }
+  .tamiran-receipt[data-print-size="حرارتی"] .cr-footer svg { width: 27mm; height: 27mm; }
+}
+
 `;
-function dateText(value?: string | null) {
+function dateText(value?: string | null, withTime = false) {
   if (!value) return "—";
   const d = queueTimestamp(value);
   return Number.isFinite(d.getTime())
@@ -41,6 +64,8 @@ function dateText(value?: string | null) {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
+        timeZone: "Asia/Tehran",
+        ...(withTime ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" } as const : {}),
       }).format(d)
     : formatPersianDate(value);
 }
@@ -84,7 +109,7 @@ export function CompactReceipt(p: CompactReceiptProps) {
           </div>
           <div className="cr-number">
             <bdi>{p.receiptNumber}</bdi>
-            <small>تاریخ پذیرش: {dateText(p.issuedAt)}</small>
+            <small>تاریخ پذیرش: {dateText(p.issuedAt, true)}</small>
           </div>
         </header>
         <section>
