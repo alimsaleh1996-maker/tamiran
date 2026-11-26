@@ -112,6 +112,7 @@ const blank = () => ({
   version: 2,
   description: "",
   diagnosisAssessment: "",
+  diagnosisAssessments: {} as Record<number, string>,
   diagnosisDescription: "",
   diagnosisIssues: "",
   diagnosisIssue: "",
@@ -536,10 +537,17 @@ export function TechnicalCaseWorkspace({
         );
         return target;
   };
+  const declaredIssues = item?.declaredIssues?.length ? item.declaredIssues : [item?.declaredIssue ?? ""];
+  const multiIssue = declaredIssues.length > 1;
+  const issueAssessments = declaredIssues.map((_, index) => draft.diagnosisAssessments[index] ?? data?.summary?.issueAssessments?.[index] ?? "");
+  const assessment = multiIssue
+    ? issueAssessments.some(value => !value) ? "" : issueAssessments.includes("undetermined")
+      ? "undetermined" : issueAssessments.includes("confirmed") ? "confirmed" : "not_reproduced"
+    : draft.diagnosisAssessment;
   const diagnose = () => {
     let next: TechnicalScreen = "estimate";
     return run("diagnosis", async () => {
-      const canEstimate = !draft.diagnosisAssessment || draft.diagnosisAssessment === "confirmed";
+      const canEstimate = !assessment || assessment === "confirmed";
       let promisedAt: string | undefined;
       if (stageDriven && canEstimate && draft.diagnosisDueDate) {
         const time = normalizeClock(draft.diagnosisDueTime);
@@ -551,17 +559,18 @@ export function TechnicalCaseWorkspace({
       const fresh = (await loadV2Workflow(caseId)).cases[0];
       if (fresh.status === "diagnosing" || fresh.status === "qc_rework") {
         const payload = {
-          assessment: draft.diagnosisAssessment,
+          assessment,
+          ...(multiIssue ? { issueAssessments } : {}),
           description: draft.diagnosisDescription,
           issues: [...draft.diagnosisIssues.split("\n"), draft.diagnosisIssue].map((line) => line.trim()).filter(Boolean),
         };
         await workflowV2Action({ action: "technical_diagnosis", caseId, ...payload,
           lockVersion: fresh.lockVersion, idempotencyKey: keyFor("diagnosis", payload) });
       }
-      if (draft.diagnosisAssessment === "undetermined") {
+      if (assessment === "undetermined") {
         next = "diagnosis";
         notify("نتیجه بررسی ثبت شد. پرونده در عیب‌یابی می‌ماند.");
-      } else if (draft.diagnosisAssessment === "not_reproduced") {
+      } else if (assessment === "not_reproduced") {
         next = "overview";
         notify("نتیجه بررسی ثبت شد. تعیین تکلیف پرونده هنوز لازم است.");
       } else if (stageDriven) {
@@ -570,7 +579,7 @@ export function TechnicalCaseWorkspace({
         next = await persistEstimate() === "repairing" ? "work" : "overview";
       }
       delete keys.current.diagnosis;
-      change({ diagnosisAssessment: "", diagnosisDescription: "", diagnosisIssues: "", diagnosisIssue: "" });
+      change({ diagnosisAssessment: "", diagnosisAssessments: {}, diagnosisDescription: "", diagnosisIssues: "", diagnosisIssue: "" });
     }, () => next);
   };
   const estimate = () => {
@@ -844,7 +853,7 @@ export function TechnicalCaseWorkspace({
   } as Record<string, number>)[item.status] ?? 0 : 0;
   const progress = screen === "repaired" ? 4 : stageNumber;
   const diagnosticParts = draft.estimatedParts === "" ? data?.cost.partsAmount ?? 0 : Number(draft.estimatedParts);
-  const diagnosisCanEstimate = item?.status === "estimate_pending" || draft.diagnosisAssessment === "confirmed";
+  const diagnosisCanEstimate = item?.status === "estimate_pending" || assessment === "confirmed";
   const waitingForApproval = item?.status === "awaiting_customer_approval" && data?.cost.state !== "rejected" && data?.cost.state !== "approved";
   const estimateInputs = <>
     <div className="tech-form-grid">
@@ -1089,14 +1098,17 @@ export function TechnicalCaseWorkspace({
             <form onSubmit={(event) => { event.preventDefault(); void diagnose(); }}>
               <fieldset disabled={disabled}>
                 {item.status !== "estimate_pending" && <>
-                  <fieldset className="tech-diagnosis-choices">
-                    <legend>آیا ایراد اعلام‌شده توسط مشتری مشاهده شد؟</legend>
+                  {declaredIssues.map((issue, index) => <fieldset className="tech-diagnosis-choices" key={index}>
+                    <legend>{multiIssue ? issue : "آیا ایراد اعلام‌شده توسط مشتری مشاهده شد؟"}</legend>
                     {diagnosisOptions.map(([value, label]) => <label key={value}>
-                      <input required name="diagnosis-assessment" type="radio" value={value}
-                        checked={draft.diagnosisAssessment === value} onChange={() => change({ diagnosisAssessment: value })} />
+                      <input required name={multiIssue ? `diagnosis-assessment-${index}` : "diagnosis-assessment"} type="radio" value={value}
+                        checked={(multiIssue ? issueAssessments[index] : draft.diagnosisAssessment) === value}
+                        onChange={() => change(multiIssue
+                          ? { diagnosisAssessments: { ...draft.diagnosisAssessments, [index]: value } }
+                          : { diagnosisAssessment: value })} />
                       {label}
                     </label>)}
-                  </fieldset>
+                  </fieldset>)}
                   <label>شرح عیب‌یابی<textarea required maxLength={4000} rows={2} value={draft.diagnosisDescription}
                     onChange={(event) => change({ diagnosisDescription: event.target.value })} /></label>
                   {stageDriven ? <>
@@ -1134,7 +1146,7 @@ export function TechnicalCaseWorkspace({
                 </>}
                 <div className={stageDriven ? "tech-v7-action-bar" : undefined}>
                   {stageDriven && <button type="button" onClick={() => go("work", "diagnosis")}>گزارش‌های پرونده</button>}
-                  <button className="tech-primary" type="submit" disabled={item.status !== "estimate_pending" && !draft.diagnosisAssessment}>{diagnosisCanEstimate ? (stageDriven ? "ثبت برآورد و ادامه" : "ثبت عیب‌یابی و تنظیم برآورد") : "ثبت نتیجه بررسی"}</button>
+                  <button className="tech-primary" type="submit" disabled={item.status !== "estimate_pending" && !assessment}>{diagnosisCanEstimate ? (stageDriven ? "ثبت برآورد و ادامه" : "ثبت عیب‌یابی و تنظیم برآورد") : "ثبت نتیجه بررسی"}</button>
                 </div>
               </fieldset>
             </form>
@@ -1704,7 +1716,12 @@ export function TechnicalCaseWorkspace({
           <div><dt>آخرین کنترل کیفیت</dt><dd>{data.summary?.qcResult ?? "انجام نشده"}</dd></div>
         </dl>
         {summaryOpen && data.permissions.devicePassword && <DevicePassword key={caseId} caseId={caseId} />}
-        <section className="tech-v7-summary-section"><h4>ایراد اعلام‌شده در پذیرش</h4><p>{item.declaredIssue}</p>{data.receptionNotes && <p>{data.receptionNotes}</p>}</section>
+        <section className="tech-v7-summary-section"><h4>ایراد اعلام‌شده در پذیرش</h4>
+          {multiIssue ? <ul>{declaredIssues.map((issue, index) => <li key={index}>
+            {issue} {diagnosisOptions.find(([value]) => value === data.summary?.issueAssessments?.[index])?.[1] ?? ""}
+          </li>)}</ul> : <p>{item.declaredIssue}</p>}
+          {data.receptionNotes && <p>{data.receptionNotes}</p>}
+        </section>
         <section className="tech-v7-summary-section"><h4>ایرادهای تشخیص‌داده‌شده</h4>{data.summary?.diagnosedIssues.length ? <ul>{data.summary.diagnosedIssues.map((issue, i) => <li key={i}>{issue}</li>)}</ul> : <p>ایراد جدیدی ثبت نشده است.</p>}</section>
         <section className="tech-v7-summary-section"><h4>عملیات فنی</h4>{data.activities.activities.length ? <ul>{data.activities.activities.map((activity) => <li key={activity.id}>{activity.description} · {activity.actorName}</li>)}</ul> : <p>هنوز اقدامی ثبت نشده است.</p>}</section>
         <section className="tech-v7-summary-section"><h4>قطعات و تعهدات</h4>{data.parts.length ? <ul>{data.parts.map((part) => <li key={part.sourceKey}>{part.title} · {Number(part.quantity).toLocaleString("fa-IR")} عدد</li>)}</ul> : <p>قطعه‌ای مصرف نشده است.</p>}{item.blockers.parts.map((blocker) => <p key={blocker}>{blocker}</p>)}</section>

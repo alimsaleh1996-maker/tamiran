@@ -128,7 +128,7 @@ function workflow_v2_payload(PDO $pdo,array $scope,?int $caseId=null,?string $qu
             'receiptPending'=>!empty($row['physical_receipt_pending']),'isLocked'=>$row['locked_at']!==null,'customerName'=>$row['customer_name'],
             'customerMobile'=>in_array($scope['role'],['repair_manager','reception','finance_cashier'],true)?$row['customer_mobile']:'',
             'deviceTitle'=>trim($row['device_type_snapshot'].' '.$row['brand_snapshot'].' '.$row['model_snapshot']),
-            'initialIdentityReason'=>(json_decode((string)($row['reception_identity_event']??'{}'),true)['identity']['unavailableReason']??''),'identifier'=>$row['identifier_snapshot']??'','declaredIssue'=>$row['declared_issue'],'dataHandling'=>$dataHandling,'technicianName'=>$row['technician_name']??'',
+            'initialIdentityReason'=>(json_decode((string)($row['reception_identity_event']??'{}'),true)['identity']['unavailableReason']??''),'identifier'=>$row['identifier_snapshot']??'','declaredIssue'=>$row['declared_issue'],'declaredIssues'=>technician_declared_issues($row['reception_identity_event']??null,$row['declared_issue']),'dataHandling'=>$dataHandling,'technicianName'=>$row['technician_name']??'',
             'primaryTechnicianUserId'=>$row['primary_technician_user_id']===null?null:(int)$row['primary_technician_user_id'],
             'preapprovedAmount'=>(int)$row['preapproved_amount'],'promisedAt'=>$row['promised_at'],'waitStartedAt'=>$row['wait_started_at'],'acceptedAt'=>$row['accepted_at'],
             'allowedTransitions'=>$allowedTransitions,
@@ -706,7 +706,7 @@ tamiran_api(static function():array{
     $pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';
     if($method==='GET'&&isset($_GET['managerPulse']))return manager_pulse($pdo,$scope);
     if($method==='GET'&&isset($_GET['managerFollowups']))return manager_followup_queue($pdo,$scope,$_GET['filter']??'all',$_GET['offset']??0);
-    if($method==='GET'&&isset($_GET['managerReport']))return manager_operations_report($pdo,$scope,$_GET['from']??'',$_GET['to']??'');
+    if($method==='GET'&&isset($_GET['managerReport']))return manager_operations_report($pdo,$scope,$_GET['from']??'',$_GET['to']??'',isset($_GET['metric'])?$_GET:null);
     if($method==='GET'&&isset($_GET['externalCatalog']))return external_purchase_catalog($pdo,$scope,(int)($_GET['caseId']??0),$_GET['q']??'');
     if($method==='GET'&&isset($_GET['externalPurchase']))return external_purchase_view($pdo,$scope,isset($_GET['caseId'])?(int)$_GET['caseId']:null,($_GET['summary']??'')==='1');
     if($method==='GET'&&isset($_GET['handoverReceipt']))return workflow_v2_handover_receipt($pdo,$scope,$_GET['handoverReceipt']);

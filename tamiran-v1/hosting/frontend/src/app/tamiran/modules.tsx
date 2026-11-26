@@ -1459,6 +1459,7 @@ function ReceptionPage({
         identifier: identifierUnavailable ? undefined : identifier.trim(), identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
         color: deviceColor,
         declaredIssue: declaredIssue.trim(),
+        declaredIssues: declaredIssue.split("\n").map(line => line.trim()).filter(Boolean),
         accessories,
         appearanceStates,
         receptionNotes: receptionNotes.trim() || undefined,
@@ -2014,7 +2015,8 @@ function ReceptionPage({
                     rows={3}
                     value={declaredIssue}
                     onChange={(event) => setDeclaredIssue(event.target.value)}
-                    placeholder="شرح دقیق ایرادی که مشتری اعلام کرده است..."
+                    maxLength={4000}
+                    placeholder="هر ایراد اعلامی را در یک خط بنویسید."
                   />
                 </label>
                 <label className="field-block form-row-gap internal-reception-note">

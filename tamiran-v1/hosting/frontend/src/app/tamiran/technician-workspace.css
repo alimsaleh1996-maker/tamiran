@@ -658,6 +658,10 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr));
   gap: 8px;
 }
+.tech-diagnosis-choices legend {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
 .technical-desk .tech-diagnosis-choices label {
   display: flex;
   flex-direction: row;

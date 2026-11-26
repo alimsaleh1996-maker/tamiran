@@ -175,6 +175,7 @@ export type CreateRepairCaseInput = {
   identifierUnavailableNote?: string;
   color: string;
   declaredIssue: string;
+  declaredIssues?: string[];
   accessories: string[];
   appearanceStates: string[];
   receptionNotes?: string;

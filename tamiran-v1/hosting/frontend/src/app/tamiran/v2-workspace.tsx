@@ -8,7 +8,7 @@ import { technicalCaseFromLocation, writeTechnicalLocation } from "./technician-
 import { formatHandoverTime, printHandoverReceipt } from "./handover-receipt";
 import { DeliveryCaseForm } from "./delivery-case-form";
 import { formatToman } from "./money-input";
-import { isOpenFinanceInvoice, RepairInvoiceView, SettlementView } from "./finance-case-view";
+import { AdvancePaymentView, isOpenFinanceInvoice, RepairInvoiceView, SettlementView } from "./finance-case-view";
 import "./iteration-six.css";
 import "./manager-operations.css";
 
@@ -1276,14 +1276,17 @@ function InventoryBoard({
               </form>
             )}
           <ResponsiveTable
-            headers={["پرونده", "قطعه", "تکنسین", "وضعیت", "عملیات"]}
+            headers={["پرونده", "قطعه", "تکنسین", "سررسید", "وضعیت", "عملیات"]}
           >
             {openHot.map((item) => (
               <tr key={String(item.public_id)}>
                 <td data-label="پرونده">{item.receipt_number}<small>{item.device_title}</small></td>
                 <td data-label="قطعه">{item.item_title}<small>{toman.format(Number(item.quantity ?? 1))} · {localDate(String(item.created_at ?? ""))}</small></td>
                 <td data-label="تکنسین">{item.technician_name}</td>
-                <td data-label="وضعیت">{hotStatusLabels[String(item.status)] ?? "در دست بررسی"}</td>
+                <td data-label="سررسید">{localDate(String(item.due_at ?? ""))}</td>
+                <td data-label="وضعیت">{hotStatusLabels[String(item.status)] ?? "در دست بررسی"}
+                  {Number(item.overdue) === 1 && <small className="v2-expired">سررسید گذشته</small>}
+                </td>
                 <td data-label="عملیات">
                   {warehouseActions && item.status === "waiting_review" && (
                     <button
@@ -1582,9 +1585,10 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval, 
 }) {
   const [caseId, setCaseId] = useState(() => Number(new URL(location.href).searchParams.get("financeCase")) || 0);
   const [mode, setMode] = useState<"work" | "refund">("work");
+  const [advanceSearch, setAdvanceSearch] = useState<string | null>(null);
   const selectedDraft = data.drafts.find(item => item.caseId === caseId);
   const selectedInvoice = data.invoices.find(item => item.case_id === caseId);
-  const financeOpen = Boolean(selectedDraft || selectedInvoice);
+  const financeOpen = Boolean(selectedDraft || selectedInvoice || advanceSearch !== null);
   useEffect(() => onCaseOpen(financeOpen), [financeOpen, onCaseOpen]);
   const select = (id: number, nextMode: "work" | "refund" = "work") => {
     const url = new URL(location.href);
@@ -1610,12 +1614,14 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval, 
         device.identifier_snapshot ?? item?.identifier ?? "", device.device_title ?? item?.deviceTitle ?? ""]))
     .sort((a, b) => compareQueueCases(a.item, b.item));
 
+  if (advanceSearch !== null) return <AdvancePaymentView initialSearch={advanceSearch} permissions={data.permissions}
+    paymentMethods={data.paymentMethods} busy={busy} run={run} onClose={() => setAdvanceSearch(null)} />;
   if (selectedDraft) {
     return <RepairInvoiceView key={selectedDraft.caseId} draft={selectedDraft} permissions={data.permissions}
-      busy={busy} run={run} onClose={close} onIssue={() => window.scrollTo({ top: 0 })} onApproval={() => onApproval(selectedDraft.caseId)} />;
+      busy={busy} run={run} onClose={close} onAdvance={() => setAdvanceSearch(selectedDraft.receiptNumber)} onIssue={() => window.scrollTo({ top: 0 })} onApproval={() => onApproval(selectedDraft.caseId)} />;
   }
   if (selectedInvoice) {
-    return <SettlementView key={selectedInvoice.public_id + mode} invoice={selectedInvoice} permissions={data.permissions}
+    return <SettlementView key={selectedInvoice.public_id + mode} invoice={selectedInvoice} permissions={data.permissions} paymentMethods={data.paymentMethods}
       mode={mode} busy={busy} run={run} onClose={mode === "refund" ? () => select(caseId) : close}
       continueToDelivery={Boolean(onDelivery)} onReferred={() => { if (onDelivery) onDelivery(caseId); else close(); }}
       onRefund={() => select(caseId, "refund")} />;
@@ -1625,6 +1631,9 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval, 
   return <div className="v2-stack">
     <section className="v2-card-form">
       <div className="service-card-line"><h3>صف نهایی‌سازی مالی</h3><b>{toman.format(queue.length)} پرونده</b></div>
+      {data.permissions.payment && <button type="button" className="v2-mini-action" onClick={() => setAdvanceSearch(search.trim())}>
+        پیش‌پرداخت پیش از فاکتور
+      </button>}
       <div className="service-card-grid">
         {queue.map(row => <ServiceQueueCard key={row.id} receipt={row.receipt} item={row.item}
           title={row.item?.deviceTitle ?? row.device.device_title ?? "دستگاه پرونده"} customer={row.customer}

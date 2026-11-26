@@ -207,18 +207,23 @@ function v2_closure_outcome(string $status): ?string
 /** Both callers use w for the workflow and c for the case. */
 function v2_receipt_pending_sql(): string
 {
-    return "CASE WHEN w.locked_at IS NOT NULL THEN 0
-        WHEN w.primary_technician_user_id IS NOT NULL THEN EXISTS (
-            SELECT 1 FROM repair_case_assignments a
+    return '(' . v2_receipt_pending_since_sql() . ' IS NOT NULL)';
+}
+
+function v2_receipt_pending_since_sql(): string
+{
+    return "CASE WHEN w.locked_at IS NOT NULL THEN NULL
+        WHEN w.primary_technician_user_id IS NOT NULL THEN (
+            SELECT MAX(a.started_at) FROM repair_case_assignments a
             WHERE a.workflow_id=w.id AND a.technician_user_id=w.primary_technician_user_id
               AND a.assignment_type='primary' AND a.ended_at IS NULL AND a.accepted_at IS NULL
         )
-        WHEN c.product_profile_snapshot='solo' THEN EXISTS (
-            SELECT 1 FROM repair_case_events e WHERE e.case_id=c.id AND e.event_type='case_created'
-              AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json, '$.physicalReceiptRequired'))='true'
-        ) AND NOT EXISTS (
+        WHEN c.product_profile_snapshot='solo' AND NOT EXISTS (
             SELECT 1 FROM repair_case_events e WHERE e.case_id=c.id AND e.event_type='technical_receipt'
-        ) ELSE 0 END";
+        ) THEN (
+            SELECT MIN(e.created_at) FROM repair_case_events e WHERE e.case_id=c.id AND e.event_type='case_created'
+              AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json, '$.physicalReceiptRequired'))='true'
+        ) ELSE NULL END";
 }
 
 function v2_case(PDO $pdo, array $scope, int $caseId, bool $lock = false): array
@@ -310,10 +315,30 @@ function v2_finance_blockers(PDO $pdo, int $caseId): array
     return [];
 }
 
+function v2_open_case_advances(PDO $pdo,int $caseId):array
+{
+    $q=$pdo->prepare("SELECT l.reference_public_id,l.occurred_at,l.created_by_user_id,l.metadata_json,
+        l.cash_delta+COALESCE((SELECT SUM(r.cash_delta) FROM repair_financial_ledger r
+            WHERE r.case_id=l.case_id AND r.reference_type='case_advance_refund' AND r.reference_public_id=l.reference_public_id),0) AS remaining
+        FROM repair_financial_ledger l
+        WHERE l.case_id=:case AND l.reference_type='case_advance' AND NOT EXISTS
+            (SELECT 1 FROM repair_financial_ledger a WHERE a.case_id=l.case_id
+            AND a.reference_type='case_advance_applied' AND a.reference_public_id=l.reference_public_id)
+        HAVING remaining>0 ORDER BY l.id");
+    $q->execute(['case'=>$caseId]);
+    $rows=$q->fetchAll();
+    foreach ($rows as &$row) {
+        $row['remaining']=(int)$row['remaining'];
+        $row['meta']=json_decode($row['metadata_json'],true,512,JSON_THROW_ON_ERROR);
+    }
+    unset($row);
+    return $rows;
+}
+
 function v2_terminal_finance_blockers(PDO $pdo, int $caseId): array
 {
     $statement=$pdo->prepare('SELECT status FROM repair_invoices WHERE case_id=:case LIMIT 1');$statement->execute(['case'=>$caseId]);$status=$statement->fetchColumn();
-    if($status===false) return [];
+    if($status===false) return v2_open_case_advances($pdo,$caseId)===[]?[]:['پیش‌پرداخت مشتری تعیین‌تکلیف نشده است'];
     return v2_finance_blockers($pdo,$caseId);
 }
 

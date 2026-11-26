@@ -593,6 +593,19 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
     $model = $modelStatement->fetch();
     if (!is_array($model)) throw new TamiranApiException('نوع، برند و مدل باید از فهرست فعال تنظیمات انتخاب شود.', 409);
     $declaredIssue = operations_required($input, 'declaredIssue', 4000);
+    $declaredIssues=null;
+    if (isset($input['declaredIssues'])) {
+        $entries=$input['declaredIssues'];
+        if (!is_array($entries)||!array_is_list($entries)||count($entries)<1||count($entries)>20) {
+            throw new TamiranApiException('حداکثر ۲۰ ایراد پذیرش ثبت کنید.');
+        }
+        $declaredIssues=[];
+        foreach ($entries as $entry) {
+            if (!is_string($entry)) throw new TamiranApiException('شرح ایراد پذیرش معتبر نیست.');
+            $declaredIssues[]=v2_text($entry,'شرح ایراد پذیرش',4000);
+        }
+        $declaredIssue=operations_required(['declaredIssue'=>implode("\n",$declaredIssues)],'declaredIssue',4000);
+    }
     $unavailable=($input['identifierUnavailable']??false)===true;
     $unavailableReason=trim((string)($input['identifierUnavailableReason']??''));
     if($unavailable && (trim((string)($input['identifier']??''))!=='' || !in_array($unavailableReason,['unreadable','missing_label','powered_off','other'],true)))throw new TamiranApiException('برای سریال ندارد، شناسه را خالی و علت را مشخص کنید.',422);
@@ -757,7 +770,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         ]);
         $workflowId=(int)$pdo->lastInsertId();
         $pdo->prepare('INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at) VALUES(:public,:workflow,NULL,:status,:actor,:reason,:metadata,:idempotency,NOW())')->execute([
-            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'promisedAt'=>$promisedAt,'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
+            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'promisedAt'=>$promisedAt,'declaredIssues'=>$declaredIssues,'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
         ]);
         if ($assignedId !== null) {
             $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,created_by_user_id,started_at,accepted_at) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی تعمیر',:creator,NOW(),NULL)")

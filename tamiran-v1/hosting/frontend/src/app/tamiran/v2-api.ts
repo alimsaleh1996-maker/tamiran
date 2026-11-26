@@ -32,6 +32,7 @@ export type V2Case = {
   identifier: string;
   initialIdentityReason?: string;
   declaredIssue: string;
+  declaredIssues?: string[];
   dataHandling: "no_erasure" | "coordinate_first" | "erase_authorized";
   technicianName: string;
   primaryTechnicianUserId: number | null;
@@ -355,6 +356,17 @@ export const startV2Quality = (caseId: number) =>
 export const qualityV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/quality-v2.php", payload);
 
+export const repairPaymentMethods = {
+  card: "کارت‌خوان", cash: "نقدی", bank_transfer: "واریز بانکی", online: "آنلاین", credit: "اعتباری",
+};
+export type RepairPaymentMethod = keyof typeof repairPaymentMethods;
+export type V2AdvanceCase = {
+  id: number; receiptNumber: string; customerName: string; deviceTitle: string;
+  advances: Array<{ publicId: string; remaining: number; method: RepairPaymentMethod; receivedAt: string }>;
+};
+export const searchAdvanceCases = (query: string) =>
+  directAdminRequest<{ rows: V2AdvanceCase[] }>(`/api/finance-v2.php?${new URLSearchParams({ advanceSearch: query })}`);
+
 type V2FinanceDevice = {
   technician_name?: string | null;
   process_status: string;
@@ -387,6 +399,7 @@ export type V2InvoiceDraft = V2FinanceDevice & {
   estimatePublicId: string | null;
   lockVersion: number;
   authorizedAmount: number;
+  advanceAmount?: number;
   approvalAmount: number | null;
   approvalStatus: string | null;
   unrepaired: boolean;
@@ -406,7 +419,7 @@ export type V2InvoiceDraft = V2FinanceDevice & {
 };
 export type V2FinancePermissions = { issue: boolean; payment: boolean; manage: boolean; receivable: boolean; reapproval: boolean };
 export type V2FinanceWorkspace =
-  | { available: true; invoices: V2Invoice[]; drafts: V2InvoiceDraft[]; permissions: V2FinancePermissions }
+  | { available: true; invoices: V2Invoice[]; drafts: V2InvoiceDraft[]; paymentMethods: RepairPaymentMethod[]; permissions: V2FinancePermissions }
   | { available: false; pending: Array<{
       receiptNumber: string; customerName: string; customerMobile: string;
       identifier: string | null; deviceTitle: string;
@@ -465,7 +478,7 @@ export type TechnicalActivity = {
 export type TechnicalProjection = {
   receiptPending?: boolean;
   invoice: TechnicalInvoice;
-  summary?: { diagnosedIssues: string[]; customerIssueAssessment?: string | null; qcResult: string | null };
+  summary?: { diagnosedIssues: string[]; customerIssueAssessment?: string | null; issueAssessments?: string[]; qcResult: string | null };
   reworkDestination?: "diagnosing" | "repairing" | null;
   unrepairedAmount: number;
   unrepairedFinanceBlockers: string[];
@@ -520,7 +533,9 @@ export type OperationsPolicy = {
   approval: "both" | "phone" | "sms";
   purchase: "free" | "approval" | "limit";
   purchaseLimits: Record<string, number>;
-  followHours: Record<"customer" | "parts" | "pickup", number>;
+  followHours: Record<"customer" | "parts" | "pickup" | "receipt", number>;
+  hotReturnHours: number;
+  paymentMethods: RepairPaymentMethod[];
   reasons: Array<{ id: string; title: string; active: boolean }>;
 };
 export type ExternalPurchase = {
@@ -583,6 +598,7 @@ export type ManagerPulseData = {
   stages: Record<string, number>;
   technicians: ManagerWorkload[];
   awaitingReceipt: number;
+  receiptOverdue: number;
   overdue: number;
   openHotReturns: number;
 };
@@ -612,7 +628,12 @@ export const loadManagerPerformance = (from: string, to: string) =>
     `/api/workflow-v2.php?${new URLSearchParams({ managerReport: "1", from, to })}`,
   );
 
-export type OperationsFollowupReason = "customer" | "parts" | "pickup" | "late";
+export type ManagerMetricCase = { id: number; receiptNumber: string; deviceTitle: string; samples: number };
+export const loadManagerMetricCases = (from: string, to: string, technician: number, metric: string, variant: string, offset = 0) =>
+  directAdminRequest<{ rows: ManagerMetricCase[]; nextOffset: number | null }>(
+    `/api/workflow-v2.php?${new URLSearchParams({ managerReport: "1", from, to, technician: String(technician), metric, variant, offset: String(offset) })}`
+  );
+export type OperationsFollowupReason = "customer" | "parts" | "pickup" | "receipt" | "late";
 export type OperationsFollowup = {
   caseId: number;
   receiptNumber: string;

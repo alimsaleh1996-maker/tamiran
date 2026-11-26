@@ -5,10 +5,10 @@ import { ExternalPurchasePanel } from "./external-purchase-panel";
 import { MoneyInput } from "./money-input";
 import { formatPersianDate, todayGregorianIso } from "./persian-date";
 import { PersianDatePicker } from "./persian-date-picker";
-import { loadManagerPulse, type ManagerPulseData, loadManagerPerformance, loadOperationsFollowups, loadV2Workflow, workflowV2Action, type ManagerPerformance, type OperationsFollowup, type OperationsPolicy, type V2Case, type V2User } from "./v2-api";
+import { loadManagerPulse, type ManagerPulseData, loadManagerPerformance, loadManagerMetricCases, repairPaymentMethods, type RepairPaymentMethod, type ManagerMetricCase, loadOperationsFollowups, loadV2Workflow, workflowV2Action, type ManagerPerformance, type OperationsFollowup, type OperationsPolicy, type V2Case, type V2User } from "./v2-api";
 
 const followTitles = {
-  customer: "عدم پاسخ مشتری", parts: "انتظار تأمین قطعه", pickup: "عدم مراجعه برای تحویل", late: "عبور از موعد",
+  customer: "عدم پاسخ مشتری", parts: "انتظار تأمین قطعه", pickup: "عدم مراجعه برای تحویل", receipt: "تأخیر در دریافت دستگاه", late: "عبور از موعد",
 };
 type FollowReason = keyof typeof followTitles;
 const hours = 3_600_000;
@@ -56,7 +56,10 @@ export function ManagerPulse({ profile, onNavigate }: {
     if (target === "کنترل کیفیت") url.searchParams.set("qcCase", String(item.id));
     history.replaceState(history.state, "", url);
   }
-  function focusFollowups() {
+  const [initialFollowup, setInitialFollowup] = useState<FollowReason | "all">("all");
+  function focusFollowups(reason: FollowReason | "all" = "all") {
+    setInitialFollowup(reason);
+    setRevision(value => value + 1);
     setView("followups");
     const section = document.getElementById("manager-followups");
     section?.focus();
@@ -68,8 +71,9 @@ export function ManagerPulse({ profile, onNavigate }: {
     { label: "پرونده‌های فعال", count: Object.values(stages).reduce((a, b) => a + b, 0), open: () => assign(true) },
     { label: "در انتظار ارجاع", count: sum("reception", "awaiting_assignment"), open: () => assign() },
     { label: "ارجاع‌شده و دریافت‌نشده", count: data?.awaitingReceipt, open: () => assign(true, undefined, "receipt") },
+    { label: "تأخیر در دریافت دستگاه", count: data?.receiptOverdue, open: () => focusFollowups("receipt") },
     { label: "در حال بررسی یا تعمیر", count: sum("assigned", "diagnosing", "estimate_pending", "repairing", "parts_closeout"), open: () => assign(true, undefined, "repairing") },
-    { label: "دارای تأخیر", count: data?.overdue, open: focusFollowups },
+    { label: "دارای تأخیر", count: data?.overdue, open: () => focusFollowups() },
     { label: "در انتظار مشتری", count: sum("awaiting_customer_approval"), open: () => onNavigate("تأیید هزینه") },
     { label: "در انتظار قطعه", count: sum("awaiting_parts"), open: () => inventoryEnabled ? onNavigate("درخواست‌های قطعات پرونده‌ها") : assign(true) },
     ...(profile.inventoryMode === "pro" ? [{ label: "تعهد داغی باز", count: data?.openHotReturns, open: () => onNavigate("تعهدات داغی") }] : []),
@@ -90,7 +94,7 @@ export function ManagerPulse({ profile, onNavigate }: {
         <button type="button" aria-pressed={view === "followups"} onClick={() => setView("followups")}>پرونده‌های نیازمند پیگیری</button>
         <button type="button" aria-pressed={view === "purchases"} onClick={() => setView("purchases")}>مجوز خرید قطعه</button>
       </div>
-      {view === "followups" ? <OperationsFollowups key={revision} open={open} />
+      {view === "followups" ? <OperationsFollowups key={`${revision}-${initialFollowup}`} initialFilter={initialFollowup} open={open} />
         : <ExternalPurchasePanel key={revision} actorId={profile.actorId} />}
     </section>
     {data && multiTechnician && <section className="tech-task manager-pulse-load">
@@ -172,10 +176,25 @@ export function OperationsPolicyForm({ policy, users, onSaved }: {
       </section>
       <section>
         <h3>حدود پیگیری به ساعت</h3>
-        {(["customer", "parts", "pickup"] as const).map((name) => <label key={name}>{followTitles[name]}
+        {(["customer", "parts", "pickup", "receipt"] as const).map((name) => <label key={name}>{followTitles[name]}
           <input type="number" required min={1} max={8760} step={1} value={form.followHours[name]}
             onChange={(event) => patch({ followHours: { ...form.followHours, [name]: Number(event.target.value) } })} />
         </label>)}
+      </section>
+      <section>
+        <h3>انبار و پرداخت</h3>
+        <label>مهلت بازگرداندن داغی به ساعت
+          <input type="number" required min={1} max={8760} step={1} value={form.hotReturnHours}
+            onChange={event => patch({ hotReturnHours: Number(event.target.value) })} />
+        </label>
+        <fieldset>
+          <legend>روش‌های فعال دریافت وجه</legend>
+          {(Object.keys(repairPaymentMethods) as RepairPaymentMethod[]).map(method => <label key={method} className="tech-inline-check">
+            <input type="checkbox" checked={form.paymentMethods.includes(method)} onChange={event => patch({
+              paymentMethods: event.target.checked ? [...form.paymentMethods, method] : form.paymentMethods.filter(item => item !== method),
+            })} />{repairPaymentMethods[method]}
+          </label>)}
+        </fieldset>
       </section>
       <button type="submit" className="tech-primary">ذخیرهٔ سیاست‌ها</button>
       {error && <p role="alert" className="tech-error">{error}</p>}
@@ -184,8 +203,8 @@ export function OperationsPolicyForm({ policy, users, onSaved }: {
   </form>;
 }
 
-export function OperationsFollowups({ open }: { open: (item: V2Case) => void }) {
-  const [filter, setFilter] = useState<FollowReason | "all">("all");
+export function OperationsFollowups({ open, initialFilter = "all" }: { open: (item: V2Case) => void; initialFilter?: FollowReason | "all" }) {
+  const [filter, setFilter] = useState(initialFilter);
   const [rows, setRows] = useState<OperationsFollowup[]>([]);
   const [offset, setOffset] = useState<number | null>(null);
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -273,7 +292,15 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
   const [rows, setRows] = useState<ManagerPerformance[]>();
   const [selected, setSelected] = useState("");
   const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<number>();
+  const [range, setRange] = useState({ from, to });
+  const [metric, setMetric] = useState<{ user: number; key: string; variant: string; label: string }>();
+  const [details, setDetails] = useState<ManagerMetricCase[]>([]);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const stageLabels: Record<string, string> = { diagnosing: "عیب‌یابی", repairing: "تعمیر",
+    awaiting_customer_approval: "انتظار مشتری", awaiting_parts: "انتظار قطعه", purchase: "انتظار مجوز خرید", transfer: "انتظار انتقال" };
+
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const filtered = rows?.filter((row) => row.name.includes(search.trim())) ?? [];
@@ -284,11 +311,44 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
     setError("");
     try {
       setRows((await loadManagerPerformance(from, to)).rows);
+      setRange({ from, to });
+      setMetric(undefined);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "گزارش بارگذاری نشد.");
     } finally {
       setBusy(false);
     }
+  }
+  useEffect(() => {
+    if (!metric) return;
+    let mounted = true;
+    setDetails([]);
+    setNextOffset(null);
+    setDetailLoading(true);
+    setDetailError("");
+    loadManagerMetricCases(range.from, range.to, metric.user, metric.key, metric.variant).then(result => {
+      if (mounted) { setDetails(result.rows); setNextOffset(result.nextOffset); }
+    }).catch(failure => {
+      if (mounted) setDetailError(failure instanceof Error ? failure.message : "ریز پرونده‌ها بارگذاری نشد.");
+    }).finally(() => { if (mounted) setDetailLoading(false); });
+    return () => { mounted = false; };
+  }, [metric, range]);
+  async function moreDetails() {
+    if (!metric || nextOffset === null) return;
+    setDetailLoading(true);
+    setDetailError("");
+    try {
+      const result = await loadManagerMetricCases(range.from, range.to, metric.user, metric.key, metric.variant, nextOffset);
+      setDetails(current => [...current, ...result.rows]);
+      setNextOffset(result.nextOffset);
+    } catch (failure) {
+      setDetailError(failure instanceof Error ? failure.message : "ادامهٔ فهرست بارگذاری نشد.");
+    } finally { setDetailLoading(false); }
+  }
+  function detailButton(user: number, key: string, label: string, value: number | string, variant = "") {
+    const active = metric?.user === user && metric.key === key && metric.variant === variant;
+    return <button type="button" className="manager-metric-link" aria-expanded={active} disabled={detailLoading}
+      onClick={() => setMetric(active ? undefined : { user, key, label, variant })}>{label} · {typeof value === "number" ? fa(value) : value}</button>;
   }
   async function openCompleted(id: number) {
     try {
@@ -322,25 +382,44 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
         return <li key={row.id}>
           <h4>{row.name}</h4>
           <label>تعداد پایان فنی <meter min={0} max={maximum} value={total}>{fa(total)}</meter> {fa(total)}</label>
-          <p>تعمیر موفق {fa(row.repaired)} · پایان بدون تعمیر {fa(row.unrepaired)}</p>
-          <p>ارجاع اولیه در بازه {fa(row.assigned)} · پروندهٔ فعال فعلی: {fa(row.active)} · تحویل ثبت‌شده: {fa(row.delivered)}</p>
-          <p>تعمیر موفق: {successBasis ? `${fa(Math.round(100 * row.repaired / successBasis))}٪ (${fa(row.repaired)} از ${fa(successBasis)})` : "داده کافی نیست"} · مردودی کنترل کیفیت: {row.qcRuns ? `${fa(Math.round(100 * row.qcFailures / row.qcRuns))}٪ (${fa(row.qcFailures)} از ${fa(row.qcRuns)})` : "داده کافی نیست"}</p>
-          <p>رعایت موعد اولیه: {row.withInitialDue ? `${fa(row.onTime)} از ${fa(row.withInitialDue)} پروندهٔ دارای موعد` : "داده کافی نیست"}</p>
-          {row.unrepaired > row.technicalFailures && <p>پایان بدون تعمیر با علت غیرفنی یا نامشخص: {fa(row.unrepaired - row.technicalFailures)}</p>}
-          {!!Object.keys(row.stageTimes).length && <ul aria-label="میانگین زمان مرحله‌های تکمیل‌شده">{Object.entries(row.stageTimes).map(([key, second]) =>
-            <li key={key}>{({ diagnosing: "عیب‌یابی", repairing: "تعمیر", awaiting_customer_approval: "انتظار مشتری", awaiting_parts: "انتظار قطعه", purchase: "انتظار مجوز خرید", transfer: "انتظار انتقال" } as Record<string, string>)[key]} · {fa(Math.round(second / 60))} دقیقه</li>)}</ul>}
+          <div className="manager-switch">
+            {detailButton(row.id, "completed", "پایان فنی", total)}
+            {detailButton(row.id, "repaired", "تعمیر موفق", row.repaired)}
+            {detailButton(row.id, "unrepaired", "پایان بدون تعمیر", row.unrepaired)}
+            {detailButton(row.id, "assigned", "ارجاع اولیه در بازه", row.assigned)}
+            {detailButton(row.id, "active", "پروندهٔ فعال فعلی", row.active)}
+            {detailButton(row.id, "delivered", "تحویل ثبت‌شده", row.delivered)}
+            {detailButton(row.id, "success", "نرخ تعمیر موفق", successBasis ? `${fa(Math.round(100 * row.repaired / successBasis))}٪ (${fa(row.repaired)} از ${fa(successBasis)})` : "داده کافی نیست")}
+            {detailButton(row.id, "qcRuns", "نوبت‌های کنترل کیفیت", row.qcRuns)}
+            {detailButton(row.id, "qcFailures", "مردودی کنترل کیفیت", row.qcRuns ? `${fa(Math.round(100 * row.qcFailures / row.qcRuns))}٪ (${fa(row.qcFailures)} از ${fa(row.qcRuns)})` : "داده کافی نیست")}
+            {detailButton(row.id, "deadline", "پرونده‌های دارای موعد اولیه", row.withInitialDue)}
+            {detailButton(row.id, "onTime", "رعایت موعد اولیه", row.onTime)}
+            {row.unrepaired > row.technicalFailures && detailButton(row.id, "nonTechnical", "پایان بدون تعمیر با علت غیرفنی یا نامشخص", row.unrepaired - row.technicalFailures)}
+            {Object.entries(row.stageTimes).map(([key, seconds]) => <span key={key}>
+              {detailButton(row.id, ["purchase", "transfer"].includes(key) ? key : "stageTime",
+                stageLabels[key], `${fa(Math.round(seconds / 60))} دقیقه میانگین`, ["purchase", "transfer"].includes(key) ? "" : key)}
+            </span>)}
+            {row.transferReasons.map(reason => <span key={reason.label}>
+              {detailButton(row.id, "transfer", `علت ارجاع · ${reason.label}`, reason.count, reason.label)}
+            </span>)}
+          </div>
           {selected && !!Object.keys(row.trend).length && <section>
             <h5>روند پایان فنی در روزهای دارای ثبت</h5>
             <ul className="manager-trend">{Object.entries(row.trend).sort(([first], [second]) => first.localeCompare(second)).map(([day, total]) =>
-              <li key={day}><span>{formatPersianDate(day)}</span><meter min={0} max={Math.max(1, ...Object.values(row.trend))} value={total} /> <span>{fa(total)}</span></li>)}</ul>
+              <li key={day}>{detailButton(row.id, "completed", formatPersianDate(day), total, day)}<meter min={0} max={Math.max(1, ...Object.values(row.trend))} value={total} /></li>)}</ul>
           </section>}
-          {row.completedCases.length > 0 && <button type="button" aria-expanded={expanded === row.id} onClick={() => setExpanded(expanded === row.id ? undefined : row.id)}>پرونده‌های پایان فنی</button>}
-          {expanded === row.id && <ul className="manager-workload-list" aria-label="پرونده‌های پایان فنی">
-            {row.completedCases.map(item => <li key={item.id}><button type="button" onClick={() => void openCompleted(item.id)}>
-              <bdi>{item.receiptNumber}</bdi><span>{item.result === "repaired" ? "تعمیر موفق" : "پایان بدون تعمیر"}</span></button></li>)}
-          </ul>}
-          {!!row.transferReasons.length && <ul>{row.transferReasons.map((reason) =>
-            <li key={reason.label}>{reason.label} · {fa(reason.count)}</li>)}</ul>}
+          {metric?.user === row.id && <section className="tech-task" aria-label={`ریز پرونده‌های ${metric.label}`}>
+            <h5>{metric.label}</h5>
+            {detailLoading && <p role="status">در حال بارگذاری پرونده‌ها…</p>}
+            {detailError && <p role="alert">{detailError}</p>}
+            {!detailLoading && !detailError && !details.length && <p>پرونده‌ای در این شاخص ثبت نشده است.</p>}
+            <ul className="manager-workload-list">{details.map(item => <li key={item.id}>
+              <button type="button" onClick={() => void openCompleted(item.id)}><bdi>{item.receiptNumber}</bdi>
+                <span>{item.deviceTitle}{item.samples > 1 ? ` · ${fa(item.samples)} رویداد` : ""}</span>
+              </button>
+            </li>)}</ul>
+            {nextOffset !== null && <button type="button" disabled={detailLoading} onClick={() => void moreDetails()}>پرونده‌های بیشتر</button>}
+          </section>}
         </li>;
       })}</ul>
     </>}

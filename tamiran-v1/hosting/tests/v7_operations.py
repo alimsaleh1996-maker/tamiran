@@ -49,15 +49,16 @@ def run(args):
         policy = manager.api('workflow-v2.php')['operationsPolicy']
         manager.api('settings.php','PATCH',{'key':'operations_policy','value':{**policy, **patch}})
 
-    def create(promised_at=None):
+    def create(promised_at=None,receive=True,declared_issues=None):
         case = manager.api('operations.php','POST',{
             'action':'create_case','receiptMode':'issue_only','customerName':marker,'customerMobile':prefix+'09',
             'deviceModelId':model,'identifier':synthetic_imei(),'declaredIssue':'TEST شارژ قطع می‌شود',
             'customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':technician,'accessories':['بدون لوازم'],
             'preapprovedAmount':7500000,'devicePassword':' 0048 Ab ','color':'مشکی','idempotencyKey':secrets.token_hex(12),
             **({'promisedAt':promised_at} if promised_at else {}),
+            **({'declaredIssues':declared_issues} if declared_issues else {}),
         })['repairCase']['id']
-        command(tech, case, 'technical_receive', lockVersion=row(case)['lockVersion'])
+        if receive: command(tech, case, 'technical_receive', lockVersion=row(case)['lockVersion'])
         return case
 
     def row(case, actor=manager):
@@ -69,6 +70,99 @@ def run(args):
     def qc_call(actor, action, case, expected=200, **payload):
         return actor.api('quality-v2.php','POST',{'action':action,'caseId':case,'idempotencyKey':secrets.token_hex(12),**payload},expected=expected)
 
+    # Exercise the five stabilization gaps through their normal API entry points.
+    pending_receipt = create(receive=False)
+    receipt_policy = manager.api('workflow-v2.php')['operationsPolicy']
+    save_policy(followHours={**receipt_policy['followHours'],'receipt':1},hotReturnHours=48,paymentMethods=['cash'])
+    followup_url='workflow-v2.php?managerFollowups=1&filter=receipt'
+    log.check('receipt alerts respect the configured age threshold',lambda:expect(
+        all(x['caseId']!=pending_receipt for x in manager.api(followup_url)['rows']), 'new assignment flagged'))
+    fixture=os.environ.get('TAMIRAN_AGE_FIXTURE')
+    if fixture:
+        import subprocess
+        subprocess.run([fixture,str(pending_receipt),'receipt'],check=True)
+        log.check('late receipt appears both in pulse and followups',lambda:expect(
+            manager.api('workflow-v2.php?managerPulse=1')['receiptOverdue']==1 and
+            any(x['caseId']==pending_receipt and x['reasons'][0]['name']=='receipt' for x in manager.api(followup_url)['rows']),
+            'late receipt not projected'))
+    command(tech,pending_receipt,'technical_receive',lockVersion=row(pending_receipt)['lockVersion'])
+    log.check('receipt confirmation clears the warning',lambda:expect(
+        manager.api('workflow-v2.php?managerPulse=1')['receiptOverdue']==0,'confirmed receipt still overdue'))
+    from_date=(dt.date.today()-dt.timedelta(days=1)).isoformat()
+    to_date=(dt.date.today()+dt.timedelta(days=1)).isoformat()
+    report_url=f'workflow-v2.php?managerReport=1&from={from_date}&to={to_date}'
+    report=next(x for x in manager.api(report_url)['rows'] if x['id']==technician)
+    drill=f'{report_url}&technician={technician}&metric=assigned'
+    log.check('assignment detail uses the same case set as its metric',lambda:expect(
+        len(manager.api(drill)['rows'])==report['assigned'] and
+        any(x['id']==pending_receipt for x in manager.api(drill)['rows']), 'assigned counts diverged'))
+    log.check('unprivileged user cannot open drill-down',lambda:tech.api(drill,expected=403))
+
+    multi=create(declared_issues=['شارژ قطع می‌شود','صدا قطع می‌شود'])
+    log.check('multiple reception issues reach the workbench',lambda:expect(
+        row(multi)['declaredIssues']==['شارژ قطع می‌شود','صدا قطع می‌شود'],'issue detail lost'))
+    command(tech,multi,'technical_diagnosis',expected=409,assessment='confirmed',description='TEST aggregate only',lockVersion=row(multi)['lockVersion'])
+    command(tech,multi,'technical_diagnosis',issueAssessments=['confirmed','undetermined'],description='TEST first inspection',lockVersion=row(multi)['lockVersion'])
+    log.check('unresolved issue holds the case and persists both outcomes',lambda:expect(
+        row(multi)['status']=='diagnosing' and
+        tech.api(f'workflow-v2.php?caseId={multi}&technical=1')['summary']['issueAssessments']==['confirmed','undetermined'],
+        'unresolved issue not preserved'))
+    command(tech,multi,'technical_diagnosis',issueAssessments=['confirmed','not_reproduced'],description='TEST second inspection',lockVersion=row(multi)['lockVersion'])
+    log.check('resolved independent outcomes progress to estimate',lambda:expect(row(multi)['status']=='estimate_pending','case did not advance'))
+
+    advance=create()
+    advance_receipt=row(advance)['receiptNumber']
+    advance_args={'action':'advance','caseId':advance,'amount':120000,'method':'cash','idempotencyKey':secrets.token_hex(12)}
+    finance_api='finance-v2.php'
+    log.check('disabled receipt method is rejected server-side',lambda:manager.api(finance_api,'POST',{**advance_args,'method':'card'},expected=409))
+    log.check('technician cannot collect advance',lambda:tech.api(finance_api,'POST',advance_args,expected=403))
+    first=manager.api(finance_api,'POST',advance_args)
+    log.check('advance replay is idempotent',lambda:expect(
+        manager.api(finance_api,'POST',advance_args)['publicId']==first['publicId'],'duplicate advance'))
+    log.check('advance searchable by full receipt before invoice',lambda:expect(
+        manager.api(f'{finance_api}?advanceSearch={advance_receipt}')['rows'][0]['advances'][0]['remaining']==120000,
+        'advance missing before invoice'))
+    command(tech,advance,'estimate_create',items=[{'type':'labor','title':'TEST اجرت','quantity':1,'unitPrice':1}],diagnosticFee=100000)
+    command(tech,advance,'technical_finish',result='not_repaired',report='TEST پایان فنی',reason='TEST عیب قابل تعمیر نیست',lockVersion=row(advance)['lockVersion'])
+    draft=next(x for x in manager.api(finance_api)['drafts'] if x['caseId']==advance)
+    issue={'action':'issue','caseId':advance,'items':draft['items'],'deferDelivery':True,'idempotencyKey':secrets.token_hex(12)}
+    log.check('excess advance blocks invoice rather than disappearing',lambda:manager.api(finance_api,'POST',issue,expected=409))
+    manager.api(finance_api,'POST',{'action':'advance_refund','caseId':advance,'amount':30000,'method':'cash','reason':'TEST excess',
+        'advancePublicId':first['publicId'],'idempotencyKey':secrets.token_hex(12)})
+    public=manager.api(finance_api,'POST',issue)['publicId']
+    invoice=next(x for x in manager.api(finance_api)['invoices'] if x['public_id']==public)
+    log.check('advance applied atomically to the invoice exactly once',lambda:expect(
+        int(invoice['paid_amount'])==90000 and invoice['balance']==10000 and len(invoice['payments'])==1
+        and manager.api(finance_api,'POST',issue)['publicId']==public
+        and any(x['reference_type']=='case_advance_applied' and int(x['cash_delta'])==0
+                and int(x['customer_balance_delta'])==-90000 for x in invoice['ledger']),
+        'invoice credit duplicated or absent'))
+    paid={'action':'payment','invoicePublicId':public,'amount':10000,'deferDelivery':True,'idempotencyKey':secrets.token_hex(12)}
+    log.check('method policy also applies to post-invoice payment',lambda:manager.api(finance_api,'POST',{**paid,'method':'card'},expected=409))
+    log.check('remaining invoice balance can be collected normally',lambda:expect(
+        manager.api(finance_api,'POST',{**paid,'method':'cash'})['remaining']==0,'wrong post-invoice balance'))
+    no_charge=create()
+    manager.api(finance_api,'POST',{**advance_args,'caseId':no_charge})
+    finished=command(tech,no_charge,'technical_finish',result='not_repaired',report='TEST no charge',reason='TEST',
+        lockVersion=row(no_charge)['lockVersion'])
+    log.check('unrepaired device with a deposit stays in finance',lambda:expect(finished['target']=='finance_pending','advance lost on no-charge handoff'))
+    save_policy(paymentMethods=receipt_policy['paymentMethods'],purchase='free')
+    manager.api('operations.php','POST',{'action':'create_inventory_item','code':'V7-CORE','title':'داغی آزمایشی','physicalQuantity':0,'hotReturnRequired':True})
+    core_item=next(x['id'] for x in manager.api('inventory-v2.php?catalog=1')['items'] if x['item_code']=='V7-CORE')
+    hot_case=create()
+    purchase=command(tech,hot_case,'external_purchase',decision='request',purchase=True,lines=[{'itemId':core_item,'quantity':1,'unitCost':10000}])
+    command(tech,hot_case,'external_purchase',decision='receive',publicId=purchase['publicIds'][0])
+    command(tech,hot_case,'external_purchase',decision='use',publicId=purchase['publicIds'][0])
+    def hot():
+        return next(x for x in manager.api('inventory-control-v2.php')['hotReturns'] if int(x['case_id'])==hot_case)
+    core=hot()
+    log.check('core deadline is calculated from creation and configured hours',lambda:expect(
+        dt.datetime.fromisoformat(core['due_at'])-dt.datetime.fromisoformat(core['created_at'])==dt.timedelta(hours=48)
+        and int(core['overdue'])==0, 'wrong core deadline'))
+    if fixture:
+        subprocess.run([fixture,str(hot_case),'hot'],check=True)
+        log.check('late core return is displayed as overdue',lambda:expect(int(hot()['overdue'])==1,'late core not flagged'))
+    save_policy(purchase=receipt_policy['purchase'])
     save_policy(handover='manager', purchase='limit', purchaseLimits={str(technician): 300000})
     case = create()
     refer = command(tech,case,'handover_request',toUserId=recipient,reasonId='expertise',partsDisposition='transfer_to_new',hotReturnsDisposition='transfer_to_new')
@@ -252,7 +346,10 @@ def run(args):
         log.check('repeat intake creates a new case without a password',lambda:expect(
             recall['id'] != case and recall['identifier']==active_device['identifier'] and recall['color']=='مشکی' and row(case)['status']=='delivered',
             'repeat intake changed previous case'))
-        check_operations_browser(log,args.url,manager,tech,stock_case,create(),args.browser_dir)
+        check_operations_browser(log,args.url,manager,tech,stock_case,create(), {
+            "advance": row(no_charge)["receiptNumber"], "core": row(hot_case)["receiptNumber"],
+            "multi": create(declared_issues=["شارژ قطع می‌شود", "صدا قطع می‌شود"]), "aged": bool(fixture),
+        },args.browser_dir)
         check_intake_print(log,args.url,manager,recall['receiptNumber'],args.browser_dir)
 
     pending = create()
@@ -622,7 +719,7 @@ def check_quality_browser(log,url,client,folder,receipt):
         browser.close()
 
 
-def check_operations_browser(log,url,manager,tech,case,diagnostic,folder):
+def check_operations_browser(log,url,manager,tech,case,diagnostic,completion,folder):
     from playwright.sync_api import sync_playwright, expect as browser_expect
     output=Path(folder)
     with sync_playwright() as tooling:
@@ -648,11 +745,28 @@ def check_operations_browser(log,url,manager,tech,case,diagnostic,folder):
         page.goto(url+'/?view=technician-performance',wait_until='networkidle')
         page.get_by_role('button',name='دریافت گزارش',exact=True).click()
         log.check('manager browser loads verified metrics',lambda:browser_expect(page.locator('meter').first).to_be_visible())
+        page.get_by_role('button',name=re.compile('ارجاع اولیه در بازه')).first.click()
+        log.check('manager can expand the metric case list',lambda:browser_expect(
+            page.get_by_role('region',name='ریز پرونده‌های ارجاع اولیه در بازه',exact=True)).to_be_visible())
         page.screenshot(path=str(output/'performance-desktop.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':900})
         page.wait_for_function('document.documentElement.scrollWidth <= innerWidth + 1')
         log.check('manager performance fits mobile',lambda:expect(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'),'horizontal overflow'))
         log.check('manager JS stays error-free',lambda:expect(not errors,str(errors)))
+        page.goto(url+'/?view=delivery&deliveryTab=finance',wait_until='networkidle')
+        page.get_by_role('button',name='پیش‌پرداخت پیش از فاکتور',exact=True).click()
+        page.get_by_role('searchbox',name='شماره پذیرش',exact=True).fill(completion['advance'])
+        page.get_by_role('button',name='جست‌وجوی پرونده',exact=True).click()
+        log.check('advance page finds existing deposits by receipt on mobile',lambda:browser_expect(
+            page.get_by_role('button',name='ثبت استرداد پیش‌پرداخت',exact=True)).to_be_visible())
+        page.screenshot(path=str(output/'advance-mobile.png'),full_page=True)
+        page.goto(url+'/?view=hot-returns',wait_until='networkidle')
+        core_row=page.get_by_role('row').filter(has_text=completion['core'])
+        log.check('core deadline is visible in its inventory row',lambda:browser_expect(
+            core_row.locator('[data-label="سررسید"]')).not_to_have_text('—'))
+        if completion['aged']:
+            browser_expect(core_row.get_by_text('سررسید گذشته',exact=True)).to_be_visible()
+        page.screenshot(path=str(output/'core-mobile.png'),full_page=True)
         tc=open_as(browser,url,tech)
         entry=tc.new_page()
         entry.goto(url+f'/?view=my-work&techCase={case}&techTask=purchases',wait_until='networkidle')
@@ -673,6 +787,15 @@ def check_operations_browser(log,url,manager,tech,case,diagnostic,folder):
             log.check(f'diagnosis fits {width}px',lambda:entry.wait_for_function(
                 'document.documentElement.scrollWidth <= innerWidth + 1',timeout=10000))
             if width in (390,1440): entry.screenshot(path=str(output/f'diagnosis-{width}.png'),full_page=True)
+        entry.goto(url+f'/?view=my-work&techCase={completion["multi"]}&techTask=diagnosis',wait_until='networkidle')
+        entry.set_viewport_size({'width':390,'height':900})
+        first=entry.get_by_role('group',name='شارژ قطع می‌شود',exact=True)
+        second=entry.get_by_role('group',name='صدا قطع می‌شود',exact=True)
+        first.get_by_role('radio',name='ایراد مشاهده شد',exact=True).check()
+        second.get_by_role('radio',name='نیاز به بررسی بیشتر',exact=True).check()
+        log.check('two complaint assessments remain independent on mobile',lambda:browser_expect(
+            first.get_by_role('radio',name='ایراد مشاهده شد',exact=True)).to_be_checked())
+        entry.screenshot(path=str(output/'multi-diagnosis-mobile.png'),full_page=True)
         browser.close()
 
 

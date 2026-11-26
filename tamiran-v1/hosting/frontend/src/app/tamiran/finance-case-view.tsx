@@ -5,7 +5,7 @@ import { CheckCircle2, ChevronRight, ReceiptText } from "lucide-react";
 import { useModalFocus } from "../shared/use-modal-focus";
 import { MoneyInput, formatToman } from "./money-input";
 import { PersianDatePicker } from "./persian-date-picker";
-import { financeV2Action, workflowV2Action, type V2FinancePermissions, type V2Invoice, type V2InvoiceDraft } from "./v2-api";
+import { financeV2Action, workflowV2Action, searchAdvanceCases, repairPaymentMethods as methods, type RepairPaymentMethod, type V2AdvanceCase, type V2FinancePermissions, type V2Invoice, type V2InvoiceDraft } from "./v2-api";
 import "./finance-case-view.css";
 
 type Line = V2InvoiceDraft["items"][number];
@@ -16,13 +16,6 @@ const count = new Intl.NumberFormat("fa-IR");
 const paymentDate = new Intl.DateTimeFormat("fa-IR", {
   dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tehran",
 });
-const methods = {
-  card: "کارت‌خوان",
-  cash: "نقدی",
-  bank_transfer: "واریز بانکی",
-  online: "آنلاین",
-  credit: "اعتباری",
-};
 const lineNames = { part: "قطعه", labor: "اجرت", diagnostic: "عیب‌یابی", other: "سایر هزینه‌ها" };
 const sourceNames = { stock: "از انبار", external: "خرید خارجی", manual: "قطعه آزاد" };
 
@@ -87,7 +80,127 @@ function ConfirmAmount({ total, busy, onClose, onConfirm }: {
   </div>;
 }
 
-export function RepairInvoiceView({ draft, permissions, busy, run, onClose, onIssue, onApproval }: {
+export function AdvancePaymentView({ initialSearch, permissions, paymentMethods, busy, run, onClose }: {
+  initialSearch: string; permissions: V2FinancePermissions; paymentMethods: RepairPaymentMethod[];
+  busy: boolean; run: Run; onClose: () => void;
+}) {
+  const fieldId = useId();
+  const [query, setQuery] = useState(initialSearch);
+  const [submitted, setSubmitted] = useState(initialSearch);
+  const [revision, setRevision] = useState(0);
+  const [rows, setRows] = useState<V2AdvanceCase[]>([]);
+  const [selectedId, setSelectedId] = useState(0);
+  const [refundId, setRefundId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [preferredMethod, setMethod] = useState<RepairPaymentMethod>("card");
+  const [tracking, setTracking] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const pending = useRef(false);
+  const selected = rows.find(row => row.id === selectedId) ?? (rows.length === 1 ? rows[0] : undefined);
+  const refund = selected?.advances.find(entry => entry.publicId === refundId);
+  const choices = refund ? Object.keys(methods) as RepairPaymentMethod[] : paymentMethods;
+  const method = choices.includes(preferredMethod) ? preferredMethod : choices[0];
+  useEffect(() => {
+    if (!submitted.trim()) return;
+    let active = true;
+    setLoading(true);
+    setError("");
+    searchAdvanceCases(submitted).then(result => { if (active) setRows(result.rows); }).catch(failure => {
+      if (active) { setRows([]); setError(failure instanceof Error ? failure.message : "پرونده‌ها بارگذاری نشدند."); }
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [submitted, revision]);
+  function clearPayment() {
+    setRefundId("");
+    setAmount("");
+    setTracking("");
+    setReason("");
+  }
+  async function submit() {
+    if (!selected || pending.current || !method || Number(amount) <= 0 || (refund && Number(amount) > refund.remaining)) return;
+    pending.current = true;
+    const action = refund ? "advance_refund" : "advance";
+    const payload = {
+      action, caseId: selected.id, amount: Number(amount), method,
+      trackingNumber: tracking.trim(), reason: reason.trim(), advancePublicId: refund?.publicId,
+    };
+    const scopedKey = `tamiran:finance:${selected.receiptNumber}:${action}`;
+    const signature = JSON.stringify(payload);
+    const previous = sessionStorage.getItem(scopedKey);
+    const [keyBefore, signBefore] = previous ? JSON.parse(previous) as [string, string] : [];
+    const key = signBefore === signature ? keyBefore : crypto.randomUUID();
+    sessionStorage.setItem(scopedKey, JSON.stringify([key, signature]));
+    try {
+      const result = await run(() => financeV2Action({ ...payload, idempotencyKey: key }),
+        refund ? "استرداد پیش‌پرداخت ثبت شد." : "پیش‌پرداخت ثبت شد.");
+      if (result) {
+        sessionStorage.removeItem(scopedKey);
+        clearPayment();
+        setRevision(value => value + 1);
+      }
+    } finally { pending.current = false; }
+  }
+  return <section className="v2-card-form" dir="rtl">
+    <div className="service-card-line"><h3>پیش‌پرداخت پیش از صدور فاکتور</h3>
+      <button type="button" className="cashier-quiet" onClick={onClose}>بازگشت به مالی</button>
+    </div>
+    <form className="cashier-payment-form" onSubmit={event => {
+      event.preventDefault();
+      setRows([]);
+      setSelectedId(0);
+      clearPayment();
+      setSubmitted(query.trim());
+      setRevision(value => value + 1);
+    }}>
+      <label className="cashier-field">شماره پذیرش
+        <input type="search" inputMode="numeric" maxLength={60} value={query} onChange={event => setQuery(event.target.value)} required />
+      </label>
+      <button type="submit" className="cashier-quiet" disabled={busy || loading || !query.trim()}>جست‌وجوی پرونده</button>
+    </form>
+    {loading && <p role="status">در حال جست‌وجو…</p>}
+    {error && <p role="alert">{error}</p>}
+    {!loading && !error && submitted && !rows.length && <p>پروندهٔ بازِ بدون فاکتور با این شماره پیدا نشد.</p>}
+    {rows.length > 1 && <label className="cashier-field">پرونده
+      <select value={selectedId} onChange={event => { setSelectedId(Number(event.target.value)); clearPayment(); }}>
+        <option value={0}>انتخاب پرونده</option>
+        {rows.map(row => <option key={row.id} value={row.id}>{row.receiptNumber} · {row.customerName} · {row.deviceTitle}</option>)}
+      </select>
+    </label>}
+    {selected && <>
+      <h4>{selected.deviceTitle} · <bdi>{selected.receiptNumber}</bdi></h4>
+      <p>{selected.customerName} · ماندهٔ پیش‌پرداخت {money(selected.advances.reduce((sum, entry) => sum + entry.remaining, 0))}</p>
+      {selected.advances.length > 0 && <ul className="tech-plain-list">{selected.advances.map(entry => <li key={entry.publicId}>
+        <span>{methods[entry.method]} · {money(entry.remaining)} · {dateLabel(entry.receivedAt)}</span>
+        {permissions.manage && <button type="button" className="cashier-quiet" disabled={busy}
+          onClick={() => { clearPayment(); setRefundId(entry.publicId); setMethod(entry.method); }}>ثبت استرداد پیش‌پرداخت</button>}
+      </li>)}</ul>}
+      {permissions.payment && <form className="cashier-payment-form" onSubmit={event => { event.preventDefault(); void submit(); }}>
+        <label className="cashier-field" htmlFor={fieldId}>{refund ? "مبلغ استرداد" : "مبلغ پیش‌پرداخت"}
+          <MoneyInput id={fieldId} value={amount} onChange={setAmount} required disabled={busy} />
+        </label>
+        <label className="cashier-field">{refund ? "روش استرداد" : "روش پرداخت"}
+          <select value={method} onChange={event => setMethod(event.target.value as RepairPaymentMethod)} disabled={busy}>
+            {choices.map(key => <option key={key} value={key}>{methods[key]}</option>)}
+          </select>
+        </label>
+        <label className="cashier-field">شماره پیگیری
+          <input value={tracking} maxLength={160} onChange={event => setTracking(event.target.value)} disabled={busy} />
+        </label>
+        {refund && <label className="cashier-field">دلیل استرداد
+          <input maxLength={1000} required value={reason} onChange={event => setReason(event.target.value)} disabled={busy} />
+        </label>}
+        <button type="submit" className="cashier-primary" disabled={busy || loading || Number(amount) <= 0 || Boolean(refund && Number(amount) > refund.remaining)}>
+          {refund ? "تأیید استرداد وجه" : "ثبت دریافت پیش‌پرداخت"}
+        </button>
+        {refund && <button type="button" className="cashier-quiet" onClick={clearPayment} disabled={busy}>انصراف از استرداد</button>}
+      </form>}
+    </>}
+  </section>;
+}
+
+export function RepairInvoiceView({ draft, permissions, busy, run, onClose, onIssue, onApproval, onAdvance }: {
   draft: V2InvoiceDraft;
   permissions: V2FinancePermissions;
   busy: boolean;
@@ -95,6 +208,7 @@ export function RepairInvoiceView({ draft, permissions, busy, run, onClose, onIs
   onClose: () => void;
   onIssue: () => void;
   onApproval: () => void;
+  onAdvance: () => void;
 }) {
   const editId = useId();
   const draftKey = `tamiran:finance-review:${draft.receiptNumber}:${draft.lockVersion}`;
@@ -122,6 +236,7 @@ export function RepairInvoiceView({ draft, permissions, busy, run, onClose, onIs
     return sum;
   }, { parts: 0, labor: 0, services: 0, tax: 0, discount: 0, total: 0 });
   const difference = amounts.total - draft.authorizedAmount;
+  const advance = draft.advanceAmount ?? 0;
   const invalid = source.some(line => !line.title.trim() || lineAmount(line).net < 0)
     || amounts.total > 1_000_000_000_000;
   const approvalOutstanding = draft.approvalAmount === amounts.total &&
@@ -239,6 +354,8 @@ export function RepairInvoiceView({ draft, permissions, busy, run, onClose, onIs
         <div><dt>سایر هزینه‌ها</dt><dd>{money(amounts.services)}</dd></div>
         {amounts.discount > 0 && <div><dt>تخفیف</dt><dd>{money(amounts.discount)}</dd></div>}
         {amounts.tax > 0 && <div><dt>مالیات</dt><dd>{money(amounts.tax)}</dd></div>}
+        {advance > 0 && <><div><dt>پیش‌پرداخت ثبت‌شده</dt><dd>{money(advance)}</dd></div>
+          <div><dt>مانده پس از اعمال پیش‌پرداخت</dt><dd>{money(Math.max(0, amounts.total - advance))}</dd></div></>}
         <div><dt>مبلغ مورد تأیید مشتری</dt><dd>{money(draft.authorizedAmount)}</dd></div>
         <div className={difference > 0 ? "cashier-over-cap" : undefined}>
           <dt>اختلاف با مبلغ تأییدشده</dt><dd>{money(Math.abs(difference))}{difference !== 0 && (difference > 0 ? " بیشتر" : " کمتر")}</dd>
@@ -247,7 +364,11 @@ export function RepairInvoiceView({ draft, permissions, busy, run, onClose, onIs
       <div className="cashier-emphasis">
         <span>مبلغ نهایی فاکتور</span>
         <strong>{money(amounts.total)}</strong>
-        {!edits && (difference > 0 ? <>
+        {!edits && advance > amounts.total && <div>
+          <p role="status">پیش‌پرداخت از مبلغ فاکتور بیشتر است. ابتدا مبلغ اضافه را مسترد کنید.</p>
+          {permissions.manage && <button type="button" className="cashier-quiet" onClick={onAdvance}>تعیین تکلیف پیش‌پرداخت</button>}
+        </div>}
+        {!edits && advance <= amounts.total && (difference > 0 ? <>
           <p role="status">صدور فاکتور تا ثبت تأیید مشتری برای مبلغ جدید متوقف است.</p>
           {permissions.reapproval ? (approvalOutstanding && draft.approvalStatus !== "draft" ?
             <button type="button" className="cashier-quiet" onClick={onApproval}>رفتن به تأیید هزینه</button> :
@@ -272,9 +393,10 @@ function dateLabel(value: string | number) {
   return Number.isNaN(date.valueOf()) ? "" : paymentDate.format(date);
 }
 
-export function SettlementView({ invoice, permissions, mode, busy, run, onClose, onReferred, onRefund, continueToDelivery }: {
+export function SettlementView({ invoice, permissions, paymentMethods, mode, busy, run, onClose, onReferred, onRefund, continueToDelivery }: {
   invoice: V2Invoice;
   permissions: V2FinancePermissions;
+  paymentMethods: RepairPaymentMethod[];
   mode: "work" | "refund";
   busy: boolean;
   run: Run;
@@ -285,7 +407,7 @@ export function SettlementView({ invoice, permissions, mode, busy, run, onClose,
 }) {
   const fieldId = useId();
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<keyof typeof methods>("card");
+  const [preferredMethod, setMethod] = useState<RepairPaymentMethod>("card");
   const [tracking, setTracking] = useState("");
   const [reason, setReason] = useState("");
   const [due, setDue] = useState("");
@@ -299,6 +421,8 @@ export function SettlementView({ invoice, permissions, mode, busy, run, onClose,
   const canProceed = settled || hasReceivable;
   const stage = canProceed && open ? 3 : 2;
   const refund = mode === "refund";
+  const choices = refund ? Object.keys(methods) as RepairPaymentMethod[] : paymentMethods;
+  const method = choices.includes(preferredMethod) ? preferredMethod : choices[0];
   const maxAmount = refund ? net : invoice.balance;
   const transaction = async () => {
     if (pending.current || Number(amount) < 1 || Number(amount) > maxAmount) return;
@@ -370,7 +494,7 @@ export function SettlementView({ invoice, permissions, mode, busy, run, onClose,
       <div className="cashier-field">
         <label htmlFor={`${fieldId}-method`}>روش {refund ? "استرداد" : "دریافت"}</label>
         <select id={`${fieldId}-method`} value={method} onChange={event => setMethod(event.target.value as keyof typeof methods)} disabled={busy}>
-          {Object.entries(methods).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          {choices.map(key => <option key={key} value={key}>{methods[key]}</option>)}
         </select>
       </div>
       <label className="cashier-field"><span>شماره پیگیری <small>اختیاری</small></span>
@@ -408,7 +532,7 @@ export function SettlementView({ invoice, permissions, mode, busy, run, onClose,
       </div>
       {invoice.payments.length === 0 ? <p className="cashier-empty">هنوز دریافتی ثبت نشده است.</p> :
         <ul>{invoice.payments.map(row => <li key={row.public_id}>
-          <span>{methods[row.method as keyof typeof methods] ?? row.method}
+          <span>{String(row.idempotency_key).startsWith("advance:") && "پیش‌پرداخت · "}{methods[row.method as keyof typeof methods] ?? row.method}
             {row.tracking_number && <small>پیگیری <bdi>{row.tracking_number}</bdi></small>}
           </span>
           <time>{dateLabel(row.paid_at)}</time>

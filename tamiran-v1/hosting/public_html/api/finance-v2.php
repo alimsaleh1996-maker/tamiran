@@ -157,6 +157,7 @@ function finance_payload(PDO $pdo,array $scope):array
     $approval=$pdo->prepare("SELECT status,total_amount FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1");
     foreach ($drafts as &$draft) {
         $caseId=(int)$draft['caseId'];
+        $draft['advanceAmount']=array_sum(array_column(v2_open_case_advances($pdo,$caseId),'remaining'));
         $draft['authorizedAmount']=case_invoice_authorized_amount($pdo,['case_id'=>$caseId]+$draft);
         $approval->execute(['case'=>$caseId]);
         $estimate=$approval->fetch();
@@ -175,7 +176,7 @@ function finance_payload(PDO $pdo,array $scope):array
         $setting->execute(['shop'=>$scope['shop_id']]);
         $allowBalance=(bool)$setting->fetchColumn();
     }
-    return ['invoices'=>$invoices,'drafts'=>$drafts,'permissions'=>[
+    return ['invoices'=>$invoices,'drafts'=>$drafts,'paymentMethods'=>operations_policy($pdo,(int)$scope['shop_id'])['paymentMethods'],'permissions'=>[
         'issue'=>v2_has_permission($scope,'finance.issue',['finance_cashier']),
         'payment'=>v2_has_permission($scope,'finance.payment',['finance_cashier']),
         'manage'=>$scope['role']==='repair_manager',
@@ -184,6 +185,114 @@ function finance_payload(PDO $pdo,array $scope):array
             && v2_has_permission($scope,'estimate.manage',['reception','technician'])
             && v2_has_permission($scope,'estimate.send',['reception','technician']),
     ]];
+}
+
+function finance_advance_case_search(PDO $pdo,array $scope,string $search):array
+{
+    v2_require_permission($scope,'finance.view',['finance_cashier'],'مشاهده مالی پرونده مجاز نیست.');
+    $search=v2_text($search,'شماره پذیرش',60,false);
+    if ($search===null) return ['rows'=>[]];
+    $digits=tamiran_digits($search);
+    if ($digits==='') return ['rows'=>[]];
+    $term='%'.$digits.'%';
+    $q=$pdo->prepare("SELECT w.case_id AS id,c.receipt_number AS receiptNumber,cu.full_name AS customerName,
+        CONCAT_WS(' ',c.brand_snapshot,c.model_snapshot) AS deviceTitle
+        FROM repair_case_workflows w JOIN repair_cases c ON c.id=w.case_id
+        JOIN repair_customers cu ON cu.id=c.customer_id
+        LEFT JOIN repair_invoices i ON i.case_id=c.id
+        WHERE w.shop_id=:shop AND w.branch_id=:branch AND i.id IS NULL
+        AND w.locked_at IS NULL AND w.process_status NOT IN ('closed','cancelled','ready_for_delivery','returned_unrepaired','delivered')
+        AND REPLACE(c.receipt_number,'-','') LIKE :term ORDER BY w.updated_at DESC,c.id DESC LIMIT 25");
+    $q->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'term'=>$term]);
+    $rows=$q->fetchAll();
+    foreach ($rows as &$row) {
+        $row['id']=(int)$row['id'];
+        $row['advances']=array_map(static fn($entry)=>[
+            'publicId'=>$entry['reference_public_id'],'remaining'=>$entry['remaining'],
+            'method'=>$entry['meta']['method'],'receivedAt'=>$entry['occurred_at'],
+        ],v2_open_case_advances($pdo,$row['id']));
+    }
+    unset($row);
+    return ['rows'=>$rows];
+}
+
+function finance_advance(PDO $pdo,array $scope,array $input,bool $refund):array
+{
+    if ($refund&&$scope['role']!=='repair_manager') throw new TamiranApiException('استرداد پیش‌پرداخت فقط برای مدیر مجاز است.',403);
+    v2_require_permission($scope,'finance.payment',['finance_cashier'],'ثبت پیش‌پرداخت برای نقش شما مجاز نیست.');
+    $caseId=(int)($input['caseId']??0);
+    $amount=technician_money($input['amount']??0);
+    $method=(string)($input['method']??'');
+    $tracking=v2_text($input['trackingNumber']??'','شماره پیگیری',160,false);
+    $reason=$refund?v2_text($input['reason']??'','دلیل استرداد',1000):null;
+    $reference=$refund?v2_text($input['advancePublicId']??'','شناسه پیش‌پرداخت',80):null;
+    $key=v2_text($input['idempotencyKey']??'','شناسه یکتای پیش‌پرداخت',100);
+    if ($amount<1||!in_array($method,operations_policy_defaults()['paymentMethods'],true)) {
+        throw new TamiranApiException('مبلغ یا روش پرداخت معتبر نیست.');
+    }
+    $type=$refund?'case_advance_refund':'case_advance';
+    $idempotency=$type.':'.hash('sha256',$caseId.':'.$key);
+    $fingerprint=hash('sha256',v2_json([$amount,$method,$tracking,$reason,$reference]));
+    $pdo->beginTransaction();
+    try {
+        $case=v2_case($pdo,$scope,$caseId,true);
+        $prior=$pdo->prepare("SELECT reference_public_id,metadata_json FROM repair_financial_ledger
+            WHERE shop_id=:shop AND branch_id=:branch AND case_id=:case AND idempotency_key=:key");
+        $prior->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'case'=>$caseId,'key'=>$idempotency]);
+        if ($existing=$prior->fetch()) {
+            if ((json_decode($existing['metadata_json'],true)['fingerprint']??null)!==$fingerprint) {
+                throw new TamiranApiException('شناسه پیش‌پرداخت قبلاً با اطلاعات دیگری استفاده شده است.',409);
+            }
+            $pdo->commit();
+            return ['recorded'=>true,'replayed'=>true,'publicId'=>$existing['reference_public_id']];
+        }
+        if ($case['locked_at']!==null||in_array($case['process_status'],['closed','cancelled','ready_for_delivery','returned_unrepaired','delivered'],true)) {
+            throw new TamiranApiException('ثبت پیش‌پرداخت برای پروندهٔ بسته مجاز نیست.',409);
+        }
+        $issued=$pdo->prepare('SELECT 1 FROM repair_invoices WHERE case_id=:case');
+        $issued->execute(['case'=>$caseId]);
+        if ($issued->fetchColumn()) throw new TamiranApiException('برای پروندهٔ دارای فاکتور از صندوق فاکتور استفاده کنید.',409);
+        $advances=v2_open_case_advances($pdo,$caseId);
+        if ($refund) {
+            $matching=array_values(array_filter($advances,static fn($advance)=>$advance['reference_public_id']===$reference));
+            if ($amount>($matching[0]['remaining']??0)) throw new TamiranApiException('مبلغ استرداد از ماندهٔ پیش‌پرداخت بیشتر است.',409);
+        } else {
+            if (!in_array($method,operations_policy($pdo,(int)$scope['shop_id'])['paymentMethods'],true)) {
+                throw new TamiranApiException('این روش پرداخت در تنظیمات تعمیرگاه فعال نیست.',409);
+            }
+            if ($amount+array_sum(array_column($advances,'remaining'))>1000000000000) {
+                throw new TamiranApiException('مجموع پیش‌پرداخت خارج از محدوده است.');
+            }
+        }
+        $reference??=tamiran_id();
+        v2_financial_event($pdo,$scope,$case,null,$refund?'refund_issued':'payment_received',0,$refund?-$amount:$amount,0,
+            $type,$reference,$idempotency,['method'=>$method,'tracking'=>$tracking,'reason'=>$reason,'fingerprint'=>$fingerprint]);
+        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],$type.'.record','repair_case',
+            $case['case_public_id'],null,['publicId'=>$reference,'amount'=>$amount,'method'=>$method],$reason);
+        $pdo->commit();
+        return ['recorded'=>true,'publicId'=>$reference];
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
+function finance_apply_advances(PDO $pdo,array $scope,array $case,int $invoiceId,int $total,array $advances):void
+{
+    if ($advances===[]) return;
+    $payment=$pdo->prepare("INSERT INTO repair_payments(public_id,invoice_id,amount,method,tracking_number,received_by_user_id,idempotency_key,paid_at,notes)
+        VALUES(:public,:invoice,:amount,:method,:tracking,:actor,:key,:date,'پیش‌پرداخت قبل از صدور فاکتور')");
+    $paid=0;
+    foreach ($advances as $advance) {
+        $ref=$advance['reference_public_id'];$amount=$advance['remaining'];$public=tamiran_id();
+        $payment->execute(['public'=>$public,'invoice'=>$invoiceId,'amount'=>$amount,'method'=>$advance['meta']['method'],
+            'tracking'=>$advance['meta']['tracking']??null,'actor'=>$advance['created_by_user_id'],'key'=>'advance:'.$ref,'date'=>$advance['occurred_at']]);
+        v2_financial_event($pdo,$scope,$case,$invoiceId,'payment_received',-$amount,0,0,'case_advance_applied',$ref,
+            'advance-applied:'.$ref,['paymentPublicId'=>$public,'method'=>$advance['meta']['method']]);
+        $paid+=$amount;
+    }
+    $pdo->prepare('UPDATE repair_invoices SET paid_amount=:paid,status=:status WHERE id=:id')
+        ->execute(['paid'=>$paid,'status'=>$paid===$total?'paid':'partially_paid','id'=>$invoiceId]);
 }
 
 function finance_issue(PDO $pdo,array $scope,array $input):array
@@ -277,6 +386,10 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
         if ($total>case_invoice_authorized_amount($pdo,$case)) {
             throw new TamiranApiException('فاکتور از مجوز هزینه معتبر بیشتر است؛ ابتدا برآورد و تأیید تازه ثبت شود.',409);
         }
+        $advances=v2_open_case_advances($pdo,$caseId);
+        if (array_sum(array_column($advances,'remaining'))>$total) {
+            throw new TamiranApiException('پیش‌پرداخت از مبلغ فاکتور بیشتر است. ابتدا مبلغ اضافه را مسترد کنید.',409);
+        }
         $pdo->prepare("INSERT INTO repair_invoices(public_id,invoice_number,shop_id,branch_id,case_id,status,subtotal_amount,discount_amount,tax_amount,total_amount,issued_by_user_id,idempotency_key,issued_at) VALUES(:public,:number,:shop,:branch,:case,'issued',:subtotal,:discount,:tax,:total,:actor,:idempotency,NOW())")->execute([
             'public'=>$invoicePublic,'number'=>$number,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'case'=>$caseId,
             'subtotal'=>$subtotal,'discount'=>$discountTotal,'tax'=>$taxTotal,'total'=>$total,'actor'=>$scope['actor']['id'],'idempotency'=>$idempotency,
@@ -311,6 +424,7 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
                 }
             }
         }
+        finance_apply_advances($pdo,$scope,$case,$invoiceId,$total,$advances);
         $oldAmounts=array_map(static fn(array $line):array=>['title'=>$line['title'],'source'=>$line['sourceKey']??null,
             'unitPrice'=>(int)$line['saleUnitPrice'],'discount'=>(int)$line['discountAmount']],$draft['items']);
         $issuedAmounts=[];
@@ -350,6 +464,9 @@ function finance_payment(PDO $pdo,array $scope,array $input):array
             }
             $remaining=(int)$invoice['total_amount']-((int)$invoice['paid_amount']-(int)$invoice['refunded_amount']);
             $pdo->commit();$ready=!$deferDelivery&&finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'payment:'.$idempotency);return['paid'=>true,'replayed'=>true,'publicId'=>$replayed['public_id'],'remaining'=>$remaining,'readyForDelivery'=>$ready];
+        }
+        if (!in_array($method,operations_policy($pdo,(int)$scope['shop_id'])['paymentMethods'],true)) {
+            throw new TamiranApiException('این روش پرداخت در تنظیمات تعمیرگاه فعال نیست.',409);
         }
         $balance=(int)$invoice['total_amount']-((int)$invoice['paid_amount']-(int)$invoice['refunded_amount']);
         if($amount>$balance)throw new TamiranApiException('مبلغ پرداخت از مانده فاکتور بیشتر است.',409);
@@ -421,12 +538,14 @@ tamiran_api(static function():array{
     $policy=v2_product_policy($pdo,$scope);
     if($method==='GET' && ($_GET['workspace']??null)==='1') return finance_workspace($pdo,$scope,$policy);
     v2_require_capability($policy,'financeEnabled','ماژول مالی برای این تعمیرگاه فعال نیست.');
+    if($method==='GET'&&isset($_GET['advanceSearch']))return finance_advance_case_search($pdo,$scope,(string)$_GET['advanceSearch']);
     if($method==='GET')return finance_payload($pdo,$scope);
     if($method!=='POST')throw new TamiranApiException('روش درخواست مجاز نیست.',405);
     tamiran_require_csrf();$input=tamiran_json_body();
     return match((string)($input['action']??'')){
         'issue'=>finance_issue($pdo,$scope,$input),'payment'=>finance_payment($pdo,$scope,$input),
         'refund'=>finance_refund($pdo,$scope,$input),'receivable'=>finance_receivable($pdo,$scope,$input),
+        'advance'=>finance_advance($pdo,$scope,$input,false),'advance_refund'=>finance_advance($pdo,$scope,$input,true),
         'refer_to_delivery'=>finance_handoff($pdo,$scope,(int)($input['caseId']??0)),
         default=>throw new TamiranApiException('عملیات مالی معتبر نیست.'),
     };
