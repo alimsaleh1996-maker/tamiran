@@ -30,7 +30,7 @@ def run(args):
   def simple(name):check(name,lambda:expect(page.locator('.technical-desk details,.technical-desk summary,[role=dialog],dialog')).to_have_count(0))
   def capture(name,width):
    page.set_viewport_size({'width':width,'height':1000});page.evaluate('scrollTo(0,0)');check(f'{name} fits {width}',lambda:yes(not page.evaluate('document.documentElement.scrollWidth>innerWidth'),'horizontal overflow'));page.screenshot(path=str(out/f'{name}-{width}.png'),full_page=True)
-  page.goto(f['base']+'/?view=operations',wait_until='networkidle');page.get_by_role('tab',name='شروع بررسی').click();page.get_by_role('button',name='بازکردن پرونده '+c['receiptNumber'],exact=True).click();expect(page.get_by_text('منتظر تأیید دریافت توسط مسئول دستگاه',exact=True)).to_be_visible()
+  page.goto(f['base']+'/?view=assignments',wait_until='networkidle');page.get_by_role('textbox',name='جست‌وجوی دستگاه‌ها').fill(c['receiptNumber']);page.get_by_role('tab',name='شروع بررسی').click();page.get_by_role('button',name='بازکردن پرونده '+c['receiptNumber'],exact=True).click();expect(page.get_by_text('منتظر تأیید دریافت توسط مسئول دستگاه',exact=True)).to_be_visible()
   check('actual operations card opens full-page overview without changing status',lambda:yes(row(c['id'])['status']=='assigned','opening mutated status'));simple('operations entry has no old modal or accordion');check('case hides duplicate operations header and refresh controls',lambda:expect(page.locator('.v2-page-head')).to_have_count(0));check('entry shows necessary reception note',lambda:expect(page.locator('.tech-entry')).to_contain_text('ابتدا اتصال شارژ بررسی شود.'))
   for width in (1440,768,390,320):capture('entry',width)
   t_case=Client(f['base']);t_case.login(tech['phone'],f['password'])
@@ -69,7 +69,7 @@ def run(args):
   handover_id=next(h['public_id'] for h in m.api('workflow-v2.php')['handovers'] if h['case_id']==q['id'] and h['status']=='requested')
   destination=Client(f['base']);destination.login(other['phone'],f['password'])
   destination.api('workflow-v2.php','POST',{'action':'handover_decide','publicId':handover_id,'decision':'report_discrepancy','reason':'TEST کابل در رسید بود اما تحویل نشد'})
-  page.reload(wait_until='networkidle')
+  page.goto(f['base']+'/?view=handovers',wait_until='networkidle')
   handover=page.locator('.tech-handover-list li').filter(has_text=q['receiptNumber'])
   expect(handover).to_contain_text('TEST کابل در رسید بود اما تحویل نشد')
   handover.get_by_label('علت تصمیم دربارهٔ ارجاع').fill('TEST کابل بررسی و تحویل شد')

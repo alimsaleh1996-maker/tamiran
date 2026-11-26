@@ -19,9 +19,7 @@ import {
   Menu,
   PackageCheck,
   PackageOpen,
-  ShoppingCart,
   Send,
-  WalletCards,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -116,12 +114,22 @@ const navGroups = [
       { label: "نبض تعمیرگاه", icon: Gauge },
       { label: "پذیرش تعمیرات", icon: ClipboardList },
       { label: "کارهای من", icon: Wrench },
-      { label: "مرکز عملیات تعمیرات", icon: UsersRound },
       { label: "کنترل کیفیت", icon: ShieldCheck },
-      { label: "مالی پرونده", icon: WalletCards },
-      { label: "تحویل تعمیرات", icon: PackageCheck },
+      { label: "مالی و تحویل", icon: PackageCheck },
       { label: "رسیدها", icon: FileClock },
       { label: "پیگیری مشتری", icon: FileSearch },
+    ],
+  },
+  {
+    label: "مدیریت تعمیرگاه",
+    items: [
+      { label: "تخصیص تعمیرات", icon: UsersRound },
+      { label: "ارجاع تکنسین‌ها", icon: ArrowLeftRight },
+      { label: "تأیید هزینه", icon: CircleCheckBig },
+      { label: "مجوز خرید قطعه", icon: PackageOpen },
+      { label: "پیگیری پرونده‌ها", icon: FileSearch },
+      { label: "عملکرد تکنسین‌ها", icon: Gauge },
+      { label: "سیاست‌های تعمیرگاه", icon: Settings },
     ],
   },
   {
@@ -129,9 +137,8 @@ const navGroups = [
     items: [
       { label: "انبار قطعات", icon: Boxes },
       { label: "گردش‌ها", icon: ArrowLeftRight },
-      { label: "درخواست‌های قطعه", icon: PackageOpen },
+      { label: "صف تأمین قطعات", icon: PackageOpen },
       { label: "تعهدهای داغی", icon: Archive },
-      { label: "سفارش خرید", icon: ShoppingCart },
     ],
   },
   {
@@ -155,22 +162,21 @@ const rolePageAccess: Record<string, Set<string>> = {
     "نبض تعمیرگاه",
     "پذیرش تعمیرات",
     "رسیدها",
-    "تحویل تعمیرات",
+    "مالی و تحویل",
     "پیگیری مشتری",
   ]),
-  technician: new Set(["کارهای من", "درخواست‌های قطعه"]),
+  technician: new Set(["کارهای من"]),
   quality_control: new Set(["نبض تعمیرگاه", "کنترل کیفیت", "پیگیری مشتری"]),
   warehouse_keeper: new Set([
     "نبض تعمیرگاه",
     "انبار قطعات",
     "گردش‌ها",
-    "درخواست‌های قطعه",
+    "صف تأمین قطعات",
     "تعهدهای داغی",
-    "سفارش خرید",
   ]),
   finance_cashier: new Set([
     "نبض تعمیرگاه",
-    "مالی پرونده",
+    "مالی و تحویل",
     "گزارش‌ها",
   ]),
 };
@@ -178,30 +184,36 @@ const rolePageAccess: Record<string, Set<string>> = {
 const pageRequiredModule: Record<string, string> = {
   "انبار قطعات": "inventory",
   گردش‌ها: "inventory",
-  "درخواست‌های قطعه": "inventory",
+  "صف تأمین قطعات": "inventory",
   "تعهدهای داغی": "inventory",
-  "سفارش خرید": "inventory",
-  "مالی پرونده": "finance",
   "پیامک و پرتال": "sms",
 };
 
 const pageRequiredPermission: Record<string, string> = {
-  "مرکز عملیات تعمیرات": "repair_operations.view",
+  "تخصیص تعمیرات": "repair_operations.view",
+  "ارجاع تکنسین‌ها": "repair_operations.view",
+  "تأیید هزینه": "repair_operations.view",
+  "مجوز خرید قطعه": "repair_operations.view",
+  "پیگیری پرونده‌ها": "repair_operations.view",
+  "عملکرد تکنسین‌ها": "repair_operations.view",
+  "سیاست‌های تعمیرگاه": "repair_operations.view",
   "کارهای من": "technician_workbench.view",
   "کنترل کیفیت": "qc.view",
-  "مالی پرونده": "finance.view",
-  "تحویل تعمیرات": "delivery.view",
+  "مالی و تحویل": "delivery.view",
   "انبار قطعات": "inventory.view",
   گردش‌ها: "inventory.view",
-  "درخواست‌های قطعه": "inventory.request.view",
+  "صف تأمین قطعات": "inventory.request.view",
   "تعهدهای داغی": "inventory.hot_return.view",
-  "سفارش خرید": "procurement.view",
 };
 
 function permissionAllows(profile: WorkspaceProfile, page: string) {
+  if (page === "صف تأمین قطعات" && profile.role === "technician") return false;
   if (rolePageAccess[profile.role]?.has(page)) return true;
   const required = pageRequiredPermission[page];
-  const grants = page === "گردش‌ها" ? [required, "inventory.control.view"] : [required];
+  const grants = page === "گردش‌ها" ? [required, "inventory.control.view"]
+    : page === "مالی و تحویل" ? [required, "finance.view"]
+    : page === "صف تأمین قطعات" ? [required, "procurement.view"]
+    : [required];
   return Boolean(required && (profile.permissions.includes("*") || grants.some(grant => profile.permissions.includes(grant))));
 }
 
@@ -210,15 +222,19 @@ function pagesForProfile(profile: WorkspaceProfile) {
 }
 
 const v2Pages = new Set([
-  "مرکز عملیات تعمیرات",
+  "تخصیص تعمیرات",
+  "ارجاع تکنسین‌ها",
+  "تأیید هزینه",
+  "مجوز خرید قطعه",
+  "پیگیری پرونده‌ها",
+  "عملکرد تکنسین‌ها",
+  "سیاست‌های تعمیرگاه",
   "کنترل کیفیت",
-  "مالی پرونده",
-  "تحویل تعمیرات",
+  "مالی و تحویل",
   "انبار قطعات",
   "گردش‌ها",
-  "درخواست‌های قطعه",
+  "صف تأمین قطعات",
   "تعهدهای داغی",
-  "سفارش خرید",
   "پیامک و پرتال",
 ]);
 
@@ -226,17 +242,21 @@ const pageSlugs: Record<string, string> = {
   "نبض تعمیرگاه": "home",
   "پذیرش تعمیرات": "reception",
   رسیدها: "receipts",
-  "مرکز عملیات تعمیرات": "operations",
+  "تخصیص تعمیرات": "assignments",
+  "ارجاع تکنسین‌ها": "handovers",
+  "تأیید هزینه": "cost-approval",
+  "مجوز خرید قطعه": "purchase-approvals",
+  "پیگیری پرونده‌ها": "case-followups",
+  "عملکرد تکنسین‌ها": "technician-performance",
+  "سیاست‌های تعمیرگاه": "repair-policy",
   "کارهای من": "my-work",
   "کنترل کیفیت": "quality",
-  "مالی پرونده": "case-finance",
-  "تحویل تعمیرات": "delivery",
+  "مالی و تحویل": "delivery",
   "پیگیری مشتری": "follow-ups",
   "انبار قطعات": "inventory",
   گردش‌ها: "inventory-movements",
-  "درخواست‌های قطعه": "part-requests",
+  "صف تأمین قطعات": "parts-supply",
   "تعهدهای داغی": "hot-returns",
-  "سفارش خرید": "procurement",
   گزارش‌ها: "reports",
   "ممیزی و رویدادها": "audit",
   "پشتیبانی تعمیران": "support",
@@ -245,9 +265,20 @@ const pageSlugs: Record<string, string> = {
   "افزودن قابلیت": "capabilities",
 };
 
+const legacyPageNames: Record<string, string> = {
+  "مرکز عملیات تعمیرات": "تخصیص تعمیرات",
+  "مالی پرونده": "مالی و تحویل",
+  "تحویل تعمیرات": "مالی و تحویل",
+  "درخواست‌های قطعه": "صف تأمین قطعات",
+  "سفارش خرید": "صف تأمین قطعات",
+};
+
 function pageFromLocation() {
   if (typeof window === "undefined") return null;
   const slug = new URLSearchParams(window.location.search).get("view");
+  if (slug === "operations") return "تخصیص تعمیرات";
+  if (slug === "case-finance") return "مالی و تحویل";
+  if (slug === "procurement" || slug === "part-requests") return "صف تأمین قطعات";
   return Object.entries(pageSlugs).find(([, value]) => value === slug)?.[0] ?? null;
 }
 
@@ -278,7 +309,7 @@ export default function Home() {
   const sidebarRef = React.useRef<HTMLElement>(null);
   const mobileDialog = mobileMenuOpen && compactNavigation && Boolean(workspaceProfile && !workspaceProfile.isCentralAdmin);
   const navigationModalId = useModalFocus(sidebarRef, mobileDialog, () => setMobileMenuOpen(false));
-  const [openNavGroup, setOpenNavGroup] = useState("عملیات تعمیرگاه");
+  const [openNavGroup, setOpenNavGroup] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [followUps, setFollowUps] = useState<CaseFollowUp[]>([]);
   const [shopSettings, setShopSettings] = useState<Record<string, unknown>>({});
@@ -437,7 +468,8 @@ export default function Home() {
     return () => window.removeEventListener("popstate", onHistory);
   }, [workspaceProfile]);
 
-  const selectPage = (label: string) => {
+  const selectPage = (requested: string) => {
+    const label = legacyPageNames[requested] ?? requested;
     if (workspaceProfile && !workspaceProfile.isCentralAdmin) {
       const requiredModule = pageRequiredModule[label];
       const capability = capabilities?.modules.find(
@@ -459,9 +491,19 @@ export default function Home() {
       }
     }
     setActivePage(label);
+    setOpenNavGroup("");
     setContentRevision((current) => current + 1);
     const url = new URL(window.location.href);
     url.searchParams.set("view", pageSlugs[label] ?? "home");
+    url.searchParams.delete("qcCase");
+    url.searchParams.delete("techCase");
+    url.searchParams.delete("techTask");
+    url.searchParams.delete("techReturn");
+    url.searchParams.delete("opsTask");
+    url.searchParams.delete("deliveryCase");
+    if (requested === "مالی پرونده") url.searchParams.set("deliveryTab", "finance");
+    else if (requested === "تحویل تعمیرات") url.searchParams.set("deliveryTab", "ready");
+    else url.searchParams.delete("deliveryTab");
     window.history.pushState({ view: pageSlugs[label] }, "", url);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -928,7 +970,7 @@ export default function Home() {
         if (!allowedPages.has(item.label)) return false;
         if (!permissionAllows(workspaceProfile, item.label)) return false;
         if (
-          item.label === "مرکز عملیات تعمیرات" &&
+          ["تخصیص تعمیرات", "ارجاع تکنسین‌ها"].includes(item.label) &&
           workspaceProfile.productProfile === "solo"
         )
           return false;
@@ -1257,7 +1299,7 @@ function Dashboard({
   const isTechnical = ["technician", "quality_control"].includes(profile.role);
   const followUpTarget = isTechnical ? "کارهای من" : "پیگیری مشتری";
   const caseTarget = isManager
-    ? "مرکز عملیات تعمیرات"
+    ? "تخصیص تعمیرات"
     : isReception
       ? "رسیدها"
       : "کارهای من";
@@ -1401,9 +1443,9 @@ function Dashboard({
             <ChevronLeft />
           </button>
         )}
-        {(isManager || isTechnical) &&
+        {isManager &&
           profile.modules.includes("inventory") && (
-            <button onClick={() => onNavigate("درخواست‌های قطعه")}>
+            <button onClick={() => onNavigate("صف تأمین قطعات")}>
               <span className="quick-icon tone-teal">
                 <PackageOpen />
               </span>

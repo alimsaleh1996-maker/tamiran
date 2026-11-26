@@ -1,6 +1,7 @@
 "use client";
 import { ExternalPurchasePanel } from "./external-purchase-panel";
 import { OperationsFollowups, OperationsPerformance, OperationsPolicyForm } from "./manager-operations";
+import { ProcurementDocuments, ProcurementForm } from "./case-procurement";
 import { CaseStageBoard } from "./case-stage-board";
 import { OperationsCaseWorkspace } from "./operations-case-workspace";
 import { technicalCaseFromLocation, writeTechnicalLocation } from "./technician-navigation";
@@ -12,6 +13,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
+  ArrowLeft,
   Boxes,
   CheckCircle2,
   ClipboardCheck,
@@ -22,7 +24,6 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
-  ShoppingCart,
   UserRoundCheck,
   WalletCards,
 } from "lucide-react";
@@ -42,9 +43,9 @@ import {
   loadV2InventoryControl,
   loadV2Procurement,
   loadV2Quality,
+  loadV2QualityCase,
   loadV2Sms,
   loadV2Workflow,
-  procurementV2Action,
   qualityV2Action,
   startV2Quality,
   type V2QcTemplate,
@@ -57,6 +58,7 @@ import {
   type V2InvoiceDraft,
   type V2ProcurementPayload,
   type V2QualityPayload,
+  type V2QualityCase,
   type V2WorkflowPayload,
 } from "./v2-api";
 
@@ -91,20 +93,9 @@ const requestLabels: Record<string, string> = {
   rejected: "ردشده",
   cancelled: "لغوشده",
 };
-const purchaseLabels: Record<string, string> = {
-  draft: "پیش‌نویس",
-  awaiting_approval: "منتظر تأیید",
-  approved: "تأییدشده",
-  ordered: "سفارش داده‌شده",
-  partially_received: "دریافت ناقص",
-  received: "دریافت کامل",
-  rejected: "ردشده",
-  cancelled: "لغوشده",
-};
-
 const toman = new Intl.NumberFormat("fa-IR");
 const formatMoney = (value: number | string | null | undefined) =>
-  `${toman.format(Number(value ?? 0))} ریال`;
+  `${formatToman(Number(value ?? 0))} تومان`;
 const localDate = (value: string | null | undefined) =>
   value
     ? new Intl.DateTimeFormat("fa-IR", {
@@ -142,33 +133,22 @@ type Props = {
 type Section =
   | "workflow"
   | "inventory"
-  | "procurement"
+  | "supply"
   | "quality"
-  | "finance"
   | "delivery"
   | "sms";
-const pageSection = (page: string): Section =>
-  page === "سفارش خرید"
-    ? "procurement"
-    : page === "کنترل کیفیت"
-      ? "quality"
-      : page === "مالی پرونده"
-        ? "finance"
-        : page === "تحویل تعمیرات"
-          ? "delivery"
-          : page === "پیامک و پرتال"
-            ? "sms"
-            : [
-                  "انبار قطعات",
-                  "گردش‌ها",
-                  "درخواست‌های قطعه",
-                  "تعهدهای داغی",
-                ].includes(page)
-              ? "inventory"
-              : "workflow";
+const pageSection = (page: string): Section => {
+  if (page === "صف تأمین قطعات") return "supply";
+  if (page === "کنترل کیفیت") return "quality";
+  if (page === "مالی و تحویل") return "delivery";
+  if (page === "پیامک و پرتال") return "sms";
+  if (["انبار قطعات", "گردش‌ها", "تعهدهای داغی"].includes(page)) return "inventory";
+  return "workflow";
+};
 
 export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
   const section = pageSection(page);
+  const [serviceCaseOpen, setServiceCaseOpen] = useState(false);
   const [workflowCaseOpen, setWorkflowCaseOpen] = useState(() => !!technicalCaseFromLocation());
   const [workflow, setWorkflow] = useState<V2WorkflowPayload | null>(null);
   const [inventory, setInventory] = useState<V2InventoryPayload | null>(null);
@@ -193,7 +173,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [queueSearch, setQueueSearch] = useState(() => {
-    if (!["quality","finance","delivery"].includes(section)) return "";
+    if (!["quality","delivery"].includes(section)) return "";
     const receipt=window.sessionStorage.getItem("tamiran:focused-module-receipt") ?? "";
     window.sessionStorage.removeItem("tamiran:focused-module-receipt"); return receipt;
   });
@@ -202,16 +182,20 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
       matchesQueueSearch(queueSearch, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle]),
     );
   }, [workflow?.cases, queueSearch]);
-  const pageSubtitle =
-    page === "مرکز عملیات تعمیرات"
-      ? "وضعیت جاری تعمیرگاه و موارد نیازمند اقدام"
-      : page === "کنترل کیفیت"
-        ? "تست‌های لازم را ثبت و نتیجه تعمیر را تأیید کنید"
-        : page === "مالی پرونده"
-          ? "فاکتور، پرداخت‌ها و مانده هر پرونده"
-          : page === "تحویل تعمیرات"
-            ? "کنترل آمادگی و تحویل امن دستگاه"
-            : "اطلاعات این بخش بر اساس دسترسی و شعبه جاری نمایش داده می‌شود.";
+  const pageSubtitle = section === "quality"
+    ? "دریافت دستگاه، آزمایش و ثبت نتیجه"
+    : section === "delivery" ? "نهایی‌سازی مالی و ثبت تحویل واقعی"
+    : section === "supply" ? "رزرو، خرید و تحویل قطعات پرونده‌ها"
+    : "";
+  const canFinance = ["repair_manager", "finance_cashier"].includes(profile.role)
+    || profile.permissions.includes("finance.view");
+  const canDeliver = ["repair_manager", "reception", "finance_cashier"].includes(profile.role)
+    || profile.permissions.includes("delivery.view");
+  const [deliveryTab, setDeliveryTab] = useState(() => {
+    const url = new URL(location.href);
+    return canFinance && (url.searchParams.get("deliveryTab") === "finance"
+      || url.searchParams.get("view") === "case-finance" || !canDeliver) ? "finance" : "ready";
+  });
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -219,25 +203,34 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
     try {
       const base = await loadV2Workflow();
       setWorkflow(base);
-      if (section === "inventory") {
-        const [stock, control] = await Promise.all([
+      if (section === "inventory" || section === "supply") {
+        const [stock, control, purchasing] = await Promise.all([
           loadV2Inventory(),
-          loadV2InventoryControl(),
+          section === "inventory" && profile.inventoryMode === "pro" ? loadV2InventoryControl() : null,
+          section === "supply" && profile.inventoryMode === "pro" && (
+            ["repair_manager", "warehouse_keeper"].includes(profile.role) || profile.permissions.includes("procurement.view"))
+            ? loadV2Procurement() : null,
         ]);
         setInventory(stock);
         setInventoryControl(control);
+        setProcurement(purchasing);
       }
-      if (section === "procurement") setProcurement(await loadV2Procurement());
       if (section === "quality") setQuality(await loadV2Quality());
-      if (section === "finance") setFinance(await loadV2Finance());
-      if (section === "delivery") setDelivery(await loadV2Delivery());
+      if (section === "delivery") {
+        const [financeData, deliveryData] = await Promise.all([
+          canFinance && profile.modules.includes("finance") ? loadV2Finance() : null,
+          canDeliver ? loadV2Delivery() : null,
+        ]);
+        setFinance(financeData);
+        setDelivery(deliveryData);
+      }
       if (section === "sms") setSms(await loadV2Sms());
     } catch (cause) {
       setError(errorText(cause));
     } finally {
       setLoading(false);
     }
-  }, [section]);
+  }, [section, profile.inventoryMode, profile.role, profile.permissions, profile.modules, canFinance, canDeliver]);
   useEffect(() => {
     void reload();
   }, [reload]);
@@ -269,11 +262,11 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
     );
   return (
     <div className="v2-shell">
-      {!(section === "workflow" && workflowCaseOpen) && <header className="v2-page-head">
+      {!serviceCaseOpen && !(section === "workflow" && workflowCaseOpen) && <header className="v2-page-head">
         <div>
           <span className="v2-kicker">{profile.branch}</span>
           <h2>{page}</h2>
-          <p>{pageSubtitle}</p>
+          {pageSubtitle && <p>{pageSubtitle}</p>}
         </div>
         <button
           className="secondary-button"
@@ -284,7 +277,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
           تازه‌سازی
         </button>
       </header>}
-      {["inventory", "quality", "finance", "delivery"].includes(section) && (
+      {!serviceCaseOpen && ["supply", "quality", "delivery"].includes(section) && (
         <label className="module-search v2-queue-search">
           <FileText size={17} />
           <input
@@ -303,6 +296,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
       )}
       {section === "workflow" && workflow && (
         <WorkflowBoard
+          page={page}
           data={workflow}
           profile={profile}
           busy={busy}
@@ -314,29 +308,14 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
           onCaseChanged={fresh=>setWorkflow(current=>current?{...current,cases:current.cases.map(item=>item.id===fresh.id?fresh:item)}:current)}
         />
       )}
-      {section === "inventory" && workflow && inventory && (
+      {["inventory", "supply"].includes(section) && workflow && inventory && (
         <InventoryBoard
           data={inventory}
           control={inventoryControl}
-          cases={queueCases}
           profile={profile}
-          busy={busy}
-          run={run}
-        />
-      )}
-      {section === "procurement" && inventory && procurement && (
-        <ProcurementBoard
-          data={procurement}
-          inventory={inventory}
-          profile={profile}
-          busy={busy}
-          run={run}
-        />
-      )}
-      {section === "procurement" && !inventory && procurement && (
-        <ProcurementLoader
-          data={procurement}
-          profile={profile}
+          supply={section === "supply"}
+          caseIds={queueSearch.trim() ? new Set(queueCases.map(item => item.id)) : undefined}
+          procurement={procurement}
           busy={busy}
           run={run}
         />
@@ -344,29 +323,22 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
       {section === "quality" && workflow && quality && (
         <QualityBoard
           data={quality}
+          onCaseOpen={setServiceCaseOpen}
           cases={queueCases}
           profile={profile}
           busy={busy}
           run={run}
         />
       )}
-      {section === "finance" && workflow && finance && (
-        <FinanceBoard
-          data={finance}
-          cases={queueCases}
-          profile={profile}
-          busy={busy}
-          run={run}
-        />
-      )}
-      {section === "delivery" && delivery && (
-        <DeliveryBoard
-          data={delivery}
-          cases={queueCases}
-          profile={profile}
-          busy={busy}
-          run={run}
-        />
+      {section === "delivery" && (
+        <>
+          {!serviceCaseOpen && finance && delivery && <nav className="tech-handover-actions" aria-label="مراحل مالی و تحویل">
+            <button type="button" aria-pressed={deliveryTab === "finance"} onClick={() => setDeliveryTab("finance")}>نهایی‌سازی مالی</button>
+            <button type="button" aria-pressed={deliveryTab === "ready"} onClick={() => setDeliveryTab("ready")}>تحویل دستگاه</button>
+          </nav>}
+          {finance && (!delivery || deliveryTab === "finance") && <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={queueCases} profile={profile} busy={busy} run={run} />}
+          {delivery && (!finance || deliveryTab === "ready") && <DeliveryBoard onCaseOpen={setServiceCaseOpen} data={delivery} cases={queueCases} profile={profile} busy={busy} run={run} />}
+        </>
       )}
       {section === "sms" && sms && (
         <SmsBoard data={sms} busy={busy} run={run} />
@@ -378,6 +350,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
 type Run = (job: () => Promise<unknown>, success: string) => Promise<unknown>;
 
 function WorkflowBoard({
+  page,
   data,
   profile,
   busy,
@@ -388,6 +361,7 @@ function WorkflowBoard({
   onCaseChanged,
   onCaseOpenChange,
 }: {
+  page: string;
   data: V2WorkflowPayload;
   profile: WorkspaceProfile;
   busy: boolean;
@@ -409,7 +383,12 @@ function WorkflowBoard({
     );
   });
   const [search, setSearch] = useState("");
-  const [managerView, setManagerView] = useState<"cases" | "purchases" | "followups" | "performance" | "policy">("cases");
+  const managerPage = {
+    "مجوز خرید قطعه": "purchases",
+    "پیگیری پرونده‌ها": "followups",
+    "عملکرد تکنسین‌ها": "performance",
+    "سیاست‌های تعمیرگاه": "policy",
+  }[page] ?? "cases";
   const [handoverReasons, setHandoverReasons] = useState<
     Record<number, string>
   >({});
@@ -490,24 +469,17 @@ function WorkflowBoard({
           <button onClick={exit}>بازگشت به دستگاه‌ها</button>
         </p>
       )}
-      {profile.role === "repair_manager" && (
-        <nav aria-label="بخش‌های مدیریت عملیات" className="tech-handover-actions">
-          {([["cases", "پرونده‌ها و ارجاع‌ها"], ["purchases", "مجوز خرید"], ["followups", "پیگیری پرونده‌ها"],
-            ["performance", "عملکرد تکنسین‌ها"], ["policy", "سیاست‌های تعمیرگاه"]] as const).map(([id, label]) =>
-            <button key={id} type="button" aria-pressed={managerView === id} onClick={() => setManagerView(id)}>{label}</button>)}
-        </nav>
-      )}
-      {managerView !== "cases" && profile.role === "repair_manager" && (
+      {managerPage !== "cases" && profile.role === "repair_manager" && (
         <div className="technical-desk"><section className="tech-task">
-          {managerView === "purchases" && <ExternalPurchasePanel actorId={profile.actorId} />}
-          {managerView === "followups" && <OperationsFollowups open={open} />}
-          {managerView === "performance" && <OperationsPerformance />}
-          {managerView === "policy" && <OperationsPolicyForm policy={data.operationsPolicy} users={data.users}
+          {managerPage === "purchases" && <ExternalPurchasePanel actorId={profile.actorId} />}
+          {managerPage === "followups" && <OperationsFollowups open={open} />}
+          {managerPage === "performance" && <OperationsPerformance />}
+          {managerPage === "policy" && <OperationsPolicyForm policy={data.operationsPolicy} users={data.users}
             onSaved={async () => { await run(async () => {}, ""); }} />}
         </section></div>
       )}
-      {managerView === "cases" && <>
-      <label className="module-search v2-queue-search">
+      {managerPage === "cases" && <>
+      {page !== "ارجاع تکنسین‌ها" && <><label className="module-search v2-queue-search">
         <FileText size={17} />
         <input
           aria-label="جست‌وجوی دستگاه‌ها"
@@ -518,6 +490,8 @@ function WorkflowBoard({
       </label>
       <CaseStageBoard
         cases={data.cases.filter((item) =>
+          (page === "تأیید هزینه" ? item.status === "awaiting_customer_approval"
+            : search.trim() !== "" || ["reception", "awaiting_assignment"].includes(item.status)) &&
           matchesQueueSearch(search, [
             item.receiptNumber,
             item.customerName,
@@ -530,9 +504,11 @@ function WorkflowBoard({
         openCaseId={selectedId}
         busy={busy}
       />
-      {openHandovers.length > 0 && (
+      </>}
+      {page === "ارجاع تکنسین‌ها" && (
         <section className="tech-handover-list">
           <h3>تحویل‌های رسمی در انتظار</h3>
+          {!openHandovers.length && <p>ارجاعی در انتظار رسیدگی نیست.</p>}
           <ul>
             {openHandovers.map((h) => {
               const discrepancy = handoverDiscrepancy(h);
@@ -542,6 +518,10 @@ function WorkflowBoard({
                   {h.to_user_name}
                 </p>
                 <p>{h.reason}</p>
+                <button type="button" disabled={busy} onClick={() => {
+                  writeTechnicalLocation(h.case_id);
+                  setSelectedId(h.case_id);
+                }}>مشاهده پرونده</button>
                 {handoverNeedsApproval(h) && <p>منتظر تأیید مدیر</p>}
                 {discrepancy && (
                   <p><strong>مغایرت تحویل</strong> {discrepancy.reason}
@@ -593,25 +573,31 @@ function WorkflowBoard({
 function InventoryBoard({
   data,
   control,
-  cases,
+  supply,
+  caseIds,
+  procurement,
   profile,
   busy,
   run,
 }: {
   data: V2InventoryPayload;
   control: Record<string, unknown[]> | null;
-  cases: V2Case[];
+  supply: boolean;
+  caseIds?: Set<number>;
+  procurement: V2ProcurementPayload | null;
   profile: WorkspaceProfile;
   busy: boolean;
   run: Run;
 }) {
-  const [request, setRequest] = useState({
-    caseId: typeof window === "undefined" ? "" : window.sessionStorage.getItem("tamiran:part-request-case") ?? "",
-    itemId: "",
-    quantity: "1",
-    notes: "",
-  });
-  const requestForm = React.useRef<HTMLFormElement>(null);
+  const [purchaseRequestId, setPurchaseRequestId] = useState<number>();
+  const openRequestIds = new Set(procurement?.documents
+    .filter(doc => !["received", "rejected", "cancelled"].includes(doc.status))
+    .flatMap(doc => doc.items.flatMap(item => item.requests.map(req => Number(req.part_request_id)))));
+  const eligible = procurement ? data.requests.filter(row =>
+    ["pending","needs_supply","reserved","partially_delivered"].includes(row.status)
+      && row.item_id && row.quantity > row.reserved_quantity && !openRequestIds.has(row.id)
+  ) : [];
+  const purchaseRequest = eligible.find(row => row.id === purchaseRequestId);
   const [stocktakeCounts, setStocktakeCounts] = useState<
     Record<number, string>
   >({});
@@ -645,33 +631,6 @@ function InventoryBoard({
         (item) => item.stocktake_public_id === activeStocktake.public_id,
       )
     : [];
-  const requestableCases = cases.filter(
-    (item) =>
-      !item.isLocked &&
-      [
-        "diagnosing",
-        "estimate_pending",
-        "awaiting_customer_approval",
-        "repairing",
-        "awaiting_parts",
-        "qc_rework",
-      ].includes(item.status),
-  );
-  const selectedRequestCase = requestableCases.find(
-    (item) => item.id === Number(request.caseId),
-  );
-  useEffect(() => {
-    const incoming=window.sessionStorage.getItem("tamiran:part-request-case");
-    window.sessionStorage.removeItem("tamiran:part-request-case");
-    if(incoming && selectedRequestCase){
-      requestForm.current?.scrollIntoView({block:"center"});
-      requestForm.current?.querySelector("select")?.focus({preventScroll:true});
-    }
-  }, []);
-  const canRequestPart =
-    ["repair_manager", "technician"].includes(profile.role) ||
-    profile.permissions.includes("*") ||
-    profile.permissions.includes("part.request");
   return (
     <div className="v2-stack">
       <div className="v2-metrics">
@@ -694,110 +653,15 @@ function InventoryBoard({
           </article>
         ))}
       </div>
-      {canRequestPart && (
-        <details key={selectedRequestCase ? "selected" : "choose"} open={selectedRequestCase ? undefined : true} className="v2-card-form v2-queue operations-disclosure"><summary>{selectedRequestCase ? "تغییر پروندهٔ درخواست قطعه" : "انتخاب پروندهٔ درخواست قطعه"}</summary>
-          <div className="v2-queue-head">
-            <div>
-              <strong>پرونده‌های قابل درخواست قطعه</strong>
-              <small> پرونده‌های فعال و مرتبط با دسترسی جاری</small>
-            </div>
-            <b>{toman.format(requestableCases.length)}</b>
-          </div>
-          <div className="v2-queue-list">
-            {requestableCases.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                className={`v2-queue-card ${selectedRequestCase?.id === item.id ? "selected" : ""}`}
-                aria-pressed={selectedRequestCase?.id === item.id}
-                onClick={() => setRequest({ ...request, caseId: String(item.id) })}
-              >
-                <strong dir="ltr">{item.receiptNumber}</strong>
-                <span>{item.deviceTitle}</span>
-                <small>{item.customerName} · {item.technicianName || "تخصیص‌نشده"}</small>
-                <em>ثبت درخواست</em>
-              </button>
-            ))}
-            {!requestableCases.length && <small>پرونده فعالی برای درخواست قطعه وجود ندارد.</small>}
-          </div>
-        </details>
-      )}
+      {supply && procurement && purchaseRequest && <ProcurementForm
+        key={purchaseRequest.id} selected={purchaseRequest} eligible={eligible} suppliers={procurement.suppliers}
+        busy={busy} run={run} close={() => setPurchaseRequestId(undefined)} />}
       <section className="v2-table-panel">
-        <div className="v2-panel-title">
-          <div>
-            <PackageOpen />
-            <span>
-              <strong>درخواست قطعه متصل به پرونده</strong>
-              <small>رزرو هر شعبه از موجودی همان انبار انجام می‌شود.</small>
-            </span>
-          </div>
-        </div>
-        {canRequestPart && selectedRequestCase && <CaseContextHeader item={selectedRequestCase} branch={profile.branch} />}
-        {canRequestPart && <form
-          ref={requestForm}
-          className="v2-grid-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void run(
-              () =>
-                inventoryV2Action({
-                  action: "request",
-                  caseId: Number(request.caseId),
-                  itemId: Number(request.itemId),
-                  quantity: Number(request.quantity),
-                  notes: request.notes,
-                }),
-              "درخواست قطعه ثبت شد.",
-            );
-          }}
-        >
-          <label>
-            <span>کالا</span>
-            <select
-              value={request.itemId}
-              onChange={(e) =>
-                setRequest({ ...request, itemId: e.target.value })
-              }
-            >
-              <option value="">انتخاب کالا</option>
-              {data.items.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.item_code} · {item.title} (
-                  {toman.format(item.available_quantity)})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>تعداد</span>
-            <input
-              inputMode="numeric"
-              value={request.quantity}
-              onChange={(e) =>
-                setRequest({
-                  ...request,
-                  quantity: e.target.value.replace(/\D/g, ""),
-                })
-              }
-            />
-          </label>
-          <label className="grow">
-            <span>توضیح</span>
-            <input
-              value={request.notes}
-              onChange={(e) =>
-                setRequest({ ...request, notes: e.target.value })
-              }
-            />
-          </label>
-          <button disabled={busy || !request.caseId || !request.itemId}>
-            ثبت درخواست
-          </button>
-        </form>}
+        <div className="v2-panel-title"><div><PackageOpen /><strong>درخواست‌های پرونده‌ها</strong></div></div>
         <ResponsiveTable
           headers={["پرونده", "کالا", "درخواست/تحویل", "وضعیت", "عملیات"]}
         >
-          {data.requests.map((item) => {
+          {data.requests.filter(item => !caseIds || caseIds.has(item.case_id)).map((item) => {
             const reservable = Math.max(
               0,
               item.quantity - item.reserved_quantity,
@@ -830,6 +694,10 @@ function InventoryBoard({
                   )}
                 </td>
                 <td data-label="عملیات">
+                  {supply && eligible.some(row => row.id === item.id) && <button type="button" className="v2-mini-action"
+                    disabled={busy} onClick={() => setPurchaseRequestId(item.id)}>ساخت سفارش خرید</button>}
+                  {supply && openRequestIds.has(item.id) && <small>سفارش خرید باز دارد</small>}
+
                   <div className="v2-row-actions">
                     {warehouseActions &&
                       [
@@ -970,7 +838,8 @@ function InventoryBoard({
           </ResponsiveTable>
         </section>
       )}
-      {warehouseActions && (
+      {supply && procurement && <ProcurementDocuments data={procurement} profile={profile} busy={busy} run={run} />}
+      {warehouseActions && control && (
         <section className="v2-table-panel">
           <div className="v2-panel-title">
             <div>
@@ -1282,483 +1151,200 @@ function InventoryBoard({
   );
 }
 
-function ProcurementLoader(props: {
-  data: V2ProcurementPayload;
-  profile: WorkspaceProfile;
-  busy: boolean;
-  run: Run;
+const queuePriority = { critical: 0, urgent: 1, normal: 2 };
+const compareQueueCases = (a?: V2Case, b?: V2Case) =>
+  (a?.status === "qc_rework" ? -1 : queuePriority[a?.priority ?? "normal"]) -
+  (b?.status === "qc_rework" ? -1 : queuePriority[b?.priority ?? "normal"]) ||
+  (a?.promisedAt ?? "9999").localeCompare(b?.promisedAt ?? "9999") ||
+  (a?.acceptedAt ?? "").localeCompare(b?.acceptedAt ?? "");
+
+function ServiceQueueCard({ receipt, title, customer, action, item, onOpen }: {
+  receipt: string; title: string; customer: string; action: string; item?: V2Case; onOpen: () => void;
 }) {
-  const [inventory, setInventory] = useState<V2InventoryPayload | null>(null);
-  useEffect(() => {
-    void loadV2Inventory().then(setInventory);
-  }, []);
-  return inventory ? (
-    <ProcurementBoard {...props} inventory={inventory} />
-  ) : (
-    <div className="v2-loading">
-      <LoaderCircle className="spin" />
-      در حال خواندن کالاها…
-    </div>
-  );
+  const priority = item?.priority ?? "normal";
+  return <button type="button" className="service-queue-card" onClick={onOpen}>
+    <span className="service-card-line"><bdi>{receipt}</bdi><small data-priority={priority}>{priority === "critical" ? "بسیار فوری" : priority === "urgent" ? "فوری" : "عادی"}</small></span>
+    <strong>{title}</strong>
+    <span>{customer}</span>
+    {item?.declaredIssue && <p>{item.declaredIssue}</p>}
+    <span className="service-card-line"><span>{action}</span><ArrowLeft size={16} aria-hidden="true" /></span>
+  </button>;
 }
 
-function ProcurementBoard({
-  data,
-  inventory,
-  profile,
-  busy,
-  run,
-}: {
-  data: V2ProcurementPayload;
-  inventory: V2InventoryPayload;
-  profile: WorkspaceProfile;
-  busy: boolean;
-  run: Run;
+function QualityBoard({ data, cases, profile, busy, run, onCaseOpen }: {
+  onCaseOpen: (open: boolean) => void;
+  data: V2QualityPayload; cases: V2Case[]; profile: WorkspaceProfile; busy: boolean; run: Run;
 }) {
-  const [supplier, setSupplier] = useState("");
-  const [newSupplier, setNewSupplier] = useState("");
-  const [line, setLine] = useState({
-    itemId: "",
-    quantity: "1",
-    unitPrice: "",
-    reason: "کسری موجودی پرونده",
-  });
-  return (
-    <div className="v2-stack">
-      <section className="v2-card-form">
-        <div className="v2-panel-title">
-          <div>
-            <ShoppingCart />
-            <span>
-              <strong>سفارش خرید تجمیعی</strong>
-              <small>
-                تکنسین درخواست می‌دهد؛ انباردار یا مدیر سفارش را می‌سازد.
-              </small>
-            </span>
-          </div>
-        </div>
-        <div className="v2-inline-form">
-          <label className="grow">
-            <span>تأمین‌کننده جدید</span>
-            <input
-              value={newSupplier}
-              onChange={(e) => setNewSupplier(e.target.value)}
-              placeholder="نام فروشنده یا شرکت"
-            />
-          </label>
-          <button
-            disabled={busy || !newSupplier.trim()}
-            onClick={() =>
-              void run(
-                () =>
-                  procurementV2Action({
-                    action: "supplier_create",
-                    name: newSupplier,
-                  }),
-                "تأمین‌کننده ثبت شد.",
-              )
-            }
-          >
-            افزودن
-          </button>
-        </div>
-        <form
-          className="v2-grid-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void run(
-              () =>
-                procurementV2Action({
-                  action: "document_create",
-                  supplierId: Number(supplier),
-                  originReason: line.reason,
-                  items: [
-                    {
-                      itemId: Number(line.itemId),
-                      quantity: Number(line.quantity),
-                      unitPrice: Number(line.unitPrice),
-                      partRequestIds: [],
-                    },
-                  ],
-                }),
-              "سفارش خرید برای تأیید مدیر ساخته شد.",
-            );
-          }}
-        >
-          <label>
-            <span>تأمین‌کننده</span>
-            <select
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-            >
-              <option value="">انتخاب کنید</option>
-              {data.suppliers.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>کالا</span>
-            <select
-              value={line.itemId}
-              onChange={(e) => setLine({ ...line, itemId: e.target.value })}
-            >
-              <option value="">انتخاب کنید</option>
-              {inventory.items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.item_code} · {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>تعداد</span>
-            <input
-              value={line.quantity}
-              inputMode="numeric"
-              onChange={(e) =>
-                setLine({
-                  ...line,
-                  quantity: e.target.value.replace(/\D/g, ""),
-                })
-              }
-            />
-          </label>
-          <label>
-            <span>قیمت واحد ریال</span>
-            <input
-              value={line.unitPrice}
-              inputMode="numeric"
-              onChange={(e) =>
-                setLine({
-                  ...line,
-                  unitPrice: e.target.value.replace(/\D/g, ""),
-                })
-              }
-            />
-          </label>
-          <label className="grow">
-            <span>علت اصلی</span>
-            <input
-              value={line.reason}
-              onChange={(e) => setLine({ ...line, reason: e.target.value })}
-            />
-          </label>
-          <button
-            disabled={busy || !supplier || !line.itemId || !line.unitPrice}
-          >
-            ساخت سفارش
-          </button>
-        </form>
-      </section>
-      <section className="v2-table-panel">
-        <ResponsiveTable
-          headers={["سفارش", "تأمین‌کننده", "مبلغ", "وضعیت", "عملیات"]}
-        >
-          {data.documents.map((doc) => (
-            <tr key={doc.id}>
-              <td data-label="سفارش">
-                <strong>{doc.document_number}</strong>
-                <small>{localDate(doc.expected_at)}</small>
-              </td>
-              <td data-label="تأمین‌کننده">{doc.supplier_name}</td>
-              <td data-label="مبلغ">{formatMoney(doc.total_amount)}</td>
-              <td data-label="وضعیت">
-                <span className="v2-table-status">
-                  {purchaseLabels[doc.status] ?? doc.status}
-                </span>
-              </td>
-              <td data-label="عملیات">
-                <div className="v2-row-actions">
-                  {profile.role === "repair_manager" &&
-                    doc.status === "awaiting_approval" && (
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void run(
-                            () =>
-                              procurementV2Action({
-                                action: "approve",
-                                publicId: doc.public_id,
-                                reason: "بررسی و تأیید سفارش",
-                              }),
-                            "سفارش تأیید شد.",
-                          )
-                        }
-                      >
-                        تأیید
-                      </button>
-                    )}
-                  {["repair_manager", "warehouse_keeper"].includes(
-                    profile.role,
-                  ) &&
-                    ["approved", "ordered", "partially_received"].includes(
-                      doc.status,
-                    ) &&
-                    doc.items[0] && (
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void run(
-                            () =>
-                              procurementV2Action({
-                                action: "receive",
-                                publicId: doc.public_id,
-                                deliveryReference: "ثبت از پنل",
-                                items: [
-                                  {
-                                    purchaseItemId: Number(doc.items[0].id),
-                                    acceptedQuantity: Math.max(
-                                      1,
-                                      Number(doc.items[0].quantity) -
-                                        Number(doc.items[0].received_quantity),
-                                    ),
-                                    defectiveQuantity: 0,
-                                    extraQuantity: 0,
-                                  },
-                                ],
-                              }),
-                            "دریافت سفارش ثبت و موجودی شعبه به‌روز شد.",
-                          )
-                        }
-                      >
-                        ثبت دریافت
-                      </button>
-                    )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </ResponsiveTable>
-      </section>
-    </div>
-  );
-}
-
-function QualityBoard({
-  data,
-  cases,
-  profile,
-  busy,
-  run,
-}: {
-  data: V2QualityPayload;
-  cases: V2Case[];
-  profile: WorkspaceProfile;
-  busy: boolean;
-  run: Run;
-}) {
-  const candidates = cases.filter((item) => item.status === "qc_pending"
-    && (profile.role !== "technician" || item.qcMode === "simple" || profile.permissions.includes("qc.perform")));
-  const [caseId, setCaseId] = useState("");
-  const selected = candidates.find((item) => item.id === Number(caseId));
-  const [receipt, setReceipt] = useState<{ publicId: string; template: V2QcTemplate }>();
+  const candidates = cases.filter(item => item.status === "qc_pending" &&
+    (profile.role !== "technician" || item.qcMode === "simple" || profile.permissions.includes("qc.perform")))
+    .sort(compareQueueCases);
+  const [caseId, setCaseId] = useState(() => Number(new URL(location.href).searchParams.get("qcCase")));
   const [editing, setEditing] = useState(false);
-  const template = receipt?.template;
-  const [result, setResult] = useState("passed");
-  const [reason, setReason] = useState("");
-  const [reworkDestination, setReworkDestination] = useState("repairing");
-  const [checks, setChecks] = useState<Record<number, string>>({});
-  const [checkNotes, setCheckNotes] = useState<Record<number, string>>({});
-  const [customTests, setCustomTests] = useState<Array<{ id: string; title: string; result: string; notes: string }>>([]);
-  return (
-    <div className="v2-stack">
-      <section className="v2-card-form v2-queue">
-        <div className="v2-queue-head">
-          <div><strong>آماده کنترل کیفیت</strong><small> پرونده‌های همین شعبه و دسترسی جاری</small></div>
-          <b>{toman.format(candidates.length)}</b>
-        </div>
-        <div className="v2-queue-list">
-          {candidates.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              className={`v2-queue-card ${selected?.id === item.id ? "selected" : ""}`}
-              aria-pressed={selected?.id === item.id}
-              onClick={() => {
-                setCaseId(String(item.id)); setReceipt(undefined); setChecks({}); setCheckNotes({});
-                setReason(""); setResult("passed"); setReworkDestination("repairing"); setCustomTests([]);
-              }}
-            >
-              <strong dir="ltr">{item.receiptNumber}</strong>
-              <span>{item.deviceTitle}</span>
-              <small>{item.customerName} · {item.technicianName || "بدون مسئول"}</small>
-              <em>شروع QC</em>
-            </button>
-          ))}
-          {!candidates.length && <small>پرونده‌ای در صف QC وجود ندارد.</small>}
-        </div>
-      </section>
-      <section className="v2-card-form">
-        <div className="v2-panel-title">
-          <div>
-            <ClipboardCheck />
-            <span>
-              <strong>کنترل کیفیت</strong>
-              <small>چک‌لیست استاندارد صنف + موارد افزوده تعمیرگاه</small>
-            </span>
-          </div>
-        </div>
-        {profile.role === "repair_manager" && <button type="button" onClick={() => setEditing(!editing)}>{editing ? "بستن تنظیم آزمایش‌ها" : "تنظیم آزمایش‌ها"}</button>}
-        {editing && <QualityTemplateForm key={data.templates.map((row) => row.id).join(":")} templates={data.templates} busy={busy} run={run} />}
-        {selected && <CaseContextHeader item={selected} branch={profile.branch} />}
-        {selected && !receipt && (
-          <button type="button" disabled={busy} onClick={() => void run(async () => {
-            const response = await startV2Quality(selected.id);
-            setReceipt(response.receipt);
-          }, "دریافت دستگاه برای کنترل کیفیت ثبت شد.")}>تأیید دریافت و شروع تست</button>
-        )}
-        {template && (
-          <div className="v2-checklist">
-            <div className="v2-panel-title">
-              <strong>{template.title}</strong>
-              <button
-                type="button"
-                className="v2-mini-action"
-                onClick={() => {
-                  setChecks(Object.fromEntries(template.items.map((item) => [item.id, "passed"])));
-                  setResult("passed");
-                }}
-              >
-                <CheckCircle2 size={16} />
-                همه تست‌ها قبول هستند
-              </button>
-            </div>
-            {template.items.map((item) => (
-              <div key={item.id} className="v2-qc-test-item">
-                <label>
-                  <span>{item.title}{item.is_required && <i>اجباری</i>}</span>
-                  <select
-                    value={checks[item.id] ?? ""}
-                    onChange={(e) => {
-                      setChecks({ ...checks, [item.id]: e.target.value });
-                      if (e.target.value === "failed") setResult("failed");
-                    }}
-                  >
-                    <option value="">انتخاب نتیجه</option>
-                    <option value="passed">قبول</option>
-                    <option value="failed">رد</option>
-                    {item.code !== "repair_issue" && <>
-                      <option value="not_applicable">قابل اعمال نیست</option>
-                      <option value="prior">خرابی از قبل موجود</option>
-                      <option value="not_tested">تست نشده</option>
-                    </>}
-                  </select>
-                </label>
-                {["failed", "not_applicable", "prior"].includes(checks[item.id]) && (
-                  <label><span>شرح ایراد {item.title} (الزامی)</span><input
-                    value={checkNotes[item.id] ?? ""}
-                    onChange={(event) => setCheckNotes({ ...checkNotes, [item.id]: event.target.value })}
-                    placeholder="شرح ایراد این تست (الزامی)"
-                  /></label>
-                )}
-              </div>
-            ))}
-            <div className="v2-qc-custom-tests">
-              {customTests.map((item) => (
-                <div key={item.id} className="v2-qc-test-item">
-                  <label><span>عنوان تست سفارشی</span><input value={item.title} onChange={(event) => setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, title: event.target.value } : test))} /></label>
-                  <label><span>نتیجه</span><select value={item.result} onChange={(event) => { const nextResult = event.target.value; setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, result: nextResult } : test)); if (nextResult === "failed") setResult("failed"); }}><option value="passed">قبول</option><option value="failed">رد</option><option value="not_applicable">قابل اعمال نیست</option><option value="prior">خرابی از قبل موجود</option><option value="not_tested">تست نشده</option></select></label>
-                  {["failed", "not_applicable", "prior"].includes(item.result) && <label><span>شرح ایراد تست {item.title || "سفارشی"} (الزامی)</span><input value={item.notes} onChange={(event) => setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, notes: event.target.value } : test))} placeholder="شرح ایراد تست سفارشی (الزامی)" /></label>}
-                  <button type="button" className="v2-mini-action" onClick={() => setCustomTests(customTests.filter((test) => test.id !== item.id))}>حذف</button>
-                </div>
-              ))}
-              <button type="button" className="v2-mini-action" onClick={() => setCustomTests([...customTests, { id: crypto.randomUUID(), title: "", result: "passed", notes: "" }])}>+ افزودن تست اختصاصی</button>
-            </div>
-          </div>
-        )}
-        {receipt && <div className="v2-inline-form">
-          <label>
-            <span>نتیجه نهایی</span>
-            <select value={result} onChange={(e) => setResult(e.target.value)}>
-              <option value="passed">قبول</option>
-              <option value="failed">رد و بازکاری</option>
-              {(profile.role === "repair_manager" || profile.permissions.includes("qc.conditional")) && <option value="conditional">قبول مشروط</option>}
-            </select>
-          </label>
-          <label className="grow">
-            <span>
-              {result === "failed"
-                ? "علت مردودی"
-                : result === "conditional"
-                  ? "محدودیت تحویل"
-                  : "توضیح"}
-            </span>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} />
-          </label>
-          {result === "failed" && <label>شروع بازکاری از<select aria-label="مسیر بازکاری" value={reworkDestination} onChange={(event) => setReworkDestination(event.target.value)}>
-            <option value="repairing">عملیات تعمیر</option><option value="diagnosing">عیب‌یابی مجدد</option>
-          </select></label>}
-          <button
-            disabled={
-              busy ||
-              !selected ||
-              !template ||
-              template.items.some(
-                (item) => item.is_required && (!checks[item.id] || checks[item.id] === "not_tested"),
-              ) ||
-              template.items.some(
-                (item) => ["failed", "not_applicable", "prior"].includes(checks[item.id]) && !checkNotes[item.id]?.trim(),
-              ) ||
-              customTests.some((item) => !item.title.trim() || (["failed", "not_applicable", "prior"].includes(item.result) && !item.notes.trim())) ||
-              (result !== "passed" && !reason.trim())
-            }
-            onClick={() =>
-              selected &&
-              template &&
-              void run(
-                () =>
-                  qualityV2Action({
-                    action: "run",
-                    caseId: selected.id,
-                    receiptId: receipt.publicId,
-                    result,
-                    failureReason: result === "failed" ? reason : undefined,
-                    reworkDestination: result === "failed" ? reworkDestination : undefined,
-                    conditionalLimitations:
-                      result === "conditional" ? reason : undefined,
-                    idempotencyKey: crypto.randomUUID(),
-                    items: template.items.map((item) => ({
-                      templateItemId: item.id,
-                      result: checks[item.id] || "not_tested",
-                      notes: checkNotes[item.id] || undefined,
-                    })),
-                    customItems: customTests.map(({ title, result: customResult, notes }) => ({ title: title.trim(), result: customResult, notes: notes.trim() || undefined })),
-                  }),
-                "نتیجه QC ثبت شد.",
-              )
-            }
-          >
-            <CheckCircle2 />
-            ثبت QC
-          </button>
-        </div>}
-      </section>
-      <section className="v2-table-panel">
-        <ResponsiveTable
-          headers={["پرونده", "بازرس", "نتیجه", "بازکاری", "زمان"]}
-        >
-          {data.runs.map((run, index) => (
-            <tr key={String(run.public_id ?? index)}>
-              <td data-label="پرونده">{run.receipt_number}</td>
-              <td data-label="بازرس">{run.performer_name}</td>
-              <td data-label="نتیجه">{String(run.result)}</td>
-              <td data-label="بازکاری">
-                {toman.format(Number(run.rework_number ?? 0))}
-              </td>
-              <td data-label="زمان">
-                {localDate(String(run.completed_at ?? ""))}
-              </td>
-            </tr>
-          ))}
-        </ResponsiveTable>
-      </section>
-    </div>
-  );
+  const selected = candidates.find(item => item.id === caseId);
+  useEffect(() => onCaseOpen(!!selected), [selected, onCaseOpen]);
+  const select = (id: number) => {
+    const url = new URL(location.href);
+    if (id) url.searchParams.set("qcCase", String(id));
+    else url.searchParams.delete("qcCase");
+    history.replaceState(history.state, "", url);
+    setCaseId(id);
+    window.scrollTo(0, 0);
+  };
+  if (selected) return <QualityCase key={selected.id} item={selected} profile={profile} busy={busy} run={run} close={() => select(0)} />;
+  return <div className="v2-stack">
+    <section className="v2-card-form">
+      <div className="service-card-line"><h3>صف کنترل کیفیت</h3><b>{toman.format(candidates.length)} دستگاه</b></div>
+      <div className="service-card-grid">
+        {candidates.map(item => <ServiceQueueCard key={item.id} item={item} title={item.deviceTitle}
+          receipt={item.receiptNumber} customer={item.customerName} action="باز کردن پرونده" onOpen={() => select(item.id)} />)}
+        {!candidates.length && <Empty text="پرونده‌ای در صف کنترل کیفیت نیست." />}
+      </div>
+    </section>
+    {profile.role === "repair_manager" && <section className="v2-card-form">
+      <button type="button" onClick={() => setEditing(!editing)}>{editing ? "بستن تنظیم آزمایش‌ها" : "تنظیم آزمایش‌ها"}</button>
+      {editing && <QualityTemplateForm key={data.templates.map(row => row.id).join(":")} templates={data.templates} busy={busy} run={run} />}
+    </section>}
+    {data.runs.length > 0 && <section className="v2-table-panel">
+      <h3>سوابق کنترل کیفیت</h3>
+      <ResponsiveTable headers={["پرونده", "بازرس", "نتیجه", "بازکاری", "زمان"]}>
+        {data.runs.map((record, index) => <tr key={String(record.public_id ?? index)}>
+          <td data-label="پرونده">{record.receipt_number}</td><td data-label="بازرس">{record.performer_name}</td>
+          <td data-label="نتیجه">{{passed:"تأیید شده",failed:"مردود",conditional:"تأیید مشروط"}[String(record.result)] ?? "—"}</td>
+          <td data-label="بازکاری">{toman.format(Number(record.rework_number ?? 0))}</td>
+          <td data-label="زمان">{localDate(String(record.completed_at ?? ""))}</td>
+        </tr>)}
+      </ResponsiveTable>
+    </section>}
+  </div>;
 }
 
+type QcDraft = {
+  step: "tests" | "result";
+  answers: Record<number,{ result: string; notes: string }>;
+  custom: Array<{ id: string; title: string; result: string; notes: string }>;
+  reason: string;
+  rework: string;
+  key: string;
+};
+const blankQcDraft = (): QcDraft => ({ step: "tests", answers: {}, custom: [], reason: "", rework: "repairing", key: "" });
+const qcResults = [["passed","تأیید تست"],["failed","عدم تأیید تست"],["not_applicable","قابل اعمال نیست"],["prior","خرابی از قبل موجود"]];
+const noteRequired = (result: string) => ["failed", "not_applicable", "prior"].includes(result);
+
+function QualityCase({ item, profile, busy, run, close }: {
+  item: V2Case; profile: WorkspaceProfile; busy: boolean; run: Run; close: () => void;
+}) {
+  const [context, setContext] = useState<V2QualityCase>();
+  const [error, setError] = useState("");
+  const [draft, setDraft] = useState(blankQcDraft);
+  const draftKey = (receipt: string) => `tamiran:qc:${profile.actorId}:${receipt}`;
+  useEffect(() => {
+    let active = true;
+    void loadV2QualityCase(item.id).then(value => {
+      if (!active) return;
+      if (value.receipt) {
+        try {
+          const saved = sessionStorage.getItem(draftKey(value.receipt.publicId));
+          if (saved) setDraft(JSON.parse(saved) as QcDraft);
+        } catch { /* The server receipt is still usable without browser storage. */ }
+      }
+      setContext(value);
+    }).catch(cause => { if (active) setError(errorText(cause)); });
+    return () => { active = false; };
+  }, [item.id, profile.actorId]);
+
+  const receipt = context?.receipt;
+  const change = (values: Partial<QcDraft>) => {
+    const next = {...draft, ...values};
+    setDraft(next);
+    if (receipt) {
+      try { sessionStorage.setItem(draftKey(receipt.publicId), JSON.stringify(next)); } catch { /* In-memory draft remains available. */ }
+    }
+  };
+  const tests = receipt?.template.items ?? [];
+  const results = [...Object.values(draft.answers), ...draft.custom];
+  const failed = results.some(row => row.result === "failed");
+  const conditional = !failed && results.some(row => row.result === "prior");
+  const valid = tests.every(test => {
+    const answer = draft.answers[test.id];
+    return (!(test.is_required || test.code === "repair_issue") || !!answer?.result) &&
+      (!answer || !noteRequired(answer.result) || !!answer.notes.trim());
+  }) && draft.custom.every(row => row.title.trim() && (!noteRequired(row.result) || row.notes.trim()));
+  const choose = (current: string, handler: (value: string) => void, primary = false) =>
+    <div className="service-test-choices">{qcResults.slice(0, primary ? 2 : 4).map(([id,label]) =>
+      <button key={id} type="button" aria-pressed={current === id} data-result={id} disabled={busy} onClick={() => handler(id)}>{label}</button>)}</div>;
+
+  return <article className="service-case">
+    <div className="service-card-line"><h3>{item.deviceTitle} · <bdi>{item.receiptNumber}</bdi></h3><button type="button" disabled={busy} onClick={close}>بازگشت به صف</button></div>
+    {error && <p role="alert">{error}</p>}
+    {!context && !error && <p role="status">در حال دریافت پرونده…</p>}
+    {context && !receipt && <section className="v2-card-form">
+      <h3>دریافت دستگاه در کنترل کیفیت</h3>
+      <p className="service-callout">ایراد پذیرش · {item.declaredIssue}</p>
+      {context.report && <p>{context.report}</p>}
+      {context.activities.length > 0 && <ul>{context.activities.map((text,index) => <li key={index}>{text}</li>)}</ul>}
+      <p>قطعات مصرف‌شده</p>
+      {context.parts.length ? <ul>{context.parts.map((part,index) => <li key={index}>{part.title} · {toman.format(part.quantity)} عدد</li>)}</ul> : <p>قطعه‌ای مصرف نشده است.</p>}
+      <button type="button" className="tech-primary" disabled={busy} onClick={() => void run(async () => {
+        const response = await startV2Quality(item.id);
+        setContext({ ...context, receipt: response.receipt });
+        return response;
+      }, "دریافت فیزیکی دستگاه ثبت شد.")}>تأیید دریافت و شروع تست</button>
+    </section>}
+    {receipt && draft.step === "tests" && <section className="v2-card-form">
+      <h3>اجرای آزمایش‌های کنترل کیفیت</h3>
+      <p className="service-callout">برای تست مردود، غیرقابل‌اعمال یا خرابی مستند قبلی توضیح وارد کنید.</p>
+      {tests.map(test => {
+        const value = draft.answers[test.id];
+        return <div key={test.id} role="group" aria-label={test.title} className="service-test">
+          <div className="service-card-line"><strong>{test.title}</strong><small>{test.is_required ? "الزامی" : "اختیاری"}</small></div>
+          {choose(value?.result ?? "", result => change({ answers: { ...draft.answers, [test.id]: {result, notes: ""} }, key: "" }), test.code === "repair_issue")}
+          {value && noteRequired(value.result) && <label>شرح ایراد {test.title} (الزامی)<input value={value.notes}
+            onChange={event => change({ answers: {...draft.answers, [test.id]: {...value, notes: event.target.value}}, key: "" })} /></label>}
+        </div>;
+      })}
+      {draft.custom.map(row => <div className="service-test" key={row.id}>
+        <label>عنوان تست سفارشی<input value={row.title} onChange={event => change({custom:draft.custom.map(test => test.id === row.id ? {...test,title:event.target.value} : test),key:""})} /></label>
+        {choose(row.result, result => change({custom:draft.custom.map(test => test.id === row.id ? {...test,result,notes:""} : test),key:""}))}
+        {noteRequired(row.result) && <label>شرح ایراد تست {row.title || "سفارشی"} (الزامی)<input value={row.notes}
+          onChange={event => change({custom:draft.custom.map(test => test.id === row.id ? {...test,notes:event.target.value} : test),key:""})} /></label>}
+        <button type="button" onClick={() => change({custom:draft.custom.filter(test => test.id !== row.id),key:""})}>حذف تست اختصاصی</button>
+      </div>)}
+      <div className="service-card-line">
+        <button type="button" disabled={busy} onClick={() => change({custom:[...draft.custom,{id:crypto.randomUUID(),title:"",result:"passed",notes:""}],key:""})}>افزودن تست اختصاصی</button>
+        <button type="button" className="tech-primary" disabled={busy || !valid} onClick={() => change({step:"result"})}>ثبت تست‌ها و ادامه</button>
+      </div>
+    </section>}
+    {receipt && draft.step === "result" && <section className="v2-card-form">
+      <h3>نتیجه کنترل کیفیت</h3>
+      <p className="service-callout">تست سالم {toman.format(results.filter(row => row.result === "passed").length)} · تست مردود {toman.format(results.filter(row => row.result === "failed").length)}</p>
+      {failed ? <>
+        <label>علت مردودی<input value={draft.reason} onChange={event => change({reason:event.target.value,key:""})} /></label>
+        <label>مقصد بازکاری<select aria-label="مسیر بازکاری" value={draft.rework} onChange={event => change({rework:event.target.value,key:""})}>
+          <option value="repairing">عملیات تعمیر مجدد</option><option value="diagnosing">عیب‌یابی مجدد</option>
+        </select></label>
+      </> : conditional ? <p>تأیید مشروط با ثبت خرابی‌های مستند قبلی</p> : <p>کنترل کیفیت موفق · پرونده آمادهٔ ارجاع به مالی است.</p>}
+      <div className="service-card-line">
+        <button type="button" disabled={busy} onClick={() => change({step:"tests"})}>بازگشت و اصلاح تست‌ها</button>
+        <button type="button" className={failed ? "service-danger" : "tech-primary"} disabled={busy || !valid || (failed && !draft.reason.trim())}
+          onClick={async () => {
+            const key = draft.key || crypto.randomUUID();
+            if (!draft.key) change({key});
+            const result = await run(() => qualityV2Action({
+              action:"run", caseId:item.id, receiptId:receipt.publicId, result: failed ? "failed" : conditional ? "conditional" : "passed",
+              failureReason: failed ? draft.reason.trim() : undefined, reworkDestination: failed ? draft.rework : undefined,
+              idempotencyKey:key,
+              items:tests.map(test => ({ templateItemId:test.id, result:draft.answers[test.id]?.result || "not_tested", notes:draft.answers[test.id]?.notes || undefined })),
+              customItems:draft.custom.map(({title,result,notes}) => ({title:title.trim(),result,notes:notes.trim() || undefined})),
+            }), failed ? "پرونده برای بازکاری فرستاده شد." : "نتیجه ثبت شد و پرونده به مالی رفت.");
+            if (result) {
+              try { sessionStorage.removeItem(draftKey(receipt.publicId)); } catch { /* Storage is optional. */ }
+              close();
+            }
+          }}>{failed ? "رد QC و بازگشت برای بازکاری" : "تأیید و ارجاع به مالی"}</button>
+      </div>
+    </section>}
+  </article>;
+}
 
 function QualityTemplateForm({ templates, busy, run }: { templates: V2QcTemplate[]; busy: boolean; run: Run }) {
   const [current, setCurrent] = useState(templates[0]?.id);
@@ -1802,12 +1388,14 @@ function QualityTemplateForm({ templates, busy, run }: { templates: V2QcTemplate
 }
 
 function FinanceBoard({
+  onCaseOpen,
   data,
   cases,
   profile,
   busy,
   run,
 }: {
+  onCaseOpen: (open: boolean) => void;
   data: { invoices: V2Invoice[]; drafts: V2InvoiceDraft[] };
   cases: V2Case[];
   profile: WorkspaceProfile;
@@ -1844,6 +1432,27 @@ function FinanceBoard({
     (item) => item.id === (selectedDraft?.caseId ?? selectedInvoice?.case_id ?? selectedRefundInvoice?.case_id),
   );
   const openInvoices = data.invoices.filter((item) => item.balance > 0 && visibleCaseIds.has(item.case_id));
+  const financeQueue = [
+    ...visibleDrafts.map(draft => ({
+      id: draft.caseId, receipt: draft.receiptNumber, customer: draft.customerName, action: "بررسی پیش‌نویس",
+      open: () => { setRefund({ ...refund, invoice: "" }); setPayment({ ...payment, invoice: "", amount: "" });
+        setForm({ caseId: String(draft.caseId), title: "اجرت تعمیر", amount: "", tax: "0" }); },
+    })),
+    ...openInvoices.map(invoice => ({
+      id: invoice.case_id, receipt: invoice.receipt_number, customer: invoice.customer_name,
+      action: `مانده ${formatMoney(invoice.balance)} · ثبت پرداخت`,
+      open: () => { setRefund({ ...refund, invoice: "" }); setForm({ ...form, caseId: "" });
+        setPayment({ invoice: invoice.public_id, method: "card", amount: String(invoice.balance), tracking: "" }); },
+    })),
+  ].map(row => ({...row, item: cases.find(item => item.id === row.id)})).sort((a,b) => compareQueueCases(a.item,b.item));
+  const closeFinance = () => {
+    setForm({ ...form, caseId: "" });
+    setPayment({ ...payment, invoice: "" });
+    setRefund({ ...refund, invoice: "" });
+  };
+  const financeOpen = !!(selectedDraft || selectedInvoice || selectedRefundInvoice);
+  useEffect(() => onCaseOpen(financeOpen), [financeOpen, onCaseOpen]);
+  const paymentKey = React.useRef<{signature: string; key: string} | undefined>(undefined);
   const issueItems = [
     ...(selectedDraft?.items ?? []),
     ...(form.amount
@@ -1861,61 +1470,24 @@ function FinanceBoard({
   ];
   return (
     <div className="v2-stack">
-      <section className="v2-card-form v2-queue">
-        <div className="v2-queue-head">
-          <div><strong>نیازمند نهایی‌سازی مالی</strong><small> فاکتور ناقص یا مانده پرداخت</small></div>
-          <b>{toman.format(visibleDrafts.length + openInvoices.length)}</b>
+      {!financeOpen && <section className="v2-card-form">
+        <div className="service-card-line"><h3>صف نهایی‌سازی مالی</h3><b>{toman.format(financeQueue.length)} پرونده</b></div>
+        <div className="service-card-grid">
+          {financeQueue.map(row => <ServiceQueueCard key={row.receipt + row.action} receipt={row.receipt} item={row.item}
+            title={row.item?.deviceTitle ?? "دستگاه پرونده"} customer={row.customer} action={row.action} onOpen={row.open} />)}
+          {!financeQueue.length && <Empty text="پرونده‌ای نیازمند اقدام مالی نیست." />}
         </div>
-        <div className="v2-queue-list">
-          {visibleDrafts.map((draft) => {
-            const item = cases.find((candidate) => candidate.id === draft.caseId);
-            return (
-              <button type="button" key={`draft-${draft.caseId}`} className={`v2-queue-card ${selectedDraft?.caseId === draft.caseId ? "selected" : ""}`} aria-pressed={selectedDraft?.caseId === draft.caseId} onClick={() => {
-                setRefund({ ...refund, invoice: "", amount: "", reason: "" });
-                setPayment({ ...payment, invoice: "", amount: "" });
-                setForm({ ...form, caseId: String(draft.caseId) });
-              }}>
-                <strong dir="ltr">{draft.receiptNumber}</strong>
-                <span>{item?.deviceTitle || "دستگاه پرونده"}</span>
-                <small>{draft.customerName} · فاکتور صادر نشده</small>
-                <em>بررسی و صدور</em>
-              </button>
-            );
-          })}
-          {openInvoices.map((invoice) => {
-            const item = cases.find((candidate) => candidate.id === invoice.case_id);
-            return (
-              <button type="button" key={`invoice-${invoice.id}`} className={`v2-queue-card ${selectedInvoice?.id === invoice.id ? "selected" : ""}`} aria-pressed={selectedInvoice?.id === invoice.id} onClick={() => {
-                setRefund({ ...refund, invoice: "", amount: "", reason: "" });
-                setForm({ ...form, caseId: "" });
-                setPayment({ ...payment, invoice: invoice.public_id, amount: String(invoice.balance) });
-              }}>
-                <strong dir="ltr">{invoice.receipt_number}</strong>
-                <span>{item?.deviceTitle || invoice.invoice_number}</span>
-                <small>{invoice.customer_name} · مانده {formatMoney(invoice.balance)}</small>
-                <em>ثبت پرداخت</em>
-              </button>
-            );
-          })}
-          {!visibleDrafts.length && !openInvoices.length && <small>پرونده‌ای نیازمند اقدام مالی نیست.</small>}
-        </div>
-      </section>
-      <section className="v2-card-form">
-        <div className="v2-panel-title">
-          <div>
-            <WalletCards />
-            <span>
-              <strong>مالی کامل هر پرونده</strong>
-              <small>قطعه، اجرت، مالیات ردیفی و پرداخت‌های چندگانه</small>
-            </span>
-          </div>
-        </div>
+      </section>}
+      {financeOpen && <section className="v2-card-form service-case">
+        <div className="service-card-line"><h3>{selectedDraft ? "بررسی پیش‌نویس فاکتور" : selectedRefundInvoice ? "استرداد وجه" : "ثبت پرداخت و تعیین تکلیف مالی"}</h3>
+          <button type="button" disabled={busy} onClick={closeFinance}>بازگشت به صف</button></div>
         {selectedFinanceCase && <CaseContextHeader item={selectedFinanceCase} branch={profile.branch} />}
-        <form
+        {selectedDraft && <form
           className="v2-grid-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            void run(
+            if (busy) return;
+            const issued = await run(
               () =>
                 financeV2Action({
                   action: "issue",
@@ -1924,7 +1496,13 @@ function FinanceBoard({
                   items: issueItems,
                 }),
               "فاکتور نهایی صادر شد.",
-            );
+            ) as { publicId?: string; readyForDelivery?: boolean; totalAmount?: number } | undefined;
+            if (issued?.publicId) {
+              setForm({ ...form, caseId: "" });
+              if (!issued.readyForDelivery && Number(issued.totalAmount) > 0) {
+                setPayment({ invoice: issued.publicId, amount: String(issued.totalAmount), method: "card", tracking: "" });
+              }
+            }
           }}
         >
           <label>
@@ -1936,13 +1514,7 @@ function FinanceBoard({
           </label>
           <label>
             <span>مبلغ تکمیلی (اختیاری)</span>
-            <input
-              inputMode="numeric"
-              value={form.amount}
-              onChange={(e) =>
-                setForm({ ...form, amount: e.target.value.replace(/\D/g, "") })
-              }
-            />
+            <MoneyInput value={form.amount} onChange={amount => setForm({ ...form, amount })} />
           </label>
           <label>
             <span>مالیات ٪</span>
@@ -1965,12 +1537,17 @@ function FinanceBoard({
           <button disabled={busy || !form.caseId || issueItems.length === 0}>
             صدور فاکتور
           </button>
-        </form>
-        <form
+        </form>}
+        {selectedInvoice && <form
           className="v2-grid-form v2-payment-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            void run(
+            if (busy) return;
+            const signature = JSON.stringify(payment);
+            if (paymentKey.current?.signature !== signature) {
+              paymentKey.current = { signature, key: crypto.randomUUID() };
+            }
+            const paid = await run(
               () =>
                 financeV2Action({
                   action: "payment",
@@ -1978,24 +1555,20 @@ function FinanceBoard({
                   amount: Number(payment.amount),
                   method: payment.method,
                   trackingNumber: payment.tracking,
-                  idempotencyKey: crypto.randomUUID(),
+                  idempotencyKey: paymentKey.current?.key,
                 }),
               "پرداخت ثبت شد.",
-            );
+            ) as { remaining?: number; readyForDelivery?: boolean } | undefined;
+            if (paid) {
+              paymentKey.current = undefined;
+              if (!paid.remaining || paid.readyForDelivery) closeFinance();
+              else setPayment({ ...payment, amount: String(paid.remaining), tracking: "" });
+            }
           }}
         >
           <label>
             <span>مبلغ پرداخت</span>
-            <input
-              value={payment.amount}
-              inputMode="numeric"
-              onChange={(e) =>
-                setPayment({
-                  ...payment,
-                  amount: e.target.value.replace(/\D/g, ""),
-                })
-              }
-            />
+            <MoneyInput value={payment.amount} onChange={amount => setPayment({ ...payment, amount })} />
           </label>
           <label>
             <span>روش</span>
@@ -2020,10 +1593,10 @@ function FinanceBoard({
               }
             />
           </label>
-          <button disabled={busy || !payment.invoice || !payment.amount}>
-            ثبت پرداخت
+          <button disabled={busy || !payment.invoice || Number(payment.amount) < 1 || Number(payment.amount) > selectedInvoice.balance}>
+            {Number(payment.amount) === selectedInvoice.balance ? "ثبت تسویه و آماده تحویل" : "ثبت پرداخت"}
           </button>
-        </form>
+        </form>}
         {profile.role === "repair_manager" && selectedRefundInvoice && (
           <form
             className="v2-grid-form v2-refund-form"
@@ -2071,8 +1644,8 @@ function FinanceBoard({
             </button>
           </form>
         )}
-      </section>
-      <section className="v2-table-panel">
+      </section>}
+      {!financeOpen && <section className="v2-table-panel">
         <ResponsiveTable headers={["فاکتور", "مشتری", "کل", "پرداخت", "مانده", "عملیات"]}>
           {data.invoices.map((invoice) => (
             <tr key={invoice.id}>
@@ -2137,18 +1710,20 @@ function FinanceBoard({
             </tr>
           ))}
         </ResponsiveTable>
-      </section>
+      </section>}
     </div>
   );
 }
 
 function DeliveryBoard({
+  onCaseOpen,
   data,
   cases,
   profile,
   busy,
   run,
 }: {
+  onCaseOpen: (open: boolean) => void;
   data: {
     cases: V2DeliveryCase[];
     verificationSettings: Record<string, unknown>;
@@ -2164,28 +1739,38 @@ function DeliveryBoard({
   const ready = data.cases.filter(
     (item) => ["ready_for_delivery", "returned_unrepaired"].includes(item.process_status) && !item.delivered_at && visibleCaseIds.has(item.case_id),
   );
-  const [form, setForm] = useState({
-    caseId: "",
-    name: "",
-    mobile: "",
+  const configuredMethods = data.verificationSettings.enabledMethods;
+  const methods = [
+    ["receipt_qr", "رسید یا QR"], ["digital_signature", "امضا"], ["identity_document", "مدرک هویتی"], ["sms_otp", "کد پیامکی"],
+  ].filter(([value]) => !Array.isArray(configuredMethods) || configuredMethods.includes(value));
+  if (profile.role === "repair_manager") methods.push(["manager_emergency", "مسیر اضطراری مدیر"]);
+  const newForm = (item?: V2DeliveryCase) => ({
+    caseId: item ? String(item.case_id) : "",
+    name: item?.customer_name ?? "",
+    mobile: item?.customer_mobile ?? "",
     recipientType: "customer",
     nationalCode: "",
-    method: "receipt_qr",
-    evidence: "رسید پذیرش تطبیق داده شد",
+    method: methods[0]?.[0] ?? "",
+    evidence: "",
     discrepancyNote: "",
     otpRequestId: "",
     otpCode: "",
-    identifier: "", identityConfirmed: false, identityChangeReason: "",
+    identifier: item?.identifier_snapshot ?? "", identityConfirmed: false, identityChangeReason: "",
   });
+  const [form, setForm] = useState(() => newForm(ready.find(item =>
+    item.case_id === Number(new URL(location.href).searchParams.get("deliveryCase")))));
+  const deliveryKey = React.useRef<{signature: string; key: string} | undefined>(undefined);
   const [confirmedAccessories, setConfirmedAccessories] = useState<string[]>([]);
   const [warrantyReturn, setWarrantyReturn] = useState({ caseId: "", issue: "", notes: "", identifier: "" });
   const selected = ready.find((item) => item.case_id === Number(form.caseId));
+  useEffect(() => onCaseOpen(!!selected || !!warrantyReturn.caseId), [selected, warrantyReturn.caseId, onCaseOpen]);
   const selectedWorkflowCase = cases.find((item) => item.id === selected?.case_id);
   const selectedAccessories = selected
     ? (() => {
         try {
           const parsed = JSON.parse(selected.accessories_json || "[]");
-          return Array.isArray(parsed) ? parsed.map(String) : [];
+          return Array.isArray(parsed) ? [...new Set(parsed.map(value => typeof value === "string" ? value.trim()
+            : String(value?.label ?? value?.title ?? value?.name ?? "").trim()).filter(Boolean))] : [];
         } catch {
           return [];
         }
@@ -2194,83 +1779,60 @@ function DeliveryBoard({
   const missingAccessories = selectedAccessories.filter(
     (item) => !confirmedAccessories.includes(item),
   );
+  const selectDelivery = (item?: V2DeliveryCase) => {
+    setForm(newForm(item));
+    setConfirmedAccessories([]);
+    deliveryKey.current = undefined;
+    const url = new URL(location.href);
+    if (item) url.searchParams.set("deliveryCase", String(item.case_id));
+    else url.searchParams.delete("deliveryCase");
+    history.replaceState(history.state, "", url);
+    window.scrollTo(0, 0);
+  };
+  const sortedReady = ready.map(item => ({ item, workflow: cases.find(row => row.id === item.case_id) }))
+    .sort((a,b) => compareQueueCases(a.workflow,b.workflow));
   return (
     <div className="v2-stack">
       {printError && <p role="alert" className="identity-error">{printError}</p>}
-      <section className="v2-card-form v2-queue">
-        <div className="v2-queue-head">
-          <div><strong>صف تحویل دستگاه</strong><small> دستگاه تعمیرشده یا عودت بدون تعمیر؛ ثبت تحویل واقعی جداست.</small></div>
-          <b>{toman.format(ready.length)}</b>
+      {!selected && !warrantyReturn.caseId && <section className="v2-card-form">
+        <div className="service-card-line"><h3>صف دستگاه‌های آمادهٔ تحویل</h3><b>{toman.format(ready.length)} دستگاه</b></div>
+        <div className="service-card-grid">
+          {sortedReady.map(({ item, workflow }) => <ServiceQueueCard key={item.case_id}
+            item={workflow} receipt={item.receipt_number} title={workflow?.deviceTitle ?? [item.brand_snapshot,item.model_snapshot].filter(Boolean).join(" ")}
+            customer={item.customer_name} action={item.process_status === "returned_unrepaired" ? "تحویل بدون تعمیر" : "شروع تحویل"} onOpen={() => selectDelivery(item)} />)}
+          {!ready.length && <Empty text="پرونده‌ای آماده تحویل نیست." />}
         </div>
-        <div className="v2-queue-list">
-          {ready.map((item) => {
-            const workflowCase = cases.find((candidate) => candidate.id === item.case_id);
-            return (
-              <button
-                type="button"
-                key={item.case_id}
-                className={`v2-queue-card ${selected?.case_id === item.case_id ? "selected" : ""}`}
-                aria-pressed={selected?.case_id === item.case_id}
-                onClick={() => {
-                  setForm({ ...form, caseId: String(item.case_id), name: item.customer_name, mobile: item.customer_mobile, identifier: item.identifier_snapshot ?? "", identityConfirmed: false, identityChangeReason: "", otpRequestId: "", otpCode: "" });
-                  setConfirmedAccessories([]);
-                }}
-              >
-                <strong dir="ltr">{item.receipt_number}</strong>
-                <span>{workflowCase?.deviceTitle || "دستگاه پرونده"}</span>
-                <small>{item.customer_name} · {item.balance > 0 ? `مانده ${formatMoney(item.balance)}` : "تسویه کامل"}</small>
-                <em>شروع تحویل</em>
-              </button>
-            );
-          })}
-          {!ready.length && <small>پرونده آماده تحویلی وجود ندارد.</small>}
-        </div>
-      </section>
-      <section className="v2-card-form">
-        <div className="v2-panel-title">
-          <div>
-            <PackageCheck />
-            <span>
-              <strong>تحویل امن و غیرقابل تکرار</strong>
-              <small>
-                قطعه، داغی، QC و مالی پیش از تحویل دوباره روی سرور بررسی
-                می‌شوند.
-              </small>
-            </span>
-          </div>
-        </div>
-        {selectedWorkflowCase && <CaseContextHeader item={selectedWorkflowCase} branch={profile.branch} />}
+      </section>}
+      {selected && <section className="v2-card-form service-case">
+        <div className="service-card-line"><h3>تحویل دستگاه به مشتری</h3>
+          <button type="button" disabled={busy} onClick={() => selectDelivery()}>بازگشت به صف</button></div>
+        <p className="service-callout"><strong>{selectedWorkflowCase?.deviceTitle ?? [selected.brand_snapshot, selected.model_snapshot].filter(Boolean).join(" ")}</strong>
+          {" · "}<bdi>{selected.receipt_number}</bdi>{" · "}{selected.customer_name}</p>
         <form
           className="v2-grid-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            void run(
-              () =>
-                deliveryV2Action({
-                  action: "complete",
-                  deviceIdentifier: form.identifier, identityConfirmed: form.identityConfirmed, identifierChangeReason: form.identityChangeReason, expectedVersion: selectedWorkflowCase?.lockVersion,
-                  caseId: Number(form.caseId),
-                  recipientType: form.recipientType,
-                  recipientFullName: form.name,
-                  recipientMobile: form.mobile,
-                  recipientNationalCode: form.nationalCode,
-                  verificationMethod: form.method,
-                  verificationEvidence: { note: form.evidence },
-                  idempotencyKey: crypto.randomUUID(),
-                  otpRequestId: form.otpRequestId,
-                  otpCode: form.otpCode,
-                  accessoriesConfirmed: confirmedAccessories,
-                  warningsAcknowledged: { accepted: true },
-                  warrantyConditions:
-                    "ضمانت هر ردیف مطابق فاکتور و شرایط تعمیرگاه است.",
-                }),
-              selected?.process_status === "returned_unrepaired" ? "عودت بدون تعمیر ثبت شد؛ ضمانت تعمیر ایجاد نشد." : "تحویل با شناسه ثبت شد و دوره ضمانت آغاز شد.",
-            );
+            if (busy) return;
+            const payload = {
+              action: "complete", expectedVersion: selectedWorkflowCase?.lockVersion,
+              caseId: selected.case_id, deviceIdentifier: form.identifier,
+              identityConfirmed: form.identityConfirmed, identifierChangeReason: form.identityChangeReason,
+              recipientType: form.recipientType, recipientFullName: form.name, recipientMobile: form.mobile,
+              recipientNationalCode: form.nationalCode, verificationMethod: form.method,
+              verificationEvidence: { note: form.evidence.trim() }, emergencyReason: form.method === "manager_emergency" ? form.evidence.trim() : undefined, otpRequestId: form.otpRequestId, otpCode: form.otpCode,
+              accessoriesConfirmed: confirmedAccessories, warningsAcknowledged: { accepted: true },
+              warrantyConditions: "ضمانت هر ردیف مطابق فاکتور و شرایط تعمیرگاه است.",
+            };
+            const signature = JSON.stringify(payload);
+            if (deliveryKey.current?.signature !== signature) deliveryKey.current = { signature, key: crypto.randomUUID() };
+            if (await run(() => deliveryV2Action({ ...payload, idempotencyKey: deliveryKey.current?.key }),
+              selected.process_status === "returned_unrepaired" ? "تحویل بدون تعمیر ثبت شد." : "تحویل واقعی دستگاه ثبت شد.")) selectDelivery();
           }}
         >
           {selected && (
             <div className="v2-delivery-readiness grow">
               <strong>آمادگی تحویل</strong>
+              <div className="service-readiness">
               <span className="ready"><CheckCircle2 size={16} /> {selected.process_status === "returned_unrepaired" ? "عودت بدون تعمیر" : "تعمیر تکمیل شده"}</span>
               <span className={selected.blockers.qc.length ? "blocked" : "ready"}>
                 {selected.blockers.qc.length ? "کنترل کیفیت نیازمند اقدام است" : "کنترل کیفیت تأیید شده"}
@@ -2278,6 +1840,7 @@ function DeliveryBoard({
               <span className={selected.blockers.finance.length ? "blocked" : "ready"}>
                 {selected.blockers.finance.length ? selected.blockers.finance.join("، ") : "وضعیت مالی معتبر است"}
               </span>
+              </div>
               {selected.process_status === "returned_unrepaired" ? <p>عودت بدون تعمیر{!selected.identifier_snapshot && " ـ شناسه ثبت نشده"}. تحویل‌گیرنده و زمان تحویل ثبت می‌شوند.</p> : <div className="reception-identity-field">
               <label><span>سریال / IMEI دستگاه تحویلی *</span><input dir="ltr" value={form.identifier} onChange={(e) => setForm({...form, identifier: e.target.value, identityConfirmed: false})} maxLength={180}/></label>
               <small>{selected.identifier_snapshot ? `شناسه قبلی: ${selected.identifier_snapshot}` : "دستگاه بدون شناسه پذیرش شده؛ شناسه را از دستگاه روشن‌شده ثبت کنید."}</small>
@@ -2384,13 +1947,7 @@ function DeliveryBoard({
               value={form.method}
               onChange={(e) => setForm({ ...form, method: e.target.value })}
             >
-              <option value="receipt_qr">رسید یا QR</option>
-              <option value="sms_otp">OTP پیامکی</option>
-              <option value="digital_signature">امضا</option>
-              <option value="identity_document">مدرک هویتی</option>
-              {profile.role === "repair_manager" && (
-                <option value="manager_emergency">مسیر اضطراری مدیر</option>
-              )}
+              {methods.map(([value,label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
           <label className="grow">
@@ -2465,7 +2022,8 @@ function DeliveryBoard({
               !form.mobile ||
               (form.recipientType === "representative" &&
                 !form.nationalCode.trim()) ||
-              !form.evidence ||
+              !form.method ||
+              !form.evidence.trim() ||
               ((form.method === "sms_otp" ||
                 form.recipientType === "representative") &&
                 (!form.otpRequestId || form.otpCode.length !== 6)) ||
@@ -2473,15 +2031,16 @@ function DeliveryBoard({
             }
           >
             <PackageCheck />
-            ثبت تحویل نهایی
+            ثبت تحویل واقعی
           </button>
         </form>
-      </section>
-      <section className="v2-table-panel">
+      </section>}
+      {!selected && !warrantyReturn.caseId && <section className="v2-table-panel">
+        <h3>سوابق تحویل</h3>
         <ResponsiveTable
           headers={["پرونده", "مشتری", "وضعیت", "مانده", "کنترل‌ها", "عملیات"]}
         >
-          {data.cases.map((item) => (
+          {data.cases.filter(item => !!item.delivered_at).map((item) => (
             <tr key={item.case_id}>
               <td data-label="پرونده">{item.receipt_number}</td>
               <td data-label="مشتری">{item.customer_name}</td>
@@ -2507,7 +2066,7 @@ function DeliveryBoard({
             </tr>
           ))}
         </ResponsiveTable>
-      </section>
+      </section>}
       {data.warrantyEnabled && warrantyReturn.caseId && (
         <section className="v2-card-form">
           <div className="v2-panel-title"><div><ShieldCheck /><span><strong>ثبت مراجعه ضمانتی مرتبط</strong><small>پرونده جدید به پرونده تحویل‌شده اصلی متصل می‌شود.</small></span></div></div>

@@ -276,3 +276,54 @@
     display: none;
   }
 }
+
+/* Shared v7 queue and case layout for QC, settlement and delivery. */
+.service-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(255px, 100%), 1fr));
+  gap: 14px;
+  margin-block-start: 14px;
+}
+.v2-shell button.service-queue-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 16px;
+  text-align: start;
+  border: 1px solid #dce8e1;
+  border-radius: 14px;
+  background: #fff;
+  color: #19362f;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.v2-shell button.service-queue-card:hover { border-color: #70a896; background: #f3f9f6; }
+.service-card-line { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 9px; }
+.service-card-line :is(h3, h4), .service-queue-card p { margin: 0; }
+.service-queue-card > .service-card-line:last-child {
+  border-block-start: 1px solid #dce8e1;
+  color: #176958;
+  margin-block-start: 5px;
+  padding-block-start: 9px;
+}
+.service-card-line [data-priority] { padding: 1px 7px; border-radius: 6px; background: #eaf3ee; }
+.service-card-line [data-priority="urgent"] { background: #fff1db; color: #764d19; }
+.service-card-line [data-priority="critical"] { background: #fae7e9; color: #8c2933; }
+.service-case { width: min(100%, 860px); margin-inline: auto; }
+.service-case > .service-card-line { margin-block-end: 12px; }
+.service-test { padding-block: 14px; border-block-end: 1px solid #dce8e1; }
+.service-test-choices { display: flex; flex-wrap: wrap; gap: 7px; margin-block: 8px; }
+.v2-shell .service-test-choices button { min-height: 38px; flex: 0 1 auto; color: #263c36; background: #fff; border: 1px solid #dce8e1; }
+.v2-shell .service-test-choices [aria-pressed="true"] { border-color: #176958; background: #e8f3ee; color: #185342; }
+.v2-shell .service-test-choices [aria-pressed="true"][data-result="failed"] {
+  border-color: #a44049; background: #fbebed; color: #872d39;
+}
+@media (max-width: 450px) {
+  .service-test-choices button { flex: 1 1 115px; }
+}
+
+.service-callout { border-radius: 9px; padding: 10px 14px; color: #285747; background: #e8f3ee; }
+.v2-shell .service-danger { border-color: #e4aeb4; color: #872d39; background: #fbebed; }
+
+.service-readiness { display: flex; flex-wrap: wrap; gap: 7px 13px; margin-block: 6px 12px; }
+.service-readiness > span { display: inline-flex; align-items: center; gap: 6px; }

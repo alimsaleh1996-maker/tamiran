@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "hosting/frontend/package.json": {
-    "mtime": 1795678320.2612638,
-    "seen": 1795678911.4713447,
-    "ast_hash": "6b5e8719093292f11a0ae97dacc54cef",
+    "mtime": 1795682565.4655519,
+    "seen": 1795682997.813866,
+    "ast_hash": "a2ac7fbc9180da55425eaf9da41ede6c",
     "semantic_hash": ""
   },
   "hosting/frontend/scripts/build.mjs": {
@@ -180,9 +180,9 @@
     "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/page.tsx": {
-    "mtime": 1795384070.0,
-    "seen": 1795632969.9881728,
-    "ast_hash": "184da04c22560e74e9c93ad767e7611a",
+    "mtime": 1795682873.641499,
+    "seen": 1795682997.8147647,
+    "ast_hash": "ea5c0f143763bb3bfb133012c92ad553",
     "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/persian-date-picker.tsx": {
@@ -252,21 +252,21 @@
     "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/v2-api.ts": {
-    "mtime": 1795678189.1430938,
-    "seen": 1795678911.4725263,
-    "ast_hash": "c70ca052bf6e6c168e1ffa47475afcc2",
+    "mtime": 1795682415.9693577,
+    "seen": 1795682997.8150926,
+    "ast_hash": "cd0c18c14381c29a3802c7b12368705c",
     "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/v2-workspace.tsx": {
-    "mtime": 1795665603.503972,
-    "seen": 1795665790.9617336,
-    "ast_hash": "ff1927d904fd8de1dcfe3efc0881834e",
+    "mtime": 1795682873.6423955,
+    "seen": 1795682997.8150935,
+    "ast_hash": "757c2c87a4c67af9e9302fb1bf454990",
     "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/version.ts": {
-    "mtime": 1795678320.262026,
-    "seen": 1795678911.4725547,
-    "ast_hash": "2fb1e387a00fe5197dc3843dd2ca45e7",
+    "mtime": 1795682565.4661794,
+    "seen": 1795682997.8150945,
+    "ast_hash": "bb83bd62b10ebdded7a471c0123ce4ab",
     "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/workflow-stages.ts": {
@@ -402,9 +402,9 @@
     "semantic_hash": ""
   },
   "hosting/public_html/api/bootstrap.php": {
-    "mtime": 1795678320.262674,
-    "seen": 1795678911.4732592,
-    "ast_hash": "b77899b339f6729d43c2589c89cc68b2",
+    "mtime": 1795682565.4658952,
+    "seen": 1795682997.815676,
+    "ast_hash": "53d8a0a27ea421a61d5a35043eef22cd",
     "semantic_hash": ""
   },
   "hosting/public_html/api/capabilities.php": {
@@ -516,9 +516,9 @@
     "semantic_hash": ""
   },
   "hosting/public_html/api/procurement-v2.php": {
-    "mtime": 1795384070.0,
-    "seen": 1795632969.988256,
-    "ast_hash": "a115511a7aa87b641480891918074fc4",
+    "mtime": 1795682127.9226387,
+    "seen": 1795682997.8161075,
+    "ast_hash": "26242a654c7c9d8ad720c2a740822a25",
     "semantic_hash": ""
   },
   "hosting/public_html/api/product-change.php": {
@@ -528,15 +528,15 @@
     "semantic_hash": ""
   },
   "hosting/public_html/api/purchase-orders.php": {
-    "mtime": 1795384070.0,
-    "seen": 1795632969.988259,
-    "ast_hash": "c65edb9cf4a3f55457140ffccd2c4e8b",
+    "mtime": 1795682075.8294737,
+    "seen": 1795682997.816132,
+    "ast_hash": "3d8b9137d1d198e76c53f59d0ef1e849",
     "semantic_hash": ""
   },
   "hosting/public_html/api/quality-v2.php": {
-    "mtime": 1795665512.43043,
-    "seen": 1795665790.9628644,
-    "ast_hash": "e304292563252776fdd939bcea8e0572",
+    "mtime": 1795682415.968978,
+    "seen": 1795682997.8161333,
+    "ast_hash": "1a22f8eba57f0a66e6e73850dafd4a46",
     "semantic_hash": ""
   },
   "hosting/public_html/api/retention-worker.php": {
@@ -594,9 +594,9 @@
     "semantic_hash": ""
   },
   "hosting/public_html/index.php": {
-    "mtime": 1795678851.9165611,
-    "seen": 1795678911.4740295,
-    "ast_hash": "f01f85b25520aebe117ebac1b3b168d6",
+    "mtime": 1795682886.1471283,
+    "seen": 1795682997.8163357,
+    "ast_hash": "e6b7041eb5d4f22e789c4f3c09593ac7",
     "semantic_hash": ""
   },
   "hosting/public_html/install/index.php": {
@@ -606,9 +606,9 @@
     "semantic_hash": ""
   },
   "hosting/scripts/package.py": {
-    "mtime": 1795678320.2638204,
-    "seen": 1795678911.474091,
-    "ast_hash": "eadeb7c5564de9292f7200e411d077bd",
+    "mtime": 1795682565.4663544,
+    "seen": 1795682997.816361,
+    "ast_hash": "6db0c2eb9e96c2e390dad6ff4567ba19",
     "semantic_hash": ""
   },
   "hosting/tests/captcha_audio.py": {
@@ -738,9 +738,9 @@
     "semantic_hash": ""
   },
   "hosting/tests/operations_workspace_browser.py": {
-    "mtime": 1795678748.9621434,
-    "seen": 1795678911.4745312,
-    "ast_hash": "7f1e93cbc54ebfe889877f1f42bf9ef8",
+    "mtime": 1795682674.156262,
+    "seen": 1795682997.8169475,
+    "ast_hash": "91e9d0bb7e0e6eaa418897bce8005101",
     "semantic_hash": ""
   },
   "hosting/tests/package_test.py": {
@@ -750,9 +750,9 @@
     "semantic_hash": ""
   },
   "hosting/tests/phase3_quality_browser.py": {
-    "mtime": 1795384070.0,
-    "seen": 1795632969.9883084,
-    "ast_hash": "df82e5a111f2736619a09a361b2c273b",
+    "mtime": 1795682925.5611496,
+    "seen": 1795682997.8169696,
+    "ast_hash": "ba18341e26d667f47edc2f31d1bae22b",
     "semantic_hash": ""
   },
   "hosting/tests/phase4_issue_race.py": {
@@ -858,9 +858,9 @@
     "semantic_hash": ""
   },
   "hosting/UPGRADE-FA.md": {
-    "mtime": 1795678712.3174775,
-    "seen": 1795678911.4751337,
-    "ast_hash": "77e60ce4f4c2d1e2db88a6c79deb0ee0",
+    "mtime": 1795682830.5230815,
+    "seen": 1795682997.817564,
+    "ast_hash": "21888477012155f4bd66698cfb43d84e",
     "semantic_hash": ""
   },
   "hosting/VERIFICATION-FA.md": {
@@ -894,8 +894,8 @@
     "semantic_hash": ""
   },
   "hosting/public_html/favicon.svg": {
-    "mtime": 1795678851.9165611,
-    "seen": 1795678911.4752507,
+    "mtime": 1795682886.1471283,
+    "seen": 1795682997.8176792,
     "ast_hash": "65d2d7d0b0f2cb5580c3808f8282568d",
     "semantic_hash": ""
   },
@@ -948,15 +948,15 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795678712.316375,
-    "seen": 1795678911.4748647,
-    "ast_hash": "e7dd061ff74c9a1bedee4a84ac5b8708",
+    "mtime": 1795682830.5226653,
+    "seen": 1795682997.817369,
+    "ast_hash": "7543db3d11dbf6786438f1dcf7950d01",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795678320.2632563,
-    "seen": 1795678911.474866,
-    "ast_hash": "60b6f18220489f344edb3dcba389b549",
+    "mtime": 1795682565.4648294,
+    "seen": 1795682997.8173711,
+    "ast_hash": "f8118cb96000fb05a56fdfd35b684898",
     "semantic_hash": ""
   },
   "docs/DATABASE-MIGRATIONS.md": {
@@ -966,15 +966,15 @@
     "semantic_hash": ""
   },
   "docs/DEPLOYMENT.md": {
-    "mtime": 1795678712.3171213,
-    "seen": 1795678911.47489,
-    "ast_hash": "8f3f62c7636896a80f13a16a739fb44e",
+    "mtime": 1795682830.523202,
+    "seen": 1795682997.817427,
+    "ast_hash": "f5a3c1ed17e1744c4ed2a70b9d5df50d",
     "semantic_hash": ""
   },
   "docs/KNOWN-ISSUES.md": {
-    "mtime": 1795665649.9897296,
-    "seen": 1795665790.963942,
-    "ast_hash": "b34d121c219374ce55958a7ce5f4a12c",
+    "mtime": 1795682830.5228164,
+    "seen": 1795682997.8174279,
+    "ast_hash": "5acd50ba8bd1e7db09e4c327ef69b764",
     "semantic_hash": ""
   },
   "docs/PERMISSIONS.md": {
@@ -996,9 +996,9 @@
     "semantic_hash": ""
   },
   "docs/TEST-REPORT.md": {
-    "mtime": 1795678894.658082,
-    "seen": 1795678911.4749498,
-    "ast_hash": "efc92cae31e63f2ce51cfddbf1ba4963",
+    "mtime": 1795682992.1059585,
+    "seen": 1795682997.8174686,
+    "ast_hash": "aedf7435b24527fe07c5bf021d017dfd",
     "semantic_hash": ""
   },
   "hosting/frontend/src/app/tamiran/external-purchase-panel.tsx": {
@@ -1038,9 +1038,9 @@
     "semantic_hash": ""
   },
   "hosting/tests/v7_operations.py": {
-    "mtime": 1795665577.253598,
-    "seen": 1795665790.9638767,
-    "ast_hash": "2f5640a4a07031bbf510efe5af4b312f",
+    "mtime": 1795682925.5626414,
+    "seen": 1795682997.8172727,
+    "ast_hash": "e2165d01abcc6aa21976562a720f0710",
     "semantic_hash": ""
   },
   "hosting/tests/technician_v7_visual.py": {
@@ -1055,10 +1055,16 @@
     "ast_hash": "9c920fab0017df2709180ef134081031",
     "semantic_hash": ""
   },
+  "hosting/frontend/src/app/tamiran/case-procurement.tsx": {
+    "mtime": 1795682415.9674115,
+    "seen": 1795682997.8142335,
+    "ast_hash": "9ae1e5c1538f861e690454e8b138f92a",
+    "semantic_hash": ""
+  },
   "hosting/frontend/package-lock.json": {
-    "mtime": 1795678320.2616804,
-    "seen": 1795678911.4754355,
-    "ast_hash": "83d128567b42b01bd9f7111cc3d947ad",
+    "mtime": 1795682565.4652462,
+    "seen": 1795682997.8178663,
+    "ast_hash": "e6ddf114740df8b0bf348b1e1603e1c2",
     "semantic_hash": ""
   }
 }

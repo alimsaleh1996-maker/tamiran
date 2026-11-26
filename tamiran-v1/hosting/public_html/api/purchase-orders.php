@@ -62,40 +62,6 @@ function purchase_list(PDO $pdo, array $scope): array
     ], $statement->fetchAll());
 }
 
-function purchase_create(PDO $pdo, array $scope, array $input): array
-{
-    tamiran_require_csrf();
-    $itemId = (int)($input['itemId'] ?? 0);
-    $quantity = (int)($input['quantity'] ?? 0);
-    if ($quantity < 1 || $quantity > 1000000) throw new TamiranApiException('تعداد سفارش باید بین ۱ تا ۱٬۰۰۰٬۰۰۰ باشد.');
-    $priority = (string)($input['priority'] ?? 'normal');
-    if (!in_array($priority, ['normal','urgent'], true)) throw new TamiranApiException('اولویت سفارش معتبر نیست.');
-    $notes = purchase_optional($input['notes'] ?? '', 2000);
-    $pdo->beginTransaction();
-    try {
-        $itemStatement = $pdo->prepare('SELECT id,item_code,title,physical_quantity,reserved_quantity FROM repair_inventory_items WHERE id=:id AND shop_id=:shop AND is_active=1 LIMIT 1 FOR UPDATE');
-        $itemStatement->execute(['id'=>$itemId, 'shop'=>$scope['shop_id']]);
-        $item = $itemStatement->fetch();
-        if (!is_array($item)) throw new TamiranApiException('کالای فعال انبار پیدا نشد.', 404);
-        if (((int)$item['physical_quantity'] - (int)$item['reserved_quantity']) > 0) {
-            throw new TamiranApiException('این کالا موجودی قابل تخصیص دارد؛ سفارش خرید فقط برای کالای ناموجود مجاز است.', 409);
-        }
-        $duplicate = $pdo->prepare("SELECT id FROM repair_purchase_orders WHERE shop_id=:shop AND branch_id=:branch AND item_id=:item AND requested_by_user_id=:actor AND status IN ('requested','approved','ordered') LIMIT 1");
-        $duplicate->execute(['shop'=>$scope['shop_id'], 'branch'=>$scope['branch_id'], 'item'=>$itemId, 'actor'=>(int)$scope['actor']['id']]);
-        if ($duplicate->fetchColumn() !== false) throw new TamiranApiException('برای این کالا یک سفارش خرید باز از طرف شما وجود دارد.', 409);
-        $publicId = tamiran_id();
-        $statement = $pdo->prepare("INSERT INTO repair_purchase_orders(public_id,shop_id,branch_id,item_id,item_code_snapshot,item_title_snapshot,requested_by_user_id,quantity,priority,status,notes) VALUES(:public,:shop,:branch,:item,:code,:title,:actor,:quantity,:priority,'requested',:notes)");
-        $statement->execute(['public'=>$publicId, 'shop'=>$scope['shop_id'], 'branch'=>$scope['branch_id'], 'item'=>$itemId,
-            'code'=>$item['item_code'], 'title'=>$item['title'], 'actor'=>(int)$scope['actor']['id'], 'quantity'=>$quantity, 'priority'=>$priority, 'notes'=>$notes]);
-        $pdo->commit();
-    } catch (Throwable $error) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        throw $error;
-    }
-    tamiran_log('info', 'purchase_order_created', ['public_id'=>$publicId, 'item_id'=>$itemId, 'user_id'=>(int)$scope['actor']['id']]);
-    return ['created'=>true, 'publicId'=>$publicId];
-}
-
 function purchase_update(PDO $pdo, array $scope, array $input): array
 {
     tamiran_require_csrf();
@@ -144,7 +110,7 @@ tamiran_api(static function (): array {
     if ($method === 'GET') return ['orders'=>purchase_list($pdo, $scope)];
     tamiran_require_writable_actor($scope['actor']);
     $input = tamiran_json_body();
-    if ($method === 'POST') return purchase_create($pdo, $scope, $input);
+    if ($method === 'POST') throw new TamiranApiException('سفارش خرید از روی درخواست قطعهٔ پرونده در صف تأمین ساخته می‌شود.',409);
     if ($method === 'PATCH') return purchase_update($pdo, $scope, $input);
     throw new TamiranApiException('روش درخواست مجاز نیست.', 405);
 });

@@ -30,15 +30,15 @@ def run(args):
     manager.token()
     clients = []
     ids = []
-    for index, role in enumerate(('technician','technician','quality_control'), 2):
+    for index, role in enumerate(('technician','technician','quality_control','warehouse_keeper'), 2):
         mobile = prefix + f'{index:02}'
         admin.api('admin-users.php','POST',{'shopId':owner['shop']['id'], 'branchIds':[owner['branch']['id']],
             'displayName':marker + role + str(index),'mobile':mobile,'password':password,'role':role})
         client = Client(args.url)
         ids.append(client.login(mobile, password)['id'])
         clients.append(client)
-    tech, destination, inspector = clients
-    technician, recipient, _ = ids
+    tech, destination, inspector, warehouse = clients
+    technician, recipient, _, _ = ids
     manager.api('catalog.php','POST',{'type':'موبایل','brand':marker,'model':marker})
     model = manager.api('catalog.php')['items'][0]['id']
     manager.api('operations.php','POST',{'action':'create_inventory_item','code':'V7-CABLE','title':'کابل آزمایشی','physicalQuantity':3})
@@ -124,7 +124,7 @@ def run(args):
     log.check('independent QC denies own work',lambda:qc_call(tech,'start',case,expected=403))
     log.check('QC requires physical receipt before testing',lambda:qc_call(inspector,'run',case,expected=409))
     if args.browser_dir:
-        check_quality_browser(log,args.url,inspector,args.browser_dir)
+        check_quality_browser(log,args.url,inspector,args.browser_dir,row(case)['receiptNumber'])
     receipt=qc_call(inspector,'start',case)['receipt']
     template=receipt['template']
     primary=next(x for x in template['items'] if x['code']=='repair_issue')
@@ -171,9 +171,124 @@ def run(args):
     log.check('valid batch saves all rows and enters part wait',lambda:expect(len(tech.api(purchase_endpoint,'POST',{
         'action':'request','caseId':stock_case,'lines':[line,line],'idempotencyKey':secrets.token_hex(12)})['publicIds'])==2
         and row(stock_case)['status']=='awaiting_parts','stock batch missing'))
+    first_order_case=create()
+    second_order_case=create()
+    check_case_procurement(log, manager, warehouse, tech, [first_order_case,second_order_case], item)
     if args.browser_dir:
+        check_supply_browser(log,args.url,warehouse,row(stock_case)['receiptNumber'],args.browser_dir)
+        check_finance_delivery_browser(log,args.url,manager,case,row(case)['receiptNumber'],args.browser_dir)
         check_operations_browser(log,args.url,manager,tech,stock_case,args.browser_dir)
     log.save()
+
+
+def check_case_procurement(log, manager, warehouse, tech, ids, part_id):
+    endpoint='procurement-v2.php'
+    manager.api('operations.php','POST',{'action':'create_inventory_item','code':'TEST-PO-LCD','title':'ال‌سی‌دی آزمایشی','physicalQuantity':0})
+    product=next(row for row in manager.api('inventory-v2.php')['items'] if row['item_code']=='TEST-PO-LCD')
+    supplier=warehouse.api(endpoint,'POST',{'action':'supplier_create','name':'تأمین‌کننده آزمایشی'})['publicId']
+    supplier_id=next(row['id'] for row in warehouse.api(endpoint)['suppliers'] if row['public_id']==supplier)
+    endpoint_inventory='inventory-v2.php'
+    request_ids=[]
+    for case in ids:
+        saved=tech.api(endpoint_inventory,'POST',{'action':'request','caseId':case,'itemId':product['id'],'quantity':1,'idempotencyKey':secrets.token_hex(12)})
+        request_ids.append(next(row['id'] for row in manager.api(endpoint_inventory)['requests'] if row['public_id']==saved['publicId']))
+    request_a,request_b=request_ids
+    payload={'action':'document_create','supplierId':supplier_id,'originReason':'TEST LCD پرونده'}
+    line={'itemId':product['id'],'quantity':2,'unitPrice':1200000}
+    def create(lines, expected=200, actor=warehouse):
+        return actor.api(endpoint,'POST',{**payload,'items':lines},expected=expected)
+    link_a={'requestId':request_a,'quantity':1}
+    link_b={'requestId':request_b,'quantity':1}
+    log.check('new procurement order requires a live part request',lambda:create([{**line,'partRequestIds':[]}],400))
+    log.check('legacy standalone order is rejected',lambda:warehouse.api('purchase-orders.php','POST',{'itemId':product['id'],'quantity':1},expected=409))
+    log.check('order cannot allocate one unit twice or exceed outstanding quantity',lambda:create([{**line,'allocations':[link_a,{**link_a,'quantity':2}]}],400))
+    log.check('order cannot link requests for a different item',lambda:create([{**line,'itemId':part_id,'allocations':[link_a,link_b]}],409))
+    log.check('order rejects a line whose quantity exceeds its case allocations',lambda:create([{**line,'allocations':[link_a]}],409))
+    order=create([{**line,'allocations':[link_a,link_b]}])
+    def record():
+        return next(row for row in manager.api(endpoint)['documents'] if row['public_id']==order['publicId'])
+    doc=record()
+    log.check('aggregate order records both case numbers and exact shares',lambda:expect(
+        [(int(link['case_id']),int(link['allocated_quantity'])) for link in doc['items'][0]['requests']]==[(ids[0],1),(ids[1],1)],'order cases missing'))
+    log.check('same requests cannot be purchased twice while order is open',lambda:create([{**line,'allocations':[link_a,link_b]}],409))
+    manager.api(endpoint,'POST',{'action':'approve','publicId':order['publicId'],'reason':'تأیید آزمایشی'})
+    received={'action':'receive','publicId':order['publicId'],'items':[{
+        'purchaseItemId':doc['items'][0]['id'],'acceptedQuantity':1}], 'idempotencyKey':secrets.token_hex(12)}
+    def quantities():
+        return {row['id']:row['reserved_quantity'] for row in manager.api(endpoint_inventory)['requests'] if row['id'] in request_ids}
+    log.check('partial receipt reserves only one case share',lambda:expect(
+        warehouse.api(endpoint,'POST',received)['status']=='partially_received' and quantities()=={request_a:1,request_b:0},'partial receipt overallocated'))
+    log.check('partial receipt retries cannot allocate the same stock twice',lambda:expect(
+        warehouse.api(endpoint,'POST',received)['replayed'] and quantities()=={request_a:1,request_b:0},'receipt repeated'))
+    log.check('defective second unit does not reserve unavailable stock',lambda:expect(
+        warehouse.api(endpoint,'POST',{**received,'idempotencyKey':secrets.token_hex(12),'items':[{
+        'purchaseItemId':doc['items'][0]['id'],'defectiveQuantity':1}]})['status']=='received' and quantities()=={request_a:1,request_b:0},'defective unit reserved'))
+    log.check('uncovered case can be reordered after defective receipt',lambda:create([{**line,'quantity':1,'allocations':[link_b]}]))
+    log.check('reserved purchase does not appear as consumed or billable',lambda:expect(
+        not tech.api(f'workflow-v2.php?caseId={ids[0]}&technical=1')['parts'],'unconsumed stock became billable'))
+
+
+def check_supply_browser(log,url,warehouse,receipt,folder):
+    from playwright.sync_api import sync_playwright, expect as browser_expect
+    with sync_playwright() as tooling:
+        browser=tooling.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+        page=open_as(browser,url,warehouse,width=1440).new_page()
+        page.goto(url+'/?view=parts-supply',wait_until='networkidle')
+        log.check('supply queue has no standalone order form',lambda:browser_expect(page.get_by_role('button',name='ثبت سفارش',exact=False)).to_have_count(0))
+        row=page.get_by_role('row').filter(has_text=receipt).first
+        row.get_by_role('button',name='ساخت سفارش خرید',exact=True).click()
+        form=page.locator('section').filter(has=page.get_by_role('heading',name='سفارش خرید کابل آزمایشی',exact=True))
+        browser_expect(form.get_by_text('درخواست مبدأ',exact=False)).to_contain_text(receipt)
+        form.get_by_role('combobox').select_option(index=1)
+        form.locator('#supply-order-price').fill('۱۲۰٬۰۰۰')
+        page.screenshot(path=str(Path(folder)/'supply-desktop.png'),full_page=True)
+        form.get_by_role('button',name='ثبت سفارش',exact=False).click()
+        browser_expect(form).to_have_count(0)
+        log.check('supply creates order with its original case visible',lambda:browser_expect(page.get_by_text('سفارش خرید باز دارد').first).to_be_visible())
+        browser.close()
+
+
+def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
+    from playwright.sync_api import sync_playwright, expect as browser_expect
+    output=Path(folder)
+    with sync_playwright() as tooling:
+        browser=tooling.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+        ctx=open_as(browser,url,manager,width=1440)
+        page=ctx.new_page()
+        errors=[]
+        page.on('pageerror',lambda error:errors.append(str(error)))
+        page.goto(url+'/?view=delivery&deliveryTab=finance',wait_until='networkidle')
+        card=page.locator('.service-queue-card').filter(has_text=receipt)
+        card.click()
+        browser_expect(page.get_by_role('heading',name='بررسی پیش‌نویس فاکتور',exact=True)).to_be_visible()
+        log.check('finance case opens its stage without a delivery form',lambda:browser_expect(page.get_by_role('button',name='ثبت تحویل واقعی',exact=True)).to_have_count(0))
+        page.screenshot(path=str(output/'finance-desktop.png'),full_page=True)
+        page.get_by_role('button',name='صدور فاکتور',exact=True).click()
+        next_step=page.get_by_role('heading',name='ثبت پرداخت و تعیین تکلیف مالی',exact=True)
+        browser_expect(next_step.or_(page.get_by_role('alert')).first).to_be_visible()
+        assert next_step.is_visible(), page.get_by_role('alert').all_text_contents()
+        page.locator('.v2-payment-form select').select_option('cash')
+        page.get_by_role('button',name='ثبت تسویه و آماده تحویل',exact=True).click()
+        browser_expect(page.get_by_role('heading',name='صف نهایی‌سازی مالی',exact=True)).to_be_visible()
+        log.check('payment sets ready stage without physical delivery',lambda:expect(
+            manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='ready_for_delivery','settlement did not prepare delivery'))
+        page.get_by_role('button',name='تحویل دستگاه',exact=True).click()
+        card.click()
+        submit=page.get_by_role('button',name='ثبت تحویل واقعی',exact=True)
+        browser_expect(submit).to_be_disabled()
+        page.get_by_text('شناسه را با همین دستگاه تطبیق دادم.',exact=True).click()
+        page.get_by_label('مدرک/توضیح',exact=True).fill('رسید پرونده آزمایشی بازبینی شد')
+        for width in (320,390,768,1440):
+            page.set_viewport_size({'width':width,'height':900})
+            log.check(f'delivery detail fits {width}px',lambda:expect(page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),'horizontal overflow'))
+            if width in (390,1440):
+                page.screenshot(path=str(output/f'delivery-{width}.png'),full_page=True)
+        submit.click()
+        browser_expect(page.get_by_role('heading',name='صف دستگاه‌های آمادهٔ تحویل',exact=True)).to_be_visible()
+        log.check('delivery records physical delivery independently',lambda:expect(
+            manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='delivered','physical delivery not stored'))
+        log.check('finance and delivery browser have no JavaScript errors',lambda:expect(not errors,str(errors)))
+        browser.close()
 
 
 def open_as(browser, url, client, width=390):
@@ -183,7 +298,7 @@ def open_as(browser, url, client, width=390):
     return ctx
 
 
-def check_quality_browser(log,url,client,folder):
+def check_quality_browser(log,url,client,folder,receipt):
     from playwright.sync_api import sync_playwright, expect as browser_expect
     output=Path(folder);output.mkdir(parents=True,exist_ok=True)
     with sync_playwright() as tooling:
@@ -191,13 +306,26 @@ def check_quality_browser(log,url,client,folder):
         context=open_as(browser,url,client)
         page=context.new_page()
         page.goto(url+'/?view=quality',wait_until='networkidle')
-        card=page.locator('.v2-queue-card').first
+        card=page.locator('.service-queue-card').filter(has_text=receipt)
         card.click()
-        log.check('browser hides checklist before physical receipt',lambda:browser_expect(page.locator('.v2-qc-test-item')).to_have_count(0))
+        log.check('browser hides checklist before physical receipt',lambda:browser_expect(page.locator('.service-test')).to_have_count(0))
         page.get_by_role('button',name='تأیید دریافت و شروع تست',exact=True).click()
-        primary=page.locator('.v2-qc-test-item').filter(has_text='آیا ایراد اصلی دستگاه برطرف شده است؟')
-        log.check('QC browser main test exposes pass and fail only',lambda:browser_expect(primary.locator('option')).to_have_count(3))
-        page.screenshot(path=str(output/'qc-mobile.png'),full_page=True)
+        primary=page.get_by_role('group',name='آیا ایراد اصلی دستگاه برطرف شده است؟',exact=True)
+        log.check('QC browser main test exposes pass and fail only',lambda:browser_expect(primary.get_by_role('button')).to_have_count(2))
+        groups=page.get_by_role('group').filter(has=page.get_by_role('button',name='تأیید تست',exact=True))
+        for test in groups.all():
+            test.get_by_role('button',name='تأیید تست',exact=True).click()
+        page.get_by_role('button',name='ثبت تست‌ها و ادامه',exact=True).click()
+        log.check('QC browser shows result alone after tests',lambda:browser_expect(page.get_by_role('heading',name='نتیجه کنترل کیفیت',exact=True)).to_be_visible())
+        page.reload(wait_until='networkidle')
+        log.check('QC receipt and draft survive refresh',lambda:browser_expect(page.get_by_role('button',name='تأیید و ارجاع به مالی',exact=True)).to_be_enabled())
+        log.check('QC result view has no editable test list',lambda:browser_expect(primary).to_have_count(0))
+        page.get_by_role('button',name='بازگشت و اصلاح تست‌ها',exact=True).click()
+        for width in (320,390,768,1440):
+            page.set_viewport_size({'width':width,'height':900})
+            log.check(f'QC detail fits {width}px',lambda:expect(page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),'horizontal overflow'))
+            if width in (390,1440):
+                page.screenshot(path=str(output/f'qc-{width}.png'),full_page=True)
         browser.close()
 
 
@@ -210,7 +338,8 @@ def check_operations_browser(log,url,manager,tech,case,folder):
         page=ctx.new_page()
         errors=[]
         page.on('pageerror',lambda error:errors.append(str(error)))
-        page.goto(url+'/?view=operations',wait_until='networkidle')
+        page.goto(url+'/?view=assignments',wait_until='networkidle')
+        log.check('standalone operations center is absent from desktop navigation',lambda:browser_expect(page.get_by_role('button',name='مرکز عملیات تعمیرات',exact=True)).to_have_count(0))
         page.get_by_role('button',name='سیاست‌های تعمیرگاه',exact=True).click()
         log.check('manager browser shows persisted referral setting',lambda:browser_expect(page.get_by_label('سیاست ارجاع',exact=True)).to_have_value('disabled'))
         page.get_by_role('button',name='پیگیری پرونده‌ها',exact=True).click()

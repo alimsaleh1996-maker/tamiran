@@ -298,7 +298,10 @@ export type V2PurchaseDocument = {
   status: string;
   total_amount: number;
   expected_at: string | null;
-  items: Array<Record<string, string | number | null>>;
+  items: Array<{
+    id: number; item_title: string; quantity: number; received_quantity: number; defective_quantity: number;
+    requests: Array<{ part_request_id: number; case_id: number; receipt_number: string; allocated_quantity: number }>;
+  }>;
 };
 export type V2ProcurementPayload = {
   suppliers: V2Supplier[];
@@ -328,6 +331,14 @@ export type V2QualityPayload = {
 };
 export const loadV2Quality = () =>
   directAdminRequest<V2QualityPayload>("/api/quality-v2.php");
+export type V2QualityCase = {
+  receipt: { publicId: string; template: V2QcTemplate } | null;
+  report: string | null;
+  activities: string[];
+  parts: Array<{ title: string; quantity: number }>;
+};
+export const loadV2QualityCase = (caseId: number) =>
+  directAdminRequest<V2QualityCase>(`/api/quality-v2.php?caseId=${caseId}`);
 export const startV2Quality = (caseId: number) =>
   jsonPost<{ receipt: { publicId: string; template: V2QcTemplate } }>("/api/quality-v2.php", { action: "start", caseId });
 export const qualityV2Action = (payload: Record<string, unknown>) =>
