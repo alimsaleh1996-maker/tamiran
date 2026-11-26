@@ -405,6 +405,26 @@ def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
         log.check('direct delivery form survives reload',lambda:browser_expect(heading).to_be_visible(timeout=25000))
         submit=page.get_by_role('button',name='ثبت تحویل و نمایش رسید',exact=True)
         browser_expect(submit).to_be_disabled()
+        field=page.get_by_role('textbox',name='IMEI دستگاه تحویلی',exact=True)
+        original_imei=field.input_value()
+        field.fill('12345678901234')
+        log.check('short IMEI gets inline length guidance',lambda:browser_expect(
+            page.get_by_text('IMEI باید ۱۵ رقم معتبر باشد.',exact=True)).to_be_visible())
+        field.fill('123456789012345')
+        log.check('bad checksum gets inline feedback before submission',lambda:browser_expect(
+            page.locator('.delivery-identifier-error')).to_contain_text('رقم کنترل IMEI صحیح نیست'))
+        browser_expect(submit).to_be_disabled()
+        browser_expect(page.get_by_role('checkbox',name='شناسه را با همین دستگاه تطبیق دادم.')).to_be_disabled()
+        log.check('server independently rejects invalid IMEI',lambda:manager.api('delivery-v2.php','POST',{
+            'action':'complete','caseId':case,'recipientFullName':draft['customerName'],'recipientMobile':draft['customer_mobile'],
+            'verificationMethod':'receipt_qr','verificationEvidence':{'note':'TEST'},'accessoriesConfirmed':[],
+            'identityConfirmed':True,'deviceIdentifier':'123456789012345'},expected=422))
+        localized=original_imei.translate(str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹'))
+        pasted=f'{localized[:6]}-{localized[6:12]} {localized[12:]}'
+        field.fill(pasted)
+        log.check('formatted Persian IMEI matches the stored identifier',lambda:expect(
+            page.locator('.delivery-identifier-error').inner_text()=='' and page.get_by_label('علت تغییر شناسه').count()==0,
+            'formatting was treated as identity change'))
         page.get_by_text('شناسه را با همین دستگاه تطبیق دادم.',exact=True).click()
         page.get_by_label('مدرک یا توضیح احراز',exact=True).fill('رسید پرونده آزمایشی بازبینی شد')
         for width in (320,390,768,1440):

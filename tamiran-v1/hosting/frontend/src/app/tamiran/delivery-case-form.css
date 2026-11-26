@@ -9,6 +9,7 @@
 .delivery-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: 12px; align-items: end; }
 .delivery-fields > .cashier-field { margin: 0; }
 .delivery-hint { padding-block: 5px; font-size: .85rem; color: var(--cashier-muted); }
+.delivery-identifier-error { color: #9e2a22; font-size: .86rem; }
 .delivery-check { display: flex; align-items: center; gap: 8px; min-height: 36px; width: fit-content; cursor: pointer; }
 .delivery-check input[type="checkbox"] { appearance: auto; inline-size: 18px; block-size: 18px; flex: 0 0 18px; margin: 0; accent-color: var(--cashier-accent); }
 .delivery-accessories { display: grid; justify-items: start; gap: 6px; padding-top: 8px; }

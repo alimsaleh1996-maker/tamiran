@@ -13,6 +13,21 @@ const evidenceMethods = [
   ["sms_otp", "کد پیامکی"],
 ] as const;
 
+// Match the mobile-device rules in v2_identity_value() before submitting.
+function normalizeDeliveryImei(value: string) {
+  return value.replace(/[۰-۹٠-٩]/g, digit => String(digit.charCodeAt(0) - (digit >= "۰" ? 0x6f0 : 0x660))).replace(/[\s-]+/gu, "");
+}
+
+function deliveryImeiError(value: string) {
+  if (!value) return "IMEI دستگاه را وارد کنید.";
+  if (!/^[0-9]{15}$/.test(value) || /^(.)\1+$/.test(value)) return "IMEI باید ۱۵ رقم معتبر باشد.";
+  const sum = [...value].reduce((total, char, index) => {
+    const digit = Number(char) * (index % 2 === 1 ? 2 : 1);
+    return total + (digit > 9 ? digit - 9 : digit);
+  }, 0);
+  return sum % 10 === 0 ? "" : "رقم کنترل IMEI صحیح نیست. شماره را از روی دستگاه دوباره بررسی کنید.";
+}
+
 function accessoryLabels(raw: string) {
   try {
     const list: unknown = JSON.parse(raw || "[]");
@@ -51,6 +66,7 @@ export function DeliveryCaseForm({ item, verificationSettings, manager, busy, ru
     identityConfirmed: false, identityChangeReason: "",
   });
   const [confirmed, setConfirmed] = useState<string[]>([]);
+  const [identifierEdited, setIdentifierEdited] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [discrepancyRecorded, setDiscrepancyRecorded] = useState(false);
   useEffect(() => { title.current?.focus({ preventScroll: true }); }, []);
@@ -60,10 +76,16 @@ export function DeliveryCaseForm({ item, verificationSettings, manager, busy, ru
   const missing = accessories.filter(label => !confirmed.includes(label));
   const representative = form.recipientType === "representative";
   const requiresOtp = representative || form.method === "sms_otp";
-  const identityChanged = Boolean(item.identifier_snapshot && form.identifier.trim() !== item.identifier_snapshot);
+  const needsImei = /(موبایل|تبلت|تلفن همراه|mobile|tablet|phone)/iu.test(item.device_type_snapshot);
+  const imei = needsImei ? normalizeDeliveryImei(form.identifier) : "";
+  const imeiError = needsImei ? deliveryImeiError(imei) : "";
+  const identifierError = identifierEdited || form.identifier.trim() ? imeiError : "";
+  const identityChanged = Boolean(item.identifier_snapshot && !imeiError && (needsImei
+    ? imei !== normalizeDeliveryImei(item.identifier_snapshot)
+    : form.identifier.trim() !== item.identifier_snapshot));
   const blockers = [...item.blockers.parts, ...item.blockers.qc, ...item.blockers.finance];
   const invalid = blockers.length > 0 || missing.length > 0
-    || (!unrepaired && (!form.identifier.trim() || !form.identityConfirmed || (identityChanged && !form.identityChangeReason.trim())))
+    || (!unrepaired && (!form.identifier.trim() || !!imeiError || !form.identityConfirmed || (identityChanged && !form.identityChangeReason.trim())))
     || !form.name.trim() || !form.mobile.trim() || (representative && !form.nationalCode.trim())
     || !form.method || !form.evidence.trim() || (requiresOtp && (!form.otpRequestId || form.otpCode.length !== 6));
 
@@ -72,7 +94,7 @@ export function DeliveryCaseForm({ item, verificationSettings, manager, busy, ru
     submitting.current = true;
     const payload = {
       action: "complete", expectedVersion: item.lock_version, caseId: item.case_id,
-      deviceIdentifier: form.identifier, identityConfirmed: form.identityConfirmed, identifierChangeReason: form.identityChangeReason,
+      deviceIdentifier: needsImei ? imei : form.identifier, identityConfirmed: form.identityConfirmed, identifierChangeReason: form.identityChangeReason,
       recipientType: form.recipientType, recipientFullName: form.name, recipientMobile: form.mobile,
       recipientNationalCode: form.nationalCode, verificationMethod: form.method,
       verificationEvidence: { note: form.evidence.trim() },
@@ -139,16 +161,25 @@ export function DeliveryCaseForm({ item, verificationSettings, manager, busy, ru
         <legend>تطبیق دستگاه و لوازم</legend>
         {!unrepaired && <>
           <label className="cashier-field">
-            <span>سریال یا IMEI دستگاه تحویلی</span>
-            <input dir="ltr" value={form.identifier} maxLength={180} required
-              onChange={event => patch({ identifier: event.target.value, identityConfirmed: false })} />
+            <span>{needsImei ? "IMEI دستگاه تحویلی" : "سریال دستگاه تحویلی"}</span>
+            <input dir="ltr" value={form.identifier} maxLength={180} required inputMode={needsImei ? "numeric" : undefined}
+              aria-invalid={Boolean(identifierError)}
+              aria-describedby={needsImei ? `${fieldId}-identifier-hint ${fieldId}-identifier-status` : undefined}
+              onChange={event => {
+                setIdentifierEdited(true);
+                patch({ identifier: event.target.value, identityConfirmed: false });
+              }} />
           </label>
-          {!item.identifier_snapshot && <p className="delivery-hint">شناسهٔ روی دستگاه را ثبت کنید.</p>}
+          {needsImei && <>
+            <p id={`${fieldId}-identifier-hint`} className="delivery-hint">IMEI ۱۵ رقمی را از تنظیمات دستگاه یا با شماره‌گیری <bdi dir="ltr">*#06#</bdi> بردارید.</p>
+            <p id={`${fieldId}-identifier-status`} className="delivery-identifier-error" aria-live="polite">{identifierError}</p>
+          </>}
+          {!needsImei && !item.identifier_snapshot && <p className="delivery-hint">سریال درج‌شده روی دستگاه را وارد کنید.</p>}
           {identityChanged && <label className="cashier-field">
             <span>علت تغییر شناسه</span><input required value={form.identityChangeReason} maxLength={1000}
               onChange={event => patch({ identityChangeReason: event.target.value })} />
           </label>}
-          <label className="delivery-check"><input type="checkbox" checked={form.identityConfirmed}
+          <label className="delivery-check"><input type="checkbox" checked={form.identityConfirmed} disabled={Boolean(imeiError)}
             onChange={event => patch({ identityConfirmed: event.target.checked })} />
             <span>شناسه را با همین دستگاه تطبیق دادم.</span>
           </label>
