@@ -52,7 +52,7 @@ def run(args):
         case = manager.api('operations.php','POST',{
             'action':'create_case','receiptMode':'issue_only','customerName':marker,'customerMobile':prefix+'09',
             'deviceModelId':model,'identifier':synthetic_imei(),'declaredIssue':'TEST شارژ قطع می‌شود',
-            'customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':technician,
+            'customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':technician,'accessories':['بدون لوازم'],
             'preapprovedAmount':7500000,'idempotencyKey':secrets.token_hex(12),
             **({'promisedAt':promised_at} if promised_at else {}),
         })['repairCase']['id']
@@ -205,6 +205,13 @@ def run(args):
     reopened=manager.api('finance-v2.php?workspace=1')
     log.check('activating module restores the same existing case without re-referral',lambda:expect(
         reopened['available'] and any(entry['caseId']==pending for entry in reopened['drafts']), 'existing pending case did not reappear'))
+    if args.browser_dir:
+        mobile=prefix+'07'
+        admin.api('admin-users.php','POST',{'shopId':owner['shop']['id'],'branchIds':[owner['branch']['id']],
+            'displayName':'صندوق‌دار آزمایشی','mobile':mobile,'password':password,'role':'finance_cashier'})
+        cashier=Client(args.url)
+        cashier.login(mobile,password)
+        check_cashier_referral(log,args.url,cashier,pending,pending_number)
     log.save()
 
 
@@ -382,32 +389,51 @@ def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
         log.check('last receipt keeps the case in finance until explicit referral',lambda:expect(
             manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='finance_pending',
             'settlement moved the case to delivery'))
-        page.get_by_role('button',name='ارجاع به تحویل',exact=True).click()
-        browser_expect(page.get_by_role('heading',name='صف نهایی‌سازی مالی',exact=True)).to_be_visible(timeout=25000)
+        page.get_by_role('button',name='تأیید مالی و ادامه به تحویل',exact=True).click()
+        heading=page.get_by_role('heading',name='تحویل دستگاه به مشتری',exact=True)
+        browser_expect(heading).to_be_visible(timeout=25000)
+        log.check('finance opens the same physical delivery form directly',lambda:expect(
+            f'deliveryCase={case}' in page.url and receipt in page.locator('.delivery-sheet').inner_text(), 'wrong delivery case'))
+        log.check('no-accessories placeholder has no checkbox',lambda:browser_expect(
+            page.get_by_role('checkbox',name='بدون لوازم',exact=True)).to_have_count(0))
         log.check('explicit referral moves the case without physical delivery',lambda:expect(
             manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='ready_for_delivery',
             'referral did not prepare delivery'))
         log.check('referral replay is idempotent',lambda:expect(manager.api(endpoint,'POST',
             {'action':'refer_to_delivery','caseId':case})['replayed'],'referral duplicated'))
-        page.get_by_role('button',name='تحویل دستگاه',exact=True).click()
-        page.reload(wait_until='networkidle')
-        log.check('explicit delivery selection survives reload',lambda:
-            browser_expect(page.get_by_role('button',name='تحویل دستگاه',exact=True)).to_have_attribute('aria-pressed','true'))
-        card.click()
-        submit=page.get_by_role('button',name='ثبت تحویل واقعی',exact=True)
+        page.reload(wait_until='domcontentloaded',timeout=60000)
+        log.check('direct delivery form survives reload',lambda:browser_expect(heading).to_be_visible(timeout=25000))
+        submit=page.get_by_role('button',name='ثبت تحویل و نمایش رسید',exact=True)
         browser_expect(submit).to_be_disabled()
         page.get_by_text('شناسه را با همین دستگاه تطبیق دادم.',exact=True).click()
-        page.get_by_label('مدرک/توضیح',exact=True).fill('رسید پرونده آزمایشی بازبینی شد')
+        page.get_by_label('مدرک یا توضیح احراز',exact=True).fill('رسید پرونده آزمایشی بازبینی شد')
         for width in (320,390,768,1440):
             page.set_viewport_size({'width':width,'height':900})
             log.check(f'delivery detail fits {width}px',lambda:page.wait_for_function(
-                'document.documentElement.scrollWidth <= innerWidth + 1', timeout=5000))
+                'document.documentElement.scrollWidth <= innerWidth + 1', timeout=10000))
             if width in (390,1440):
-                page.screenshot(path=str(output/f'delivery-{width}.png'),full_page=True)
+                page.screenshot(path=str(output/f'delivery-{width}.png'),full_page=True,timeout=60000)
         submit.click()
-        browser_expect(page.get_by_role('heading',name='صف دستگاه‌های آمادهٔ تحویل',exact=True)).to_be_visible()
+        browser_expect(page.get_by_role('heading',name='تحویل دستگاه ثبت شد',exact=True)).to_be_visible(timeout=25000)
         log.check('delivery records physical delivery independently',lambda:expect(
             manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='delivered','physical delivery not stored'))
+        page.evaluate("""() => {
+          const open = window.open.bind(window);
+          window.open = (...args) => {
+            const popup = open(...args);
+            if (popup) popup.print = () => {};
+            return popup;
+          };
+        }""")
+        with page.expect_popup() as printed:
+            page.get_by_role('button',name='چاپ رسید تحویل',exact=True).click()
+        receipt_page=printed.value
+        browser_expect(receipt_page.get_by_role('heading',name='رسید تحویل دستگاه',exact=True)).to_be_visible()
+        log.check('actual delivery receipt prints from the success screen',lambda:browser_expect(
+            receipt_page.locator('dl')).to_contain_text(receipt))
+        receipt_page.pdf(path=str(output/'delivery-receipt.pdf'),prefer_css_page_size=True)
+        page.get_by_role('button',name='بازگشت به صف تحویل',exact=True).click()
+        browser_expect(page.get_by_role('heading',name='سوابق تحویل',exact=True)).to_be_visible()
         log.check('finance and delivery browser have no JavaScript errors',lambda:expect(not errors,str(errors)))
         browser.close()
 
@@ -437,6 +463,28 @@ def check_locked_finance_browser(log,url,manager,case,receipt,folder):
             'retired capability catalog still reachable'))
         log.check('legacy activation POST is retired',lambda:manager.api('capabilities.php','POST',
             {'action':'request_activation','module':'finance'},expected=410))
+        browser.close()
+
+
+def check_cashier_referral(log,url,cashier,case,receipt):
+    from playwright.sync_api import sync_playwright, expect as browser_expect
+    endpoint='finance-v2.php'
+    draft=next(item for item in cashier.api(endpoint)['drafts'] if item['caseId']==case)
+    invoice=cashier.api(endpoint,'POST',{'action':'issue','caseId':case,'items':draft['items'],'deferDelivery':True})
+    cashier.api(endpoint,'POST',{'action':'payment','invoicePublicId':invoice['publicId'],'amount':invoice['totalAmount'],
+        'method':'cash','idempotencyKey':secrets.token_hex(12),'deferDelivery':True})
+    with sync_playwright() as tooling:
+        browser=tooling.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+        page=open_as(browser,url,cashier).new_page()
+        page.goto(url+f'/?view=delivery&financeCase={case}',wait_until='domcontentloaded')
+        page.get_by_role('button',name='ارجاع به صف تحویل',exact=True).click()
+        log.check('cashier without completion permission hands off to queue instead of opening delivery',lambda:
+            browser_expect(page.get_by_role('heading',name='صف نهایی‌سازی مالی',exact=True)).to_be_visible(timeout=25000))
+        page.goto(url+f'/?view=delivery&deliveryTab=ready&deliveryCase={case}',wait_until='domcontentloaded')
+        browser_expect(page.get_by_role('heading',name='صف دستگاه‌های آمادهٔ تحویل')).to_be_visible()
+        browser_expect(page.get_by_text(receipt,exact=True)).to_be_visible()
+        log.check('cashier deep link keeps physical delivery read only',lambda:
+            browser_expect(page.get_by_role('button',name='ثبت تحویل و نمایش رسید')).to_have_count(0))
         browser.close()
 
 

@@ -272,7 +272,7 @@ function dateLabel(value: string | number) {
   return Number.isNaN(date.valueOf()) ? "" : paymentDate.format(date);
 }
 
-export function SettlementView({ invoice, permissions, mode, busy, run, onClose, onReferred, onRefund }: {
+export function SettlementView({ invoice, permissions, mode, busy, run, onClose, onReferred, onRefund, continueToDelivery }: {
   invoice: V2Invoice;
   permissions: V2FinancePermissions;
   mode: "work" | "refund";
@@ -280,6 +280,7 @@ export function SettlementView({ invoice, permissions, mode, busy, run, onClose,
   run: Run;
   onClose: () => void;
   onReferred: () => void;
+  continueToDelivery: boolean;
   onRefund: () => void;
 }) {
   const fieldId = useId();
@@ -329,7 +330,7 @@ export function SettlementView({ invoice, permissions, mode, busy, run, onClose,
     pending.current = true;
     try {
       const result = await run(() => financeV2Action({ action: "refer_to_delivery", caseId: invoice.case_id }),
-        "پرونده به کارتابل تحویل ارجاع شد.");
+        continueToDelivery ? "تأیید مالی ثبت شد." : "پرونده به کارتابل تحویل ارجاع شد.");
       if (result) onReferred();
     } finally {
       pending.current = false;
@@ -359,7 +360,7 @@ export function SettlementView({ invoice, permissions, mode, busy, run, onClose,
         : "مجوز تحویل با مانده و تعهد پرداخت ثبت شد."}</p>
       {invoice.blockers.length > 0 && <ul className="cashier-blockers">{invoice.blockers.map(item => <li key={item}>{item}</li>)}</ul>}
       {permissions.payment && <button type="button" className="cashier-primary" disabled={busy || invoice.blockers.length > 0}
-        onClick={() => void refer()}>ارجاع به تحویل</button>}
+        onClick={() => void refer()}>{continueToDelivery ? "تأیید مالی و ادامه به تحویل" : "ارجاع به صف تحویل"}</button>}
     </div> : (refund || (!settled && canReceive)) && <form className="cashier-payment" onSubmit={event => { event.preventDefault(); void transaction(); }}>
       <div className="cashier-field">
         <label htmlFor={`${fieldId}-amount`}>{refund ? "مبلغ استرداد" : "مبلغ دریافت"}</label>

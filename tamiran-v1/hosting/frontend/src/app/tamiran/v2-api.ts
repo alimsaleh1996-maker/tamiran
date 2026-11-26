@@ -406,6 +406,8 @@ export const financeV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/finance-v2.php", payload);
 
 export type V2DeliveryCase = {
+  lock_version: number;
+  qc_mode_snapshot: "off" | "simple" | "independent";
   brand_snapshot: string;
   model_snapshot: string;
   delivered_to_name: string | null;

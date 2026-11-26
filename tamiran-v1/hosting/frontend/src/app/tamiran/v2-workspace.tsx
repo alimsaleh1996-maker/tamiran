@@ -5,7 +5,8 @@ import { ProcurementDocuments, ProcurementForm } from "./case-procurement";
 import { CaseStageBoard } from "./case-stage-board";
 import { OperationsCaseWorkspace } from "./operations-case-workspace";
 import { technicalCaseFromLocation, writeTechnicalLocation } from "./technician-navigation";
-import { printHandoverReceipt } from "./handover-receipt";
+import { formatHandoverTime, printHandoverReceipt } from "./handover-receipt";
+import { DeliveryCaseForm } from "./delivery-case-form";
 import { formatToman } from "./money-input";
 import { isOpenFinanceInvoice, RepairInvoiceView, SettlementView } from "./finance-case-view";
 import "./iteration-six.css";
@@ -190,13 +191,18 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
     || profile.permissions.includes("finance.view") || profile.permissions.includes("*");
   const canDeliver = ["repair_manager", "reception", "finance_cashier"].includes(profile.role)
     || profile.permissions.includes("delivery.view") || profile.permissions.includes("*");
+  const canCompleteDelivery = ["repair_manager", "reception"].includes(profile.role)
+    || profile.permissions.includes("delivery.complete") || profile.permissions.includes("*");
   const [deliveryTab, setDeliveryTab] = useState<"finance" | "ready">(() => {
     const tab = new URL(location.href).searchParams.get("deliveryTab");
     return canFinance && (tab !== "ready" || !canDeliver) ? "finance" : "ready";
   });
-  const chooseDeliveryTab = (tab: "finance" | "ready") => {
+  const chooseDeliveryTab = (tab: "finance" | "ready", caseId?: number) => {
     const url = new URL(location.href);
     url.searchParams.set("deliveryTab", tab);
+    url.searchParams.delete("financeCase");
+    url.searchParams.delete("deliveryCase");
+    if (tab === "ready" && caseId) url.searchParams.set("deliveryCase", String(caseId));
     history.replaceState(history.state, "", url);
     setDeliveryTab(tab);
   };
@@ -346,7 +352,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
             <button type="button" aria-pressed={deliveryTab === "ready"} onClick={() => chooseDeliveryTab("ready")}>تحویل دستگاه</button>
           </nav>}
           {deliveryTab === "finance" && finance?.available && (
-            <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={workflow?.cases ?? []} search={queueSearch} busy={busy} run={run} onApproval={(id) => {
+            <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={workflow?.cases ?? []} search={queueSearch} busy={busy} run={run} onDelivery={canDeliver && canCompleteDelivery ? id => chooseDeliveryTab("ready", id) : undefined} onApproval={(id) => {
               onNavigate("تأیید هزینه");
               const url = new URL(location.href);
               url.searchParams.set("techCase", String(id));
@@ -358,7 +364,8 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
             <FinanceUnavailable pending={finance.pending} search={queueSearch} />
           )}
           {deliveryTab === "ready" && delivery && (
-            <DeliveryBoard onCaseOpen={setServiceCaseOpen} data={delivery} cases={queueCases} profile={profile} busy={busy} run={run} />
+            <DeliveryBoard onCaseOpen={setServiceCaseOpen} data={delivery} cases={workflow?.cases ?? []} search={queueSearch}
+              profile={profile} allowRegistration={canCompleteDelivery} busy={busy} run={run} onRefresh={reload} />
           )}
         </>
       )}
@@ -1431,7 +1438,7 @@ function FinanceUnavailable({ pending, search }: {
   );
 }
 
-function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval }: {
+function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval, onDelivery }: {
   onCaseOpen: (open: boolean) => void;
   data: Extract<V2FinanceWorkspace, { available: true }>;
   cases: V2Case[];
@@ -1439,6 +1446,7 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval }
   busy: boolean;
   run: Run;
   onApproval: (id: number) => void;
+  onDelivery?: (id: number) => void;
 }) {
   const [caseId, setCaseId] = useState(() => Number(new URL(location.href).searchParams.get("financeCase")) || 0);
   const [mode, setMode] = useState<"work" | "refund">("work");
@@ -1477,7 +1485,8 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval }
   if (selectedInvoice) {
     return <SettlementView key={selectedInvoice.public_id + mode} invoice={selectedInvoice} permissions={data.permissions}
       mode={mode} busy={busy} run={run} onClose={mode === "refund" ? () => select(caseId) : close}
-      onReferred={close} onRefund={() => select(caseId, "refund")} />;
+      continueToDelivery={Boolean(onDelivery)} onReferred={() => { if (onDelivery) onDelivery(caseId); else close(); }}
+      onRefund={() => select(caseId, "refund")} />;
   }
   const historyRows = data.invoices.filter(invoice => !isOpenFinanceInvoice(invoice) && matchesQueueSearch(search,
     [invoice.receipt_number, invoice.customer_name, invoice.customer_mobile ?? "", invoice.identifier_snapshot ?? "", invoice.device_title ?? ""]));
@@ -1510,353 +1519,107 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval }
   </div>;
 }
 
-function DeliveryBoard({
-  onCaseOpen,
-  data,
-  cases,
-  profile,
-  busy,
-  run,
-}: {
+function DeliveryBoard({ onCaseOpen, data, cases, search, profile, allowRegistration, busy, run, onRefresh }: {
   onCaseOpen: (open: boolean) => void;
-  data: {
-    cases: V2DeliveryCase[];
-    verificationSettings: Record<string, unknown>;
-    warrantyEnabled: boolean;
-  };
+  data: Awaited<ReturnType<typeof loadV2Delivery>>;
   cases: V2Case[];
+  search: string;
   profile: WorkspaceProfile;
+  allowRegistration: boolean;
   busy: boolean;
   run: Run;
+  onRefresh: () => Promise<void>;
 }) {
   const [printError, setPrintError] = useState("");
-  const visibleCaseIds = new Set(cases.map((item) => item.id));
-  const ready = data.cases.filter(
-    (item) => ["ready_for_delivery", "returned_unrepaired"].includes(item.process_status) && !item.delivered_at && visibleCaseIds.has(item.case_id),
-  );
-  const configuredMethods = data.verificationSettings.enabledMethods;
-  const methods = [
-    ["receipt_qr", "رسید یا QR"], ["digital_signature", "امضا"], ["identity_document", "مدرک هویتی"], ["sms_otp", "کد پیامکی"],
-  ].filter(([value]) => !Array.isArray(configuredMethods) || configuredMethods.includes(value));
-  if (profile.role === "repair_manager") methods.push(["manager_emergency", "مسیر اضطراری مدیر"]);
-  const newForm = (item?: V2DeliveryCase) => ({
-    caseId: item ? String(item.case_id) : "",
-    name: item?.customer_name ?? "",
-    mobile: item?.customer_mobile ?? "",
-    recipientType: "customer",
-    nationalCode: "",
-    method: methods[0]?.[0] ?? "",
-    evidence: "",
-    discrepancyNote: "",
-    otpRequestId: "",
-    otpCode: "",
-    identifier: item?.identifier_snapshot ?? "", identityConfirmed: false, identityChangeReason: "",
-  });
-  const [form, setForm] = useState(() => newForm(ready.find(item =>
-    item.case_id === Number(new URL(location.href).searchParams.get("deliveryCase")))));
-  const deliveryKey = React.useRef<{signature: string; key: string} | undefined>(undefined);
-  const [confirmedAccessories, setConfirmedAccessories] = useState<string[]>([]);
+  const [caseId, setCaseId] = useState(() => Number(new URL(location.href).searchParams.get("deliveryCase")) || 0);
+  const [receiptId, setReceiptId] = useState(0);
   const [warrantyReturn, setWarrantyReturn] = useState({ caseId: "", issue: "", notes: "", identifier: "" });
-  const selected = ready.find((item) => item.case_id === Number(form.caseId));
-  useEffect(() => onCaseOpen(!!selected || !!warrantyReturn.caseId), [selected, warrantyReturn.caseId, onCaseOpen]);
-  const selectedWorkflowCase = cases.find((item) => item.id === selected?.case_id);
-  const selectedAccessories = selected
-    ? (() => {
-        try {
-          const parsed = JSON.parse(selected.accessories_json || "[]");
-          return Array.isArray(parsed) ? [...new Set(parsed.map(value => typeof value === "string" ? value.trim()
-            : String(value?.label ?? value?.title ?? value?.name ?? "").trim()).filter(Boolean))] : [];
-        } catch {
-          return [];
-        }
-      })()
-    : [];
-  const missingAccessories = selectedAccessories.filter(
-    (item) => !confirmedAccessories.includes(item),
-  );
-  const selectDelivery = (item?: V2DeliveryCase) => {
-    setForm(newForm(item));
-    setConfirmedAccessories([]);
-    deliveryKey.current = undefined;
+  const matches = (item: V2DeliveryCase) => matchesQueueSearch(search, [item.receipt_number, item.customer_name,
+    item.customer_mobile, item.identifier_snapshot ?? "", item.brand_snapshot, item.model_snapshot]);
+  const ready = data.cases.filter(item => ["ready_for_delivery", "returned_unrepaired"].includes(item.process_status) && !item.delivered_at);
+  const selected = allowRegistration ? ready.find(item => item.case_id === caseId) : undefined;
+  const pendingDetails = allowRegistration && caseId > 0 && !selected;
+  const receipt = data.cases.find(item => item.case_id === receiptId && item.delivered_at);
+  const detailOpen = Boolean(selected || pendingDetails || receiptId || warrantyReturn.caseId);
+  useEffect(() => onCaseOpen(detailOpen), [detailOpen, onCaseOpen]);
+
+  const select = (id = 0) => {
+    setCaseId(id);
+    setPrintError("");
     const url = new URL(location.href);
-    if (item) url.searchParams.set("deliveryCase", String(item.case_id));
+    if (id) url.searchParams.set("deliveryCase", String(id));
     else url.searchParams.delete("deliveryCase");
     history.replaceState(history.state, "", url);
     window.scrollTo(0, 0);
   };
-  const sortedReady = ready.map(item => ({ item, workflow: cases.find(row => row.id === item.case_id) }))
-    .sort((a,b) => compareQueueCases(a.workflow,b.workflow));
+  const print = (item: V2DeliveryCase) => {
+    setPrintError("");
+    if (!printHandoverReceipt(item, profile.shopName)) {
+      setPrintError("برای چاپ رسید، اجازهٔ بازشدن پنجره را برای تعمیران فعال کنید.");
+    }
+  };
+  const sortedReady = ready.filter(matches)
+    .map(item => ({ item, workflow: cases.find(row => row.id === item.case_id) }))
+    .sort((a, b) => compareQueueCases(a.workflow, b.workflow));
   return (
     <div className="v2-stack">
       {printError && <p role="alert" className="identity-error">{printError}</p>}
-      {!selected && !warrantyReturn.caseId && <section className="v2-card-form">
-        <div className="service-card-line"><h3>صف دستگاه‌های آمادهٔ تحویل</h3><b>{toman.format(ready.length)} دستگاه</b></div>
-        <div className="service-card-grid">
-          {sortedReady.map(({ item, workflow }) => <ServiceQueueCard key={item.case_id}
-            item={workflow} receipt={item.receipt_number} title={workflow?.deviceTitle ?? [item.brand_snapshot,item.model_snapshot].filter(Boolean).join(" ")}
-            customer={item.customer_name} action={item.process_status === "returned_unrepaired" ? "تحویل بدون تعمیر" : "شروع تحویل"} onOpen={() => selectDelivery(item)} />)}
-          {!ready.length && <Empty text="پرونده‌ای آماده تحویل نیست." />}
+      {selected && <DeliveryCaseForm key={selected.case_id} item={selected}
+        verificationSettings={data.verificationSettings} manager={profile.role === "repair_manager"} busy={busy}
+        run={run} onBack={() => select()} onCompleted={() => { setReceiptId(selected.case_id); select(); }} />}
+      {pendingDetails && <section className="cashier-sheet">
+        <h3>پروندهٔ تحویل در فهرست فعلی پیدا نشد</h3>
+        <div className="cashier-actions">
+          <button type="button" className="cashier-quiet" onClick={() => select()}>بازگشت به صف</button>
+          <button type="button" className="cashier-primary" onClick={() => void onRefresh()}>تازه‌سازی</button>
         </div>
       </section>}
-      {selected && <section className="v2-card-form service-case">
-        <div className="service-card-line"><h3>تحویل دستگاه به مشتری</h3>
-          <button type="button" disabled={busy} onClick={() => selectDelivery()}>بازگشت به صف</button></div>
-        <p className="service-callout"><strong>{selectedWorkflowCase?.deviceTitle ?? [selected.brand_snapshot, selected.model_snapshot].filter(Boolean).join(" ")}</strong>
-          {" · "}<bdi>{selected.receipt_number}</bdi>{" · "}{selected.customer_name}</p>
-        <form
-          className="v2-grid-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (busy) return;
-            const payload = {
-              action: "complete", expectedVersion: selectedWorkflowCase?.lockVersion,
-              caseId: selected.case_id, deviceIdentifier: form.identifier,
-              identityConfirmed: form.identityConfirmed, identifierChangeReason: form.identityChangeReason,
-              recipientType: form.recipientType, recipientFullName: form.name, recipientMobile: form.mobile,
-              recipientNationalCode: form.nationalCode, verificationMethod: form.method,
-              verificationEvidence: { note: form.evidence.trim() }, emergencyReason: form.method === "manager_emergency" ? form.evidence.trim() : undefined, otpRequestId: form.otpRequestId, otpCode: form.otpCode,
-              accessoriesConfirmed: confirmedAccessories, warningsAcknowledged: { accepted: true },
-              warrantyConditions: "ضمانت هر ردیف مطابق فاکتور و شرایط تعمیرگاه است.",
-            };
-            const signature = JSON.stringify(payload);
-            if (deliveryKey.current?.signature !== signature) deliveryKey.current = { signature, key: crypto.randomUUID() };
-            if (await run(() => deliveryV2Action({ ...payload, idempotencyKey: deliveryKey.current?.key }),
-              selected.process_status === "returned_unrepaired" ? "تحویل بدون تعمیر ثبت شد." : "تحویل واقعی دستگاه ثبت شد.")) selectDelivery();
-          }}
-        >
-          {selected && (
-            <div className="v2-delivery-readiness grow">
-              <strong>آمادگی تحویل</strong>
-              <div className="service-readiness">
-              <span className="ready"><CheckCircle2 size={16} /> {selected.process_status === "returned_unrepaired" ? "عودت بدون تعمیر" : "تعمیر تکمیل شده"}</span>
-              <span className={selected.blockers.qc.length ? "blocked" : "ready"}>
-                {selected.blockers.qc.length ? "کنترل کیفیت نیازمند اقدام است" : "کنترل کیفیت تأیید شده"}
-              </span>
-              <span className={selected.blockers.finance.length ? "blocked" : "ready"}>
-                {selected.blockers.finance.length ? selected.blockers.finance.join("، ") : "وضعیت مالی معتبر است"}
-              </span>
-              </div>
-              {selected.process_status === "returned_unrepaired" ? <p>عودت بدون تعمیر{!selected.identifier_snapshot && " ـ شناسه ثبت نشده"}. تحویل‌گیرنده و زمان تحویل ثبت می‌شوند.</p> : <div className="reception-identity-field">
-              <label><span>سریال / IMEI دستگاه تحویلی *</span><input dir="ltr" value={form.identifier} onChange={(e) => setForm({...form, identifier: e.target.value, identityConfirmed: false})} maxLength={180}/></label>
-              <small>{selected.identifier_snapshot ? `شناسه قبلی: ${selected.identifier_snapshot}` : "دستگاه بدون شناسه پذیرش شده؛ شناسه را از دستگاه روشن‌شده ثبت کنید."}</small>
-              {selected.identifier_snapshot && form.identifier !== selected.identifier_snapshot && <label><span>علت تغییر شناسه (ثبت فقط توسط مدیر)</span><input value={form.identityChangeReason} onChange={(e) => setForm({...form, identityChangeReason: e.target.value})} placeholder="مانند تعویض برد، با حفظ شناسه قبلی در سابقه" maxLength={1000}/></label>}
-              <label className="identity-missing-choice"><input type="checkbox" checked={form.identityConfirmed} onChange={(e) => setForm({...form, identityConfirmed: e.target.checked})}/><span>شناسه را با همین دستگاه تطبیق دادم.</span></label></div>}
-              <div className="v2-accessory-checklist">
-                <b>لوازم همراه</b>
-                {selectedAccessories.length ? selectedAccessories.map((accessory) => (
-                  <label key={accessory}>
-                    <input
-                      type="checkbox"
-                      checked={confirmedAccessories.includes(accessory)}
-                      onChange={(event) =>
-                        setConfirmedAccessories((current) =>
-                          event.target.checked
-                            ? [...current, accessory]
-                            : current.filter((item) => item !== accessory),
-                        )
-                      }
-                    />
-                    <span>{accessory}</span>
-                  </label>
-                )) : <small>لوازم همراهی در پذیرش ثبت نشده است.</small>}
-                {missingAccessories.length > 0 && (
-                  <div className="v2-inline-form">
-                    <label className="grow">
-                      <span>شرح مغایرت لوازم</span>
-                      <input
-                        value={form.discrepancyNote}
-                        onChange={(event) =>
-                          setForm({ ...form, discrepancyNote: event.target.value })
-                        }
-                        placeholder="علت نبودن یا مغایرت اقلام را ثبت کنید"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="v2-mini-action"
-                      disabled={busy || !form.discrepancyNote.trim()}
-                      onClick={() =>
-                        void run(
-                          () =>
-                            deliveryV2Action({
-                              action: "report_discrepancy",
-                              caseId: selected.case_id,
-                              missingAccessories,
-                              note: form.discrepancyNote.trim(),
-                            }),
-                          "مغایرت لوازم در Audit پرونده ثبت شد.",
-                        )
-                      }
-                    >
-                      ثبت مغایرت
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          <label>
-            <span>تحویل‌گیرنده</span>
-            <select
-              value={form.recipientType}
-              onChange={(e) =>
-                setForm({ ...form, recipientType: e.target.value })
-              }
-            >
-              <option value="customer">خود مشتری</option>
-              <option value="representative">شخص دیگر</option>
-            </select>
-          </label>
-          <label>
-            <span>نام کامل</span>
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </label>
-          <label>
-            <span>موبایل</span>
-            <input
-              dir="ltr"
-              inputMode="tel"
-              value={form.mobile}
-              onChange={(e) => setForm({ ...form, mobile: e.target.value })}
-            />
-          </label>
-          {form.recipientType === "representative" && (
-            <label>
-              <span>مشخصات هویتی تحویل‌گیرنده</span>
-              <input
-                dir="ltr"
-                value={form.nationalCode}
-                onChange={(event) =>
-                  setForm({ ...form, nationalCode: event.target.value })
-                }
-                placeholder="کد ملی یا شناسه معتبر"
-              />
-            </label>
-          )}
-          <label>
-            <span>روش احراز</span>
-            <select
-              value={form.method}
-              onChange={(e) => setForm({ ...form, method: e.target.value })}
-            >
-              {methods.map(([value,label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </label>
-          <label className="grow">
-            <span>مدرک/توضیح</span>
-            <input
-              value={form.evidence}
-              onChange={(e) => setForm({ ...form, evidence: e.target.value })}
-            />
-          </label>
-          {["sms_otp"].includes(form.method) ||
-          form.recipientType === "representative" ? (
-            <>
-              <label>
-                <span>شناسه OTP</span>
-                <div className="v2-inline-form">
-                  <input dir="ltr" readOnly value={form.otpRequestId} />
-                  <button
-                    type="button"
-                    className="v2-mini-action"
-                    disabled={busy || !selected}
-                    onClick={async () => {
-                      if (!selected) return;
-                      const response = await run(
-                        () =>
-                          smsV2Action({
-                            action: "otp_request",
-                            purpose:
-                              form.recipientType === "representative"
-                                ? "representative_delivery"
-                                : "delivery",
-                            subjectPublicId: selected.case_public_id,
-                            mobile: selected.customer_mobile,
-                          }),
-                        "کد یک‌بارمصرف برای مشتری ارسال شد.",
-                      );
-                      const requestId = String(
-                        (response as { requestId?: unknown } | undefined)
-                          ?.requestId ?? "",
-                      );
-                      if (requestId)
-                        setForm((current) => ({
-                          ...current,
-                          otpRequestId: requestId,
-                        }));
-                    }}
-                  >
-                    ارسال OTP
-                  </button>
-                </div>
-              </label>
-              <label>
-                <span>کد OTP</span>
-                <input
-                  inputMode="numeric"
-                  value={form.otpCode}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      otpCode: e.target.value.replace(/\D/g, "").slice(0, 6),
-                    })
-                  }
-                />
-              </label>
-            </>
-          ) : null}
-          <button
-            disabled={
-              busy ||
-              !selected ||
-              (selected?.process_status !== "returned_unrepaired" && (!form.identifier.trim() || !form.identityConfirmed)) ||
-              !form.name ||
-              !form.mobile ||
-              (form.recipientType === "representative" &&
-                !form.nationalCode.trim()) ||
-              !form.method ||
-              !form.evidence.trim() ||
-              ((form.method === "sms_otp" ||
-                form.recipientType === "representative") &&
-                (!form.otpRequestId || form.otpCode.length !== 6)) ||
-              selectedAccessories.some((item) => !confirmedAccessories.includes(item))
-            }
-          >
-            <PackageCheck />
-            ثبت تحویل واقعی
-          </button>
-        </form>
+      {receiptId > 0 && <section className="cashier-sheet delivery-complete">
+        <div className="delivery-complete-heading">
+          <CheckCircle2 size={26} aria-hidden />
+          <h3>تحویل دستگاه ثبت شد</h3>
+        </div>
+        {receipt ? <dl className="cashier-meta">
+          <div><dt>شماره پذیرش</dt><dd><bdi>{receipt.receipt_number}</bdi></dd></div>
+          <div><dt>تحویل‌گیرنده</dt><dd>{receipt.delivered_to_name}</dd></div>
+          <div><dt>زمان تحویل</dt><dd>{formatHandoverTime(receipt.delivered_at)}</dd></div>
+        </dl> : <p>برای نمایش رسید، اطلاعات پرونده را تازه‌سازی کنید.</p>}
+        <div className="cashier-actions">
+          <button type="button" className="cashier-quiet" onClick={() => { setReceiptId(0); setPrintError(""); }}>بازگشت به صف تحویل</button>
+          {receipt ? <button type="button" className="cashier-primary" onClick={() => print(receipt)}>چاپ رسید تحویل</button>
+            : <button type="button" className="cashier-primary" onClick={() => void onRefresh()}>دریافت رسید</button>}
+        </div>
       </section>}
-      {!selected && !warrantyReturn.caseId && <section className="v2-table-panel">
+      {!detailOpen && <section className="v2-card-form">
+        <div className="service-card-line"><h3>صف دستگاه‌های آمادهٔ تحویل</h3><b>{toman.format(sortedReady.length)} دستگاه</b></div>
+        {allowRegistration ? <div className="service-card-grid">
+          {sortedReady.map(({ item, workflow }) => <ServiceQueueCard key={item.case_id}
+            item={workflow} receipt={item.receipt_number} title={workflow?.deviceTitle ?? [item.brand_snapshot,item.model_snapshot].filter(Boolean).join(" ")}
+            customer={item.customer_name} action={item.process_status === "returned_unrepaired" ? "تحویل بدون تعمیر" : "شروع تحویل"} onOpen={() => select(item.case_id)} />)}
+          {!sortedReady.length && <Empty text="پرونده‌ای آماده تحویل نیست." />}
+        </div> : <ul className="tech-plain-list">
+          {sortedReady.map(({ item }) => <li key={item.case_id}><bdi>{item.receipt_number}</bdi> · {item.customer_name}</li>)}
+        </ul>}
+      </section>}
+      {!detailOpen && <section className="v2-table-panel">
         <h3>سوابق تحویل</h3>
         <ResponsiveTable
-          headers={["پرونده", "مشتری", "وضعیت", "مانده", "کنترل‌ها", "عملیات"]}
+          headers={["پرونده", "مشتری", "تحویل‌گیرنده", "زمان تحویل", "عملیات"]}
         >
-          {data.cases.filter(item => !!item.delivered_at).map((item) => (
+          {data.cases.filter(item => item.delivered_at && matches(item)).map(item => (
             <tr key={item.case_id}>
-              <td data-label="پرونده">{item.receipt_number}</td>
+              <td data-label="پرونده"><bdi>{item.receipt_number}</bdi>
+                {item.process_status === "returned_unrepaired" && <small>تحویل بدون تعمیر</small>}</td>
               <td data-label="مشتری">{item.customer_name}</td>
-              <td data-label="وضعیت">{statusLabels[item.process_status]}{item.process_status === "returned_unrepaired" && <small>{item.delivered_at ? "تحویل واقعی ثبت شده" : "منتظر تحویل به مشتری"}</small>}</td>
-              <td data-label="مانده">{formatMoney(item.balance)}</td>
-              <td data-label="کنترل‌ها">
-                {Object.values(item.blockers).flat().length ? (
-                  <span className="v2-balance due">
-                    {Object.values(item.blockers).flat().join("، ")}
-                  </span>
-                ) : (
-                  <span className="v2-balance">تکمیل</span>
-                )}
-              </td>
+              <td data-label="تحویل‌گیرنده">{item.delivered_to_name}</td>
+              <td data-label="زمان تحویل">{formatHandoverTime(item.delivered_at)}</td>
               <td data-label="عملیات">
-                {item.delivered_at && <button type="button" className="v2-mini-action" onClick={() => {if(!printHandoverReceipt(item))setPrintError("مرورگر پنجرهٔ چاپ را باز نکرد؛ اجازهٔ بازشدن پنجره را برای این سایت فعال کنید.");}}>چاپ رسید تحویل {item.receipt_number}</button>}
-                {data.warrantyEnabled && item.process_status === "delivered" && Number(item.active_warranty_count) > 0 ? (
+                <button type="button" className="v2-mini-action" onClick={() => print(item)}>چاپ رسید تحویل {item.receipt_number}</button>
+                {data.warrantyEnabled && item.process_status === "delivered" && Number(item.active_warranty_count) > 0 && (
                   <button type="button" className="v2-mini-action" onClick={() => setWarrantyReturn({ caseId: String(item.case_id), issue: "", notes: "", identifier: "" })}>
                     پذیرش ضمانتی
                   </button>
-                ) : <small>—</small>}
+                )}
               </td>
             </tr>
           ))}

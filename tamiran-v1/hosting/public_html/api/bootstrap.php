@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const TAMIRAN_VERSION = '1.0.0-rc.8';
+const TAMIRAN_VERSION = '1.0.0-rc.9';
 
 final class TamiranApiException extends RuntimeException
 {

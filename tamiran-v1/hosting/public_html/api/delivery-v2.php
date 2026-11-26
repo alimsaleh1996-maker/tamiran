@@ -58,8 +58,9 @@ function delivery_complete(PDO $pdo,array $scope,array $input):array
             if(is_array($item))return trim((string)($item['label']??$item['title']??$item['name']??''));
             return'';
         };
-        $expectedLabels=array_values(array_unique(array_filter(array_map($label,$expected))));
-        $confirmedLabels=array_values(array_unique(array_filter(array_map($label,$confirmed))));
+        $isAccessory=static fn(string $value):bool=>$value!==''&&!in_array($value,['بدون لوازم','بدون اقلام'],true);
+        $expectedLabels=array_values(array_unique(array_filter(array_map($label,$expected),$isAccessory)));
+        $confirmedLabels=array_values(array_unique(array_filter(array_map($label,$confirmed),$isAccessory)));
         $missing=array_values(array_diff($expectedLabels,$confirmedLabels));
         if($missing!==[])throw new TamiranApiException('تأیید لوازم همراه کامل نیست: '.implode('، ',$missing),409);
 
