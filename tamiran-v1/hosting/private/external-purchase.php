@@ -16,6 +16,7 @@ function external_purchase_rows(PDO $pdo, array $scope, ?int $caseId): array
     while ($event=$statement->fetch()) {
         $entry=json_decode((string)$event['metadata_json'],true);
         if (!is_array($entry)||!isset($entry['publicId'])||isset($rows[$entry['publicId']])) continue;
+        if ($entry['status']==='bought'&&!empty($entry['receivedAt'])) $entry['status']='received';
         $rows[$entry['publicId']]=$entry+['caseId'=>(int)$event['case_id'],'receiptNumber'=>$event['receipt_number']];
     }
     return $rows;
@@ -100,9 +101,15 @@ function external_purchase_event(PDO $pdo, array $scope, array $case, array $rec
         'returned'=>'تعیین تکلیف فیزیکی قطعه خارج از انبار ثبت شد',
         'cancelled'=>'لغو خرید قطعه خارج از انبار',
     };
+    // Keep the existing open-purchase status recognizable to earlier releases on rollback.
+    $stored=$record;
+    if ($stored['status']==='received') {
+        $stored['status']='bought';
+        $stored['receivedAt']=gmdate('c');
+    }
     $pdo->prepare("INSERT INTO repair_case_events(case_id,actor_user_id,event_type,description,metadata_json)
         VALUES(:case,:actor,'external_purchase_state',:description,:metadata)")
-        ->execute(['case'=>$case['case_id'],'actor'=>$scope['actor']['id'],'description'=>$description.' — '.$record['title'],'metadata'=>v2_json($record)]);
+        ->execute(['case'=>$case['case_id'],'actor'=>$scope['actor']['id'],'description'=>$description.' — '.$record['title'],'metadata'=>v2_json($stored)]);
     tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],
         'case.external_purchase.'.$record['status'],'repair_case',$case['case_public_id'],null,$record,$reason);
 }
