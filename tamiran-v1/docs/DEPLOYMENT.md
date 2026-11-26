@@ -1,5 +1,30 @@
 # انتشار
 
+## مسیر انتشار نسل جدید
+
+شاخهٔ انتشار `tamiran-v1/foundation` و زیرپوشهٔ آن `tamiran-v1/hosting` است. `main` مبنای آرشیوی انتشار قبلی است. برای بسته‌های نسل جدید از checkout تمیز شاخهٔ نسخه در SHA تأییدشده استفاده کنید. دستورات زیر را از ریشهٔ مخزن اجرا کنید.
+
+```sh
+npm --prefix tamiran-v1/hosting/frontend ci --ignore-scripts
+npm --prefix tamiran-v1/hosting/frontend run typecheck
+npm --prefix tamiran-v1/hosting/frontend run build
+# پس از ثبت و بازبینی خروجی Build در Git
+python3 tamiran-v1/hosting/scripts/package.py \
+  --commit <FULL_APPROVED_GIT_SHA> --output /absolute/path/to/release
+```
+
+بسته‌ساز با Python 3.12 یا جدیدتر، Git و Node/npm سازگار با lockfile اجرا می‌شود. SHA کامل باید با HEAD همان شاخه برابر باشد. بسته‌ساز فایل‌های Commit را در پوشهٔ موقت استخراج می‌کند، وابستگی‌ها را با `npm ci` نصب می‌کند و اگر Build بازتولیدشده با خروجی ثبت‌شده تفاوت داشته باشد، قبل از ساخت ZIP متوقف می‌شود. فایل `artifacts.json` را همراه ZIPها نگه دارید. درون هر ZIP، `CHECKSUMS.sha256` شامل هش Manifest و سایر فایل‌های بسته است.
+
+## خواندن نسخهٔ هاست
+
+۱. `GET /api/health.php` را روی دامنه باز کنید و مقادیر `version`، `frontend_version`، `backend_version`، `schema_compatible` و `build_verified` را یادداشت کنید.
+
+۲. `build_id` و `build_manifest_sha256` پاسخ را با `artifacts.json` بسته تطبیق دهید. Commit کامل در Manifest خصوصی `private/build/manifest.json` و فایل `artifacts.json` ثبت است. API عمومی فقط شناسه و هش منتشر می‌کند. هش‌ها برای کنترل تطابق فایل‌ها هستند و امضای مستقل محسوب نمی‌شوند.
+
+۳. پیش از Smoke Test، فایل‌ها را کامل منتقل و PHP/OPcache را بازبارگذاری کنید. Health محتوای فایل‌های روی دیسک را کنترل می‌کند. در استقرار ناقص، نسخهٔ مؤلفهٔ نامنطبق `null` و وضعیت `degraded` می‌شود. برای نسخه‌های قدیمی بدون Manifest جدید از هش باندل عمومی و بایگانی همان بسته استفاده کنید. اگر دامنه در دسترس نیست، نسخهٔ عملیاتی نامعلوم می‌ماند.
+
+نسخهٔ `1.0.0-rc.14` از `rc.13` با بستهٔ ارتقا و بدون Migration نصب می‌شود. `public_html/` ریشهٔ وب است. `private/` و فایل `VERSION` در پوشهٔ والد آن قرار می‌گیرند.
+
 بستهٔ `1.0.0-rc.13` از `1.0.0-rc.12` با فایل به‌روزرسانی و بدون Migration نصب می‌شود.
 
 برای `1.0.0-rc.9` بستهٔ نصب و بستهٔ ارتقا از `1.0.0-rc.8` تولید می‌شود. ارتقا به Migration نیاز ندارد.

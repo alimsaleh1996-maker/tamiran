@@ -19,7 +19,7 @@ The PHP edition has its own files here. The frozen reference in `migration/worke
 - `scripts/package.py`: creates clean install and source ZIPs, a private installation key, file checksums and build metadata.
 - `VERIFICATION-FA.md`: test evidence and limits for the packaged release.
 
-To rebuild the browser interface, use `npm ci --ignore-scripts`, `npm run typecheck` and `npm run build` from `frontend/`. To package, run `python scripts/package.py --output /absolute/output/directory` from this directory after completing verification. Packaging refuses missing runtime files and excludes generated credentials, local logs, uploads, backups, dependencies and test state.
+To rebuild the browser interface, use `npm ci --ignore-scripts`, `npm run typecheck` and `npm run build` from `frontend/`. After verification, use Python 3.12+ and run `python scripts/package.py --commit <full-approved-sha> --output /absolute/output/directory` from a clean `tamiran-v1/foundation` checkout. Packaging rebuilds an isolated copy of the approved commit and checks it against the committed runtime. Install and update archives share a private build manifest. Generated configuration, logs, uploads, backups, development dependencies and test state are excluded.
 
 The initial installer only accepts an empty dedicated database and does not upgrade existing installations. Do not overwrite an existing `private/config.php`, encryption key or runtime-secret directory during upgrades.
 

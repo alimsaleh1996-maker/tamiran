@@ -1,7 +1,10 @@
 <?php
 declare(strict_types=1);
 
-const TAMIRAN_VERSION = '1.0.0-rc.13';
+$applicationVersion = trim((string) @file_get_contents(dirname(__DIR__, 2) . '/VERSION'));
+define('TAMIRAN_VERSION', preg_match('/\A[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\z/', $applicationVersion)
+    ? $applicationVersion : 'unknown');
+unset($applicationVersion);
 
 final class TamiranApiException extends RuntimeException
 {

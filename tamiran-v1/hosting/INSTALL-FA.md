@@ -19,6 +19,7 @@
 
 ```text
 domain-root/
+├── VERSION
 ├── public_html/
 │   ├── index.php
 │   ├── .htaccess
@@ -34,6 +35,8 @@ domain-root/
 ```
 
 در cPanel، اگر ریشهٔ سایت `/home/USER/public_html` است، `private` باید `/home/USER/private` باشد. در DirectAdmin معمولاً هر دو پوشه داخل `domains/DOMAIN/` قرار می‌گیرند. `private` را داخل `public_html` نگذارید. اگر زیر دامنه دارید، ابتدا document root آن را به `public_html` مربوط به همان بسته تنظیم کنید.
+
+فایل `VERSION` را در پوشهٔ والد `public_html` نگه دارید. پیش از نصب، هش‌های `CHECKSUMS.sha256` بسته را کنترل کنید. پس از نصب، دو نسخهٔ فرانت‌اند و بک‌اند و هش Manifest را از `/api/health.php` با فایل همراه `artifacts.json` تطبیق دهید.
 
 این نسخه باید در ریشهٔ دامنه نصب شود؛ نصب در نشانی‌هایی مثل `/tamiran/` پشتیبانی نشده است، چون API و assetها مسیر مطلق دارند. روی پوشهٔ سایت قبلی استخراج نکنید؛ ابتدا از آن نسخهٔ پشتیبان بگیرید و مقصد مجزا انتخاب کنید.
 

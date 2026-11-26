@@ -1,8 +1,4 @@
-declare const __TAMIRAN_BUILD_ID__: string;
+declare const __TAMIRAN_VERSION__: string;
 
-export const APP_VERSION = "1.0.0-rc.13";
+export const APP_VERSION = __TAMIRAN_VERSION__;
 export const APP_CHANNEL = "php";
-export const APP_BUILD_ID =
-  typeof __TAMIRAN_BUILD_ID__ === "string"
-    ? __TAMIRAN_BUILD_ID__
-    : "development";
