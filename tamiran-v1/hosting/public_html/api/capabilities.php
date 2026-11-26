@@ -25,20 +25,28 @@ tamiran_api(static function (): array {
         return ['recorded'=>true];
     }
     if ($action !== 'request_activation') throw new TamiranApiException('عملیات قابلیت معتبر نیست.');
-    $snapshot = tamiran_capability_snapshot($pdo, $actor);
-    $item = tamiran_capability_find($snapshot, $module);
-    if (is_array($item) && ($item['access'] ?? '') === 'granted') throw new TamiranApiException('این قابلیت هم‌اکنون فعال است.', 409);
     $reason = trim((string)($input['reason'] ?? ''));
     if ((function_exists('mb_strlen') ? mb_strlen($reason) : strlen($reason)) > 1000) throw new TamiranApiException('توضیح درخواست بیش از حد طولانی است.');
-    $existing = $pdo->prepare("SELECT public_id FROM tamiran_module_activation_requests WHERE repair_shop_id=:shop AND module_key=:module AND status='pending' LIMIT 1");
-    $existing->execute(['shop'=>(int)$actor['shop']['id'],'module'=>$module]);
-    $publicId = $existing->fetchColumn();
-    if (!is_string($publicId)) {
-        $publicId = tamiran_id();
-        $statement = $pdo->prepare("INSERT INTO tamiran_module_activation_requests(public_id,repair_shop_id,module_key,status,reason,requested_by_user_id,created_at,updated_at) VALUES(:public,:shop,:module,'pending',:reason,:actor,NOW(),NOW())");
-        $statement->execute(['public'=>$publicId,'shop'=>(int)$actor['shop']['id'],'module'=>$module,'reason'=>$reason?:null,'actor'=>(int)$actor['id']]);
-        tamiran_capability_event($pdo, (int)$actor['shop']['id'], $module, 'module_activation_requested', (int)$actor['id'], ['requestId'=>$publicId]);
-        tamiran_audit($pdo, (int)$actor['shop']['id'], isset($actor['branch']['id']) ? (int)$actor['branch']['id'] : null, (int)$actor['id'], 'module.activation.requested', 'module_activation_request', $publicId, null, ['module'=>$module,'status'=>'pending'], $reason?:'درخواست فعال‌سازی');
+    $shopId = (int)$actor['shop']['id'];
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE')->execute(['shop'=>$shopId]);
+        $item = tamiran_capability_find(tamiran_capability_snapshot($pdo, $actor), $module);
+        if (is_array($item) && ($item['access'] ?? '') === 'granted') throw new TamiranApiException('این قابلیت هم‌اکنون فعال است.', 409);
+        $existing = $pdo->prepare("SELECT public_id FROM tamiran_module_activation_requests WHERE repair_shop_id=:shop AND module_key=:module AND status='pending' LIMIT 1");
+        $existing->execute(['shop'=>$shopId,'module'=>$module]);
+        $publicId = $existing->fetchColumn();
+        if (!is_string($publicId)) {
+            $publicId = tamiran_id();
+            $statement = $pdo->prepare("INSERT INTO tamiran_module_activation_requests(public_id,repair_shop_id,module_key,status,reason,requested_by_user_id,created_at,updated_at) VALUES(:public,:shop,:module,'pending',:reason,:actor,NOW(),NOW())");
+            $statement->execute(['public'=>$publicId,'shop'=>$shopId,'module'=>$module,'reason'=>$reason?:null,'actor'=>(int)$actor['id']]);
+            tamiran_capability_event($pdo, $shopId, $module, 'module_activation_requested', (int)$actor['id'], ['requestId'=>$publicId]);
+            tamiran_audit($pdo, $shopId, isset($actor['branch']['id']) ? (int)$actor['branch']['id'] : null, (int)$actor['id'], 'module.activation.requested', 'module_activation_request', $publicId, null, ['module'=>$module,'status'=>'pending'], $reason?:'درخواست فعال‌سازی');
+        }
+        $pdo->commit();
+        return ['requested'=>true,'requestId'=>$publicId];
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
     }
-    return ['requested'=>true,'requestId'=>$publicId];
 });

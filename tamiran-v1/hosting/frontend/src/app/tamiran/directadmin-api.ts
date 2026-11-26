@@ -21,7 +21,7 @@ type Envelope<T> = {
 export class DirectAdminApiError extends FollowUpApiError {
   status: number;
 
-  constructor(message: string, status: number, trackingCode?: string) {
+  constructor(message: string, status: number, trackingCode?: string, readonly unexpectedResponse = false) {
     super(message, trackingCode);
     this.name = "DirectAdminApiError";
     this.status = status;
@@ -38,6 +38,7 @@ async function readEnvelope<T>(response: Response): Promise<Envelope<T>> {
       "پاسخ نامعتبر از سرور دریافت شد.",
       response.status,
       response.headers.get("X-Request-ID") ?? undefined,
+      true,
     );
   }
   return response.json() as Promise<Envelope<T>>;
@@ -127,6 +128,7 @@ export type CapabilityModule = {
   catalog: "visible" | "hidden";
   access: "granted" | "denied" | "locked";
   cta: "request_activation" | null;
+  activationPending?: boolean;
   trialDaysRemaining: number | null;
   expiresAt: string | null;
 };
@@ -783,20 +785,6 @@ export const requestModuleActivation = (module: string, reason = "") =>
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "request_activation", module, reason }),
-    },
-    true,
-  );
-export const recordCapabilityEvent = (
-  module: string,
-  event: string,
-  metadata: Record<string, unknown> = {},
-) =>
-  request<{ recorded: boolean }>(
-    "/api/capabilities.php",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "event", module, event, metadata }),
     },
     true,
   );

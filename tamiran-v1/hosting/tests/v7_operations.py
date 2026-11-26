@@ -367,6 +367,40 @@ def check_locked_finance_browser(log,url,manager,case,receipt,folder):
         browser_expect(page.get_by_role('button',name='صدور فاکتور',exact=True)).to_have_count(0)
         browser_expect(page.get_by_role('button',name='رفتن به فعال‌سازی مالی',exact=True)).to_be_visible()
         page.screenshot(path=str(Path(folder)/'finance-inactive.png'),full_page=True)
+        posts=[]
+        page.on('request', lambda call: posts.append(call.post_data_json)
+            if call.url.endswith('/api/capabilities.php') and call.method=='POST' else None)
+        page.get_by_role('button',name='رفتن به فعال‌سازی مالی',exact=True).click()
+        card=page.locator('.capability-card').filter(has=page.get_by_role('heading',name='مالی پرونده',exact=True))
+        activate=card.get_by_role('button',name='درخواست فعال‌سازی',exact=True)
+        browser_expect(activate).to_be_visible()
+        page.wait_for_load_state('networkidle')
+        log.check('opening the capability catalog sends no analytics POSTs',lambda:expect(not posts,str(posts)))
+        def hosting_error(route):
+            if route.request.method=='POST':
+                route.fulfill(status=403,content_type='text/html',body='<h1>Forbidden</h1>',headers={'X-Request-ID':'TEST-HOST-403'})
+            else:
+                route.continue_()
+        page.route('**/api/capabilities.php',hosting_error)
+        activate.click()
+        alert=page.get_by_role('alert')
+        log.check('host rejection displays HTTP status and the response identifier',lambda:browser_expect(alert).to_contain_text('HTTP 403'))
+        browser_expect(alert).to_contain_text('TEST-HOST-403')
+        page.wait_for_load_state('networkidle')
+        log.check('host rejection never retries or sends a parallel event',lambda:expect(
+            posts==[{'action':'request_activation','module':'finance','reason':''}],str(posts)))
+        page.unroute('**/api/capabilities.php',hosting_error)
+        activate.click()
+        browser_expect(card.get_by_role('button',name='درخواست ثبت شد',exact=True)).to_be_disabled()
+        page.reload(wait_until='networkidle')
+        log.check('pending activation is retained after refresh',lambda:
+            browser_expect(card.get_by_role('button',name='درخواست ثبت شد',exact=True)).to_be_disabled())
+        log.check('submitting activation sends one POST and refresh sends none',lambda:expect(len(posts)==2,str(posts)))
+        request={'action':'request_activation','module':'finance'}
+        first=manager.api('capabilities.php','POST',request)
+        again=manager.api('capabilities.php','POST',request)
+        log.check('repeating a pending request returns the same request ID',lambda:expect(
+            first['requestId']==again['requestId'],'duplicate activation requests'))
         browser.close()
 
 

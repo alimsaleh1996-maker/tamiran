@@ -10,10 +10,9 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import * as React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  recordCapabilityEvent,
+  DirectAdminApiError,
   requestModuleActivation,
   type CapabilitySnapshot,
 } from "./directadmin-api";
@@ -44,45 +43,30 @@ export function CapabilityCatalog({
     (item) => item.catalog === "visible",
   );
 
-  useEffect(() => {
-    const firstVisibleModule = modules[0]?.module;
-    if (!snapshot?.generatedAt || !firstVisibleModule) return;
-    void recordCapabilityEvent(firstVisibleModule, "module_catalog_opened", {
-      surface: "module_catalog",
-    }).catch(() => undefined);
-    // Module keys are stable for the lifetime of the loaded snapshot.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot?.generatedAt]);
-
-  useEffect(() => {
-    modules.forEach((item) => {
-      void recordCapabilityEvent(item.module, "module_card_viewed", {
-        surface: "module_catalog",
-      }).catch(() => undefined);
-    });
-    // Module keys are stable for the lifetime of the loaded snapshot.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot?.generatedAt]);
+  const activeRequest = useRef(false);
+  const [requestError, setRequestError] = useState("");
+  useEffect(() => setRequested(new Set()), [snapshot]);
 
   const request = async (module: string) => {
+    if (activeRequest.current) return;
+    activeRequest.current = true;
     setRequesting(module);
+    setRequestError("");
     try {
-      void recordCapabilityEvent(module, "module_upgrade_cta_clicked", {
-        surface: "module_catalog",
-      }).catch(() => undefined);
       await requestModuleActivation(module);
       setRequested((current) => new Set(current).add(module));
-      notify(
-        "درخواست فعال‌سازی ثبت شد؛ نتیجه از مسیر پشتیبانی تجاری پیگیری می‌شود.",
-      );
+      notify("درخواست فعال‌سازی ثبت شد؛ نتیجه از مسیر پشتیبانی تجاری پیگیری می‌شود.");
     } catch (error) {
-      notify(
-        error instanceof FollowUpApiError
-          ? error.message
-          : "ثبت درخواست فعال‌سازی انجام نشد.",
-      );
+      if (error instanceof DirectAdminApiError && error.unexpectedResponse && [403, 429].includes(error.status)) {
+        setRequestError(`پاسخ HTTP ${error.status} از هاست دریافت شد. زمان خطا و مسیر /api/capabilities.php را به پشتیبانی هاست بدهید.${error.trackingCode ? ` شناسهٔ پاسخ ${error.trackingCode}` : ""}`);
+      } else {
+        setRequestError(error instanceof FollowUpApiError
+          ? `${error.message}${error.trackingCode ? ` · کد پیگیری ${error.trackingCode}` : ""}`
+          : "ارتباط با سرور برای ثبت درخواست برقرار نشد.");
+      }
     } finally {
       setRequesting(null);
+      activeRequest.current = false;
     }
   };
 
@@ -105,7 +89,7 @@ export function CapabilityCatalog({
         <button
           type="button"
           className="outline-action"
-          onClick={() => void onRefresh()}
+          onClick={() => { setRequestError(""); void onRefresh(); }}
           disabled={loading}
         >
           <RefreshCw size={17} className={loading ? "is-spinning" : ""} />
@@ -122,6 +106,7 @@ export function CapabilityCatalog({
           </p>
         </div>
       </div>
+      {requestError && <p className="v2-alert" role="alert">{requestError}</p>}
       <section className="capability-card-grid">
         {modules.map((item) => (
           <article className="capability-card" key={item.module}>
@@ -152,11 +137,11 @@ export function CapabilityCatalog({
               type="button"
               className="primary-action"
               disabled={
-                requesting === item.module || requested.has(item.module)
+                requesting !== null || item.activationPending || requested.has(item.module)
               }
               onClick={() => void request(item.module)}
             >
-              {requested.has(item.module) ? (
+              {item.activationPending || requested.has(item.module) ? (
                 <>
                   <CheckCircle2 size={17} />
                   درخواست ثبت شد

@@ -79,6 +79,12 @@ function tamiran_capability_snapshot(PDO $pdo, array $actor): array
     $states = [];
     foreach ($statement->fetchAll() as $row) $states[(string)$row['module_key']] = $row;
     $discoverable = tamiran_capability_discoverable($actor);
+    $pending = [];
+    if ($discoverable) {
+        $requests = $pdo->prepare("SELECT module_key FROM tamiran_module_activation_requests WHERE repair_shop_id=:shop AND status='pending'");
+        $requests->execute(['shop'=>$shopId]);
+        $pending = array_fill_keys($requests->fetchAll(PDO::FETCH_COLUMN), true);
+    }
     $result = [];
     foreach (tamiran_capability_catalog() as $key=>$definition) {
         if ($definition['scope'] !== 'both' && $definition['scope'] !== $profile) continue;
@@ -99,7 +105,8 @@ function tamiran_capability_snapshot(PDO $pdo, array $actor): array
             'navigation'=>$granted ? 'visible' : 'hidden',
             'catalog'=>$catalogVisible ? 'visible' : 'hidden',
             'access'=>$granted ? 'granted' : ($permission === 'none' ? 'denied' : 'locked'),
-            'cta'=>$catalogVisible ? 'request_activation' : null,
+            'cta'=>$catalogVisible && !isset($pending[$key]) ? 'request_activation' : null,
+            'activationPending'=>$catalogVisible && isset($pending[$key]),
             'trialDaysRemaining'=>$trialDays,'expiresAt'=>$row['expires_at'] ?? null,
         ];
     }
