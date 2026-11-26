@@ -140,7 +140,7 @@ function v2_workflow_maps(array $policy=[]): array
             'repairing'=>array_values(array_unique([$afterRepair,'awaiting_parts','awaiting_customer_approval','cancelled'])),
             'parts_closeout'=>[$afterParts,'repairing'],
             'qc_pending'=>['qc_rework','qc_conditional','finance_pending'],
-            'qc_rework'=>['repairing'],'qc_conditional'=>['finance_pending'],'finance_pending'=>['ready_for_delivery','returned_unrepaired'],
+            'qc_rework'=>['repairing','estimate_pending'],'qc_conditional'=>['finance_pending'],'finance_pending'=>['ready_for_delivery','returned_unrepaired'],
             'ready_for_delivery'=>[],'returned_unrepaired'=>[],'delivered'=>['closed'],'cancelled'=>[],'closed'=>[],
         ];
     }else{
@@ -152,7 +152,7 @@ function v2_workflow_maps(array $policy=[]): array
             'awaiting_parts'=>['repairing','awaiting_customer_approval','returned_unrepaired','cancelled'],
             'repairing'=>array_values(array_unique([$afterRepair,'awaiting_parts','awaiting_customer_approval','cancelled'])),
             'parts_closeout'=>[$afterParts,'repairing'],
-            'qc_pending'=>['qc_rework','qc_conditional','finance_pending'],'qc_rework'=>['repairing'],
+            'qc_pending'=>['qc_rework','qc_conditional','finance_pending'],'qc_rework'=>['repairing','estimate_pending'],
             'qc_conditional'=>['finance_pending'],'finance_pending'=>['ready_for_delivery','returned_unrepaired'],'ready_for_delivery'=>[],
             'returned_unrepaired'=>[],'delivered'=>['closed'],'cancelled'=>[],'closed'=>[],
         ];
@@ -251,6 +251,15 @@ function v2_open_part_blockers(PDO $pdo, int $caseId): array
     $statement=$pdo->prepare("SELECT COUNT(*) FROM repair_hot_returns WHERE case_id=:case AND status<>'settled'");
     $statement->execute(['case'=>$caseId]);
     if((int)$statement->fetchColumn()>0) $blockers[]='تعهد داغی باز';
+    $statement=$pdo->prepare("SELECT 1 FROM repair_case_events e
+        WHERE e.case_id=:case AND e.event_type='external_purchase_state'
+        AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.status')) IN ('pending','approved','bought','returning')
+        AND NOT EXISTS(SELECT 1 FROM repair_case_events later WHERE later.case_id=e.case_id
+            AND later.event_type=e.event_type AND later.id>e.id
+            AND JSON_UNQUOTE(JSON_EXTRACT(later.metadata_json,'$.publicId'))=JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.publicId')))
+        LIMIT 1");
+    $statement->execute(['case'=>$caseId]);
+    if($statement->fetchColumn()!==false) $blockers[]='خرید خارج از انبار تعیین‌تکلیف نشده';
     return $blockers;
 }
 
@@ -388,6 +397,10 @@ function v2_transition(PDO $pdo, array $scope, int $caseId, string $target, ?str
             $partBlockers=v2_open_part_blockers($pdo,$caseId);
             if($partBlockers!==[]) throw new TamiranApiException('قطعات پرونده تعیین‌تکلیف نشده‌اند: '.implode('، ',$partBlockers),409);
         }
+        if(!$technicalFinish&&!$unrepaired&&in_array($target,['qc_pending','finance_pending'],true)
+            &&in_array($row['process_status'],['repairing','parts_closeout','qc_rework'],true)){
+            case_invoice_record($pdo,$scope,$row);
+        }
         if(in_array($target,['cancelled','returned_unrepaired'],true)) {
             $terminalFinance=v2_terminal_finance_blockers($pdo,$caseId);
             if($terminalFinance!==[]) throw new TamiranApiException('تعیین تکلیف مالی پیش از بستن پرونده الزامی است: '.implode('، ',$terminalFinance),409);
@@ -405,9 +418,10 @@ function v2_transition(PDO $pdo, array $scope, int $caseId, string $target, ?str
         $terminal=in_array($target,['cancelled','returned_unrepaired'],true);
         $holdReason=v2_hold_reason($target);
         $wasWaiting=$row['wait_started_at']!==null;
-        $externalWaitIncrement=$wasWaiting&&$holdReason===null?max(0,time()-strtotime((string)$row['wait_started_at'])):0;
+        $sameWait=$wasWaiting&&v2_hold_reason((string)$row['process_status'])===$holdReason;
+        $externalWaitIncrement=$wasWaiting&&!$sameWait?max(0,time()-strtotime((string)$row['wait_started_at'])):0;
         $update=$pdo->prepare('UPDATE repair_case_workflows SET process_status=:target,terminal_reason=:terminal,locked_at=:locked,wait_reason=:wait_reason,wait_started_at=:wait_started,external_wait_seconds=external_wait_seconds+:wait_increment,lock_version=lock_version+1,updated_at=NOW() WHERE id=:id AND lock_version=:version');
-        $update->execute(['target'=>$target,'terminal'=>$terminal?$reason:null,'locked'=>$terminal?$now:null,'wait_reason'=>$holdReason==='customer'?'customer':($holdReason==='part'?'part':($holdReason===null?null:'other')),'wait_started'=>$holdReason!==null?($wasWaiting?$row['wait_started_at']:$now):null,'wait_increment'=>$externalWaitIncrement,'id'=>$row['id'],'version'=>$expectedVersion]);
+        $update->execute(['target'=>$target,'terminal'=>$terminal?$reason:null,'locked'=>$terminal?$now:null,'wait_reason'=>$holdReason==='customer'?'customer':($holdReason==='part'?'part':($holdReason===null?null:'other')),'wait_started'=>$holdReason!==null?($sameWait?$row['wait_started_at']:$now):null,'wait_increment'=>$externalWaitIncrement,'id'=>$row['id'],'version'=>$expectedVersion]);
         if($update->rowCount()!==1) throw new TamiranApiException('پرونده هم‌زمان تغییر کرده است.',409);
         $pdo->prepare('UPDATE repair_case_stage_events SET ended_at=NOW() WHERE workflow_id=:workflow AND ended_at IS NULL')->execute(['workflow'=>$row['id']]);
         $pdo->prepare('INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at) VALUES(:public,:workflow,:from_status,:to_status,:actor,:reason,:metadata,:idempotency,NOW())')->execute([
@@ -531,3 +545,7 @@ function v2_require_case_access(PDO $pdo,array $scope,array $case): void
 }
 
 require_once __DIR__.'/technician-service.php';
+require_once __DIR__.'/operations-policy.php';
+require_once __DIR__.'/external-purchase.php';
+require_once __DIR__.'/case-invoice.php';
+require_once __DIR__.'/manager-operations.php';

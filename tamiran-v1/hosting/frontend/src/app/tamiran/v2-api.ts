@@ -24,6 +24,8 @@ export type V2Case = {
   isLocked: boolean;
   receiptPending?: boolean;
   waitStartedAt?: string | null;
+  pickupStartedAt?: string | null;
+  deliveredAt?: string | null;
   customerName: string;
   customerMobile: string;
   deviceTitle: string;
@@ -35,6 +37,7 @@ export type V2Case = {
   primaryTechnicianUserId: number | null;
   preapprovedAmount: number;
   promisedAt: string | null;
+  priority?: "normal" | "urgent" | "critical";
   acceptedAt: string;
   allowedTransitions: string[];
   mainState?:
@@ -156,6 +159,7 @@ export type V2WorkflowPayload = {
   users: V2User[];
   assignments: V2Assignment[];
   handovers: V2Handover[];
+  operationsPolicy: OperationsPolicy;
   workflowMaps: Record<string, Record<string, string[]>>;
   serverTime: string;
 };
@@ -311,6 +315,7 @@ export type V2QcTemplate = {
   title: string;
   items: Array<{
     id: number;
+    code: string;
     title: string;
     is_required: boolean;
     input_type: string;
@@ -322,6 +327,8 @@ export type V2QualityPayload = {
 };
 export const loadV2Quality = () =>
   directAdminRequest<V2QualityPayload>("/api/quality-v2.php");
+export const startV2Quality = (caseId: number) =>
+  jsonPost<{ receipt: { publicId: string; template: V2QcTemplate } }>("/api/quality-v2.php", { action: "start", caseId });
 export const qualityV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/quality-v2.php", payload);
 
@@ -350,7 +357,7 @@ export type V2InvoiceDraft = {
   items: Array<{
     type: "part" | "labor" | "diagnostic" | "other";
     sourceKey?: string;
-    sourceType?: "stock" | "manual";
+    sourceType?: "stock" | "manual" | "external";
     referenceId?: number | null;
     title: string;
     quantity: number;
@@ -414,6 +421,7 @@ export type TechnicalActivity = {
 };
 export type TechnicalProjection = {
   receiptPending?: boolean;
+  invoice: TechnicalInvoice;
   unrepairedAmount: number;
   unrepairedFinanceBlockers: string[];
   receptionNotes: string;
@@ -432,7 +440,7 @@ export type TechnicalProjection = {
     estimatePublicId: string | null;
   };
   parts: Array<{
-    sourceType: "stock" | "manual";
+    sourceType: "stock" | "manual" | "external";
     sourceKey: string;
     title: string;
     quantity: number;
@@ -459,4 +467,80 @@ export const loadTechnicalCase = (caseId: number) =>
 export const loadTechnicalActivities = (caseId: number, beforeId: number) =>
   directAdminRequest<TechnicalProjection["activities"]>(
     `/api/workflow-v2.php?caseId=${caseId}&technicalActivities=1&beforeId=${beforeId}`,
+  );
+
+export type OperationsPolicy = {
+  handover: "direct" | "manager" | "disabled";
+  approval: "both" | "phone" | "sms";
+  purchase: "free" | "approval" | "limit";
+  purchaseLimits: Record<string, number>;
+  followHours: Record<"customer" | "parts" | "pickup", number>;
+  reasons: Array<{ id: string; title: string; active: boolean }>;
+};
+export type ExternalPurchase = {
+  publicId: string;
+  caseId: number;
+  receiptNumber: string;
+  title: string;
+  quantity: number;
+  unitCost?: number;
+  total?: number;
+  requestedBy: number;
+  disposition?: string;
+  status: "pending" | "approved" | "rejected" | "bought" | "used" | "returning" | "returned" | "cancelled";
+  decisionNote?: string;
+};
+export type ExternalPurchasePayload = {
+  rows: ExternalPurchase[];
+  catalog: Array<{ id: number; code: string; title: string; salePrice: number }>;
+  policy: OperationsPolicy["purchase"];
+  ownLimit: number;
+  canManageCatalog: boolean;
+};
+export const loadExternalPurchases = (caseId?: number) =>
+  directAdminRequest<ExternalPurchasePayload>(
+    `/api/workflow-v2.php?externalPurchase=1${caseId ? `&caseId=${caseId}` : ""}`,
+  );
+export const changeExternalPurchase = (payload: Record<string, unknown>) =>
+  workflowV2Action({ action: "external_purchase", ...payload });
+export function handoverNeedsApproval(handover: V2Handover): boolean {
+  try {
+    const assets = JSON.parse(handover.assets_json);
+    return !!assets.managerApprovalRequired && !assets.managerApprovedAt;
+  } catch {
+    return false;
+  }
+}
+export type TechnicalInvoice = {
+  items: Array<{
+    type: "part" | "labor" | "diagnostic" | "other";
+    sourceKey?: string;
+    title: string;
+    quantity: number;
+    saleUnitPrice: number;
+    lineTotal: number;
+    discountAmount: number;
+    taxRate: number;
+  }>;
+  totalAmount: number;
+  authorizedAmount: number;
+  mayEditPartPrices: boolean;
+};
+
+export type ManagerPerformance = {
+  id: number;
+  name: string;
+  active: number;
+  delivered: number;
+  repaired: number;
+  unrepaired: number;
+  technicalFailures: number;
+  stageTimes: Record<string, number>;
+  qcRuns: number;
+  qcFailures: number;
+  transferReasons: Array<{ label: string; count: number }>;
+};
+export const loadManagerPerformance = (from: string, to: string) =>
+  directAdminRequest<{ rows: ManagerPerformance[] }>(
+    `/api/workflow-v2.php?${new URLSearchParams({ managerReport: "1", from, to })}`,
   );

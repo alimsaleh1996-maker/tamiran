@@ -29,7 +29,7 @@ header('Content-Type: text/html; charset=utf-8');
     <link rel="stylesheet" href="/assets/beta7-ui.css" />
     <link rel="stylesheet" href="/assets/index-B_SWlkkz.css" />
     <link rel="stylesheet" href="/assets/accessibility.css" />
-    <script type="module" crossorigin src="/assets/index-BO_69f6p.js"></script>
+    <script type="module" crossorigin src="/assets/index-QBIMb9oT.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-Ct-PcVw4.css">
   </head>
   <body>

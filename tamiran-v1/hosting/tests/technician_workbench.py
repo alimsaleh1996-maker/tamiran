@@ -98,7 +98,7 @@ def run(args):
     out.check('higher cost cannot finish existing repair',lambda:finish(id,expected=409))
     e=projection(id)['cost']['estimatePublicId'];tech.api('workflow-v2.php','POST',{'action':'estimate_send','estimatePublicId':e})
     out.check('technician cannot record customer phone approval',lambda:tech.api('workflow-v2.php','POST',{'action':'estimate_decide','estimatePublicId':e,'decision':'approved','channel':'recorded_phone','reason':'TEST denied'},expected=403))
-    out.check('authorized role still needs decision documentation',lambda:reception.api('workflow-v2.php','POST',{'action':'estimate_decide','estimatePublicId':e,'decision':'approved','channel':'recorded_phone'},expected=400))
+    out.check('rejection still needs decision documentation',lambda:reception.api('workflow-v2.php','POST',{'action':'estimate_decide','estimatePublicId':e,'decision':'rejected','channel':'recorded_phone'},expected=400))
     out.check('cost status clearly awaits customer',lambda:expect(projection(id)['cost']['state']=='waiting_customer','wrong cost state'))
     out.check('fresh valid under-cap revision re-enables authorized repair',lambda:estimate(id))
     out.check('stale finalization version rejected',lambda:finish(id,version=-1,expected=409))

@@ -45,6 +45,8 @@ export function TechnicianPartsPage({
   setRows,
   stockId,
   stockQuantity,
+  stockLines,
+  onStockLines,
   onStockChange,
   source,
   onSource,
@@ -62,6 +64,8 @@ export function TechnicianPartsPage({
   setRows: (rows: ManualRow[]) => void;
   stockId: string;
   stockQuantity: string;
+  stockLines: Array<{ itemId: number; quantity: number; title: string }>;
+  onStockLines: (lines: Array<{ itemId: number; quantity: number; title: string }>) => void;
   onStockChange: (patch: { stockId?: string; stockQuantity?: string }) => void;
   source: "manual" | "stock";
   onSource: (source: "manual" | "stock") => void;
@@ -76,6 +80,9 @@ export function TechnicianPartsPage({
     issues = inventory?.issues.filter((i) => i.case_id === caseId) ?? [];
   const update = (id: string, patch: Partial<ManualRow>) =>
     setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const selectedStock = inventory?.items.find((item) => item.id === Number(stockId));
+  const pickedQuantity = Number(moneyDigits(stockQuantity));
+  const validPick = !!selectedStock && Number.isSafeInteger(pickedQuantity) && pickedQuantity > 0 && pickedQuantity <= 100000;
   return (
     <>
       <div className="tech-methods" role="group" aria-label="روش تأمین قطعه">
@@ -222,13 +229,13 @@ export function TechnicianPartsPage({
               <label>
                 قطعه انبار
                 <select
-                  required
+                  required={!stockLines.length}
                   value={stockId}
                   onChange={(e) => onStockChange({ stockId: e.target.value })}
                 >
                   <option value="">انتخاب قطعه</option>
                   {inventory?.items
-                    .filter((p) =>
+                    .filter((p) => p.id === Number(stockId) ||
                       `${p.title} ${p.item_code}`
                         .toLowerCase()
                         .includes(query.trim().toLowerCase()),
@@ -245,7 +252,7 @@ export function TechnicianPartsPage({
               <label>
                 تعداد درخواست
                 <input
-                  required
+                  required={!!stockId}
                   inputMode="numeric"
                   value={stockQuantity}
                   onChange={(e) =>
@@ -259,7 +266,14 @@ export function TechnicianPartsPage({
                 درخواست، مصرف قطعه نیست؛ مصرف یا مرجوعی را پس از تحویل انبار ثبت
                 کنید.
               </p>
-              <button className="tech-primary" type="submit">
+              <button type="button" disabled={!validPick || stockLines.length >= 30} onClick={() => {
+                if (selectedStock) onStockLines([...stockLines, { itemId: selectedStock.id, quantity: pickedQuantity, title: selectedStock.title }]);
+              }}>افزودن ردیف انبار</button>
+              {!!stockLines.length && <ul>{stockLines.map((line, index) => <li key={index}>
+                {line.title} · {line.quantity.toLocaleString("fa-IR")} عدد{" "}
+                <button type="button" onClick={() => onStockLines(stockLines.filter((_, i) => i !== index))}>حذف ردیف</button>
+              </li>)}</ul>}
+              <button className="tech-primary" type="submit" disabled={stockId ? (!validPick || stockLines.length >= 30) : !stockLines.length}>
                 ثبت درخواست و بازگشت
               </button>
             </fieldset>

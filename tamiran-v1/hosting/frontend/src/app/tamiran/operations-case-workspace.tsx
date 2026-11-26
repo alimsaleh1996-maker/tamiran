@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { WorkspaceProfile } from "./access";
 import { TechnicalCaseWorkspace } from "./technical-case-workspace";
+import { PersianDatePicker } from "./persian-date-picker";
 import { MoneyInput, formatToman } from "./money-input";
 import { UserRoundCheck, ArrowLeftRight } from "lucide-react";
 import {
   assignV2Case,
   transitionV2Case,
   workflowV2Action,
+  smsV2Action,
   type V2Case,
   type V2WorkflowPayload,
 } from "./v2-api";
@@ -80,7 +82,13 @@ export function OperationsCaseWorkspace({
     partPercent: "0",
     ...draft.collaborator,
   });
+  const [revisedLabor, setRevisedLabor] = useState("");
+  const [priority, setPriority] = useState(selected.priority ?? "normal");
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("12:00");
   const [error, setError] = useState("");
+  const [otp, setOtp] = useState({ subject: "", requestId: "", code: "" });
+
   const lock = useRef(false),
     requestKey = useRef(draft.requestKey || crypto.randomUUID());
   const signature = useRef<string>(draft.signature ?? "");
@@ -567,6 +575,7 @@ export function OperationsCaseWorkspace({
               مبلغ برآورد:{" "}
               {formatToman(selected.latestEstimate.totalAmount) + " تومان"}
             </small>
+            {data.operationsPolicy.approval !== "sms" && <>
             <label>
               <span>توضیح یا مستند تماس</span>
               <input
@@ -578,7 +587,7 @@ export function OperationsCaseWorkspace({
             <div>
               <button
                 type="button"
-                disabled={busy || !reason.trim()}
+                disabled={busy}
                 onClick={() =>
                   void stageRun(async () => {
                     const approval = await workflowV2Action({
@@ -599,7 +608,7 @@ export function OperationsCaseWorkspace({
                   }, "تأیید مشتری ثبت شد.")
                 }
               >
-                ثبت تأیید تلفنی
+                ثبت تأیید تلفنی مشتری و ادامه
               </button>
               <button
                 type="button"
@@ -621,6 +630,26 @@ export function OperationsCaseWorkspace({
                 ثبت رد مشتری
               </button>
             </div>
+
+            </>}
+            {data.operationsPolicy.approval !== "phone" && <fieldset>
+              <legend>تأیید پیامکی</legend>
+              <button type="button" disabled={busy} onClick={() => void stageRun(async () => {
+                const subject = selected.latestEstimate!.publicId;
+                const response = await smsV2Action({ action: "otp_request", purpose: "estimate", subjectPublicId: subject });
+                setOtp({ subject, requestId: String(response.requestId), code: "" });
+              }, "کد تأیید به شمارهٔ مشتری ارسال شد.")}>ارسال کد به مشتری</button>
+              {otp.subject === selected.latestEstimate.publicId && <>
+                <label>کد تأیید مشتری<input dir="ltr" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                  value={otp.code} onChange={(event) => setOtp({ ...otp, code: event.target.value })} /></label>
+                <button type="button" disabled={busy || otp.code.trim().length !== 6} onClick={() => void stageRun(async () => {
+                  await workflowV2Action({ action: "estimate_decide", estimatePublicId: otp.subject, decision: "approved",
+                    channel: "sms_otp", otpRequestId: otp.requestId, otpCode: otp.code });
+                  setOtp({ subject: "", requestId: "", code: "" });
+                  if (transitions.includes("repairing")) return transitionV2Case(selected.id, "repairing", selected.lockVersion, "تأیید پیامکی مشتری");
+                }, "تأیید معتبر مشتری ثبت شد.")}>بررسی کد و ادامه</button>
+              </>}
+            </fieldset>}
           </div>
         )}
       {task === "administration" &&
@@ -684,6 +713,25 @@ export function OperationsCaseWorkspace({
               />
             </label>
             <p>ثبت این اقدام در سابقهٔ پرونده باقی می‌ماند.</p>
+            <label>اولویت<select value={priority} onChange={(event) => setPriority(event.target.value as typeof priority)}>
+              <option value="normal">عادی</option>
+              <option value="urgent">فوری</option>
+              <option value="critical">بسیار فوری</option>
+            </select></label>
+            <div><span>تغییر تاریخ موعد</span><PersianDatePicker ariaLabel="تاریخ موعد برآوردی" value={dueDate} onChange={setDueDate} /></div>
+            {dueDate && <label>ساعت موعد به وقت ایران<input dir="ltr" type="time" value={dueTime} onChange={(event) => setDueTime(event.target.value)} /></label>}
+            <button type="button" disabled={busy || !reason.trim() || (!!dueDate && !dueTime)} onClick={() => {
+              const promisedAt = dueDate ? new Date(`${dueDate}T${dueTime}:00+03:30`).toISOString().slice(0, 19).replace("T", " ") : null;
+              const payload = { action: "manager_update_case", caseId: selected.id, priority, promisedAt, reason, lockVersion: selected.lockVersion };
+              void stageRun(() => workflowV2Action({ ...payload, idempotencyKey: requestKeyFor(payload) }), "اولویت و موعد پرونده ثبت شد.");
+            }}>ثبت اولویت و موعد</button>
+            {["qc_pending", "qc_conditional", "finance_pending"].includes(selected.status) && <>
+              <label>اصلاح اجرت پیش‌نویس<MoneyInput value={revisedLabor} onChange={setRevisedLabor} /></label>
+              <button type="button" disabled={busy || !reason.trim() || revisedLabor === ""} onClick={() => {
+                const payload = { action: "invoice_correct", caseId: selected.id, reason, lockVersion: selected.lockVersion, invoice: { laborAmount: Number(revisedLabor) } };
+                void stageRun(() => workflowV2Action({ ...payload, idempotencyKey: requestKeyFor(payload) }), "اصلاح پیش‌نویس ثبت شد.");
+              }}>ثبت اصلاح اجرت پیش‌نویس</button>
+            </>}
             {transitions.includes("cancelled") && (
               <button
                 disabled={busy || !reason.trim()}

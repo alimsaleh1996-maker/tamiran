@@ -4,6 +4,7 @@ import type { WorkspaceProfile } from "./access";
 import type { RepairCaseRecord, RepairCaseStatus } from "./operations";
 import {
   handoverDiscrepancy,
+  handoverNeedsApproval,
   loadV2HandoverReceipt,
   loadV2Workflow,
   workflowV2Action,
@@ -260,9 +261,11 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
                     {discrepancy && !discrepancy.resolvedAt && (
                       <p>مغایرت در انتظار بررسی مدیر است.</p>
                     )}
+                    {handoverNeedsApproval(h) ? <p>ارجاع منتظر تأیید مدیر است.</p> : (
                     <button disabled={busy} onClick={() => void openReview(h)}>
                       بررسی رسید ارجاع
                     </button>
+                    )}
                   </li>;
                 })}
               </ul>
@@ -306,7 +309,7 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
                     aria-label={`بازکردن پرونده ${c.receiptNumber}`}
                   >
                     <div className="tech-card-badges">
-                      <span>{c.technicianView.flags.includes("qc_rework") ? "بازکاری QC" : c.technicianView.flags.includes("sla_overdue") ? "موعد گذشته" : "عادی"}</span>
+                      <span>{c.technicianView.flags.includes("qc_rework") ? "بازکاری QC" : c.priority === "critical" ? "بسیار فوری" : c.technicianView.flags.includes("sla_overdue") ? "موعد گذشته" : c.priority === "urgent" ? "فوری" : "عادی"}</span>
                       <span>{c.technicianView.statusLabel}</span>
                     </div>
                     <strong>{c.deviceTitle}</strong>

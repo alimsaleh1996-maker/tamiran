@@ -19,11 +19,16 @@ tamiran_api(static function (): array {
     }
     $manifestPath = dirname(__DIR__, 2) . '/private/build/manifest.json';
     $buildId = is_file($manifestPath) ? substr(hash_file('sha256', $manifestPath), 0, 16) : 'missing-manifest';
+    $manifest = is_file($manifestPath) ? json_decode((string) file_get_contents($manifestPath), true) : null;
+    $entry = dirname(__DIR__) . '/index.php';
+    $frontendVersion = isset($manifest['version'], $manifest['frontend_entry_sha256'])
+        && is_file($entry) && hash_file('sha256', $entry) === $manifest['frontend_entry_sha256']
+        ? $manifest['version'] : null;
     $schemaCompatible = $schemaVersion === '2.0.0-beta.7';
     return [
         'status' => $schemaCompatible ? 'ok' : 'degraded',
         'version' => TAMIRAN_VERSION,
-        'frontend_version' => '2.0.0-php.7',
+        'frontend_version' => $frontendVersion,
         'backend_version' => TAMIRAN_VERSION,
         'schema_version' => $schemaVersion,
         'schema_compatible' => $schemaCompatible,

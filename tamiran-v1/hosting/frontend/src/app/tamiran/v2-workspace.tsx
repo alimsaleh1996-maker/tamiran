@@ -1,4 +1,6 @@
 "use client";
+import { ExternalPurchasePanel } from "./external-purchase-panel";
+import { OperationsFollowups, OperationsPerformance, OperationsPolicyForm } from "./manager-operations";
 import { CaseStageBoard } from "./case-stage-board";
 import { OperationsCaseWorkspace } from "./operations-case-workspace";
 import { technicalCaseFromLocation, writeTechnicalLocation } from "./technician-navigation";
@@ -31,6 +33,7 @@ import {
   deliveryV2Action,
   financeV2Action,
   handoverDiscrepancy,
+  handoverNeedsApproval,
   inventoryControlV2Action,
   inventoryV2Action,
   loadV2Delivery,
@@ -43,6 +46,8 @@ import {
   loadV2Workflow,
   procurementV2Action,
   qualityV2Action,
+  startV2Quality,
+  type V2QcTemplate,
   smsV2Action,
   workflowV2Action,
   type V2Case,
@@ -404,6 +409,7 @@ function WorkflowBoard({
     );
   });
   const [search, setSearch] = useState("");
+  const [managerView, setManagerView] = useState<"cases" | "purchases" | "followups" | "performance" | "policy">("cases");
   const [handoverReasons, setHandoverReasons] = useState<
     Record<number, string>
   >({});
@@ -473,6 +479,23 @@ function WorkflowBoard({
           <button onClick={exit}>بازگشت به دستگاه‌ها</button>
         </p>
       )}
+      {profile.role === "repair_manager" && (
+        <nav aria-label="بخش‌های مدیریت عملیات" className="tech-handover-actions">
+          {([["cases", "پرونده‌ها و ارجاع‌ها"], ["purchases", "مجوز خرید"], ["followups", "پیگیری پرونده‌ها"],
+            ["performance", "عملکرد تکنسین‌ها"], ["policy", "سیاست‌های تعمیرگاه"]] as const).map(([id, label]) =>
+            <button key={id} type="button" aria-pressed={managerView === id} onClick={() => setManagerView(id)}>{label}</button>)}
+        </nav>
+      )}
+      {managerView !== "cases" && profile.role === "repair_manager" && (
+        <div className="technical-desk"><section className="tech-task">
+          {managerView === "purchases" && <ExternalPurchasePanel actorId={profile.actorId} />}
+          {managerView === "followups" && <OperationsFollowups cases={data.cases} now={data.serverTime} policy={data.operationsPolicy} open={open} />}
+          {managerView === "performance" && <OperationsPerformance />}
+          {managerView === "policy" && <OperationsPolicyForm policy={data.operationsPolicy} users={data.users}
+            onSaved={async () => { await run(async () => {}, ""); }} />}
+        </section></div>
+      )}
+      {managerView === "cases" && <>
       <label className="module-search v2-queue-search">
         <FileText size={17} />
         <input
@@ -508,6 +531,7 @@ function WorkflowBoard({
                   {h.to_user_name}
                 </p>
                 <p>{h.reason}</p>
+                {handoverNeedsApproval(h) && <p>منتظر تأیید مدیر</p>}
                 {discrepancy && (
                   <p><strong>مغایرت تحویل</strong> {discrepancy.reason}
                     {discrepancy.resolution && <> · نتیجهٔ بررسی: {discrepancy.resolution}</>}
@@ -527,6 +551,8 @@ function WorkflowBoard({
                         }
                       />
                     </label>
+                    {handoverNeedsApproval(h) && <button type="button" disabled={busy}
+                      onClick={() => void decide(h.public_id, "approve_request", handoverReasons[h.id] ?? "")}>تأیید درخواست ارجاع</button>}
                     {discrepancy && !discrepancy.resolvedAt && <button
                       type="button"
                       disabled={busy || !handoverReasons[h.id]?.trim()}
@@ -548,6 +574,7 @@ function WorkflowBoard({
           </ul>
         </section>
       )}
+      </>}
     </div>
   );
 }
@@ -1512,12 +1539,13 @@ function QualityBoard({
   busy: boolean;
   run: Run;
 }) {
-  const candidates = cases.filter((item) => item.status === "qc_pending");
+  const candidates = cases.filter((item) => item.status === "qc_pending"
+    && (profile.role !== "technician" || item.qcMode === "simple" || profile.permissions.includes("qc.perform")));
   const [caseId, setCaseId] = useState("");
   const selected = candidates.find((item) => item.id === Number(caseId));
-  const template = data.templates.find(
-    (item) => item.workflow_code === selected?.workflowCode,
-  );
+  const [receipt, setReceipt] = useState<{ publicId: string; template: V2QcTemplate }>();
+  const [editing, setEditing] = useState(false);
+  const template = receipt?.template;
   const [result, setResult] = useState("passed");
   const [reason, setReason] = useState("");
   const [checks, setChecks] = useState<Record<number, string>>({});
@@ -1537,7 +1565,10 @@ function QualityBoard({
               key={item.id}
               className={`v2-queue-card ${selected?.id === item.id ? "selected" : ""}`}
               aria-pressed={selected?.id === item.id}
-              onClick={() => { setCaseId(String(item.id)); setChecks({}); }}
+              onClick={() => {
+                setCaseId(String(item.id)); setReceipt(undefined); setChecks({}); setCheckNotes({});
+                setReason(""); setResult("passed"); setCustomTests([]);
+              }}
             >
               <strong dir="ltr">{item.receiptNumber}</strong>
               <span>{item.deviceTitle}</span>
@@ -1553,12 +1584,20 @@ function QualityBoard({
           <div>
             <ClipboardCheck />
             <span>
-              <strong>کنترل کیفیت مستقل</strong>
+              <strong>کنترل کیفیت</strong>
               <small>چک‌لیست استاندارد صنف + موارد افزوده تعمیرگاه</small>
             </span>
           </div>
         </div>
+        {profile.role === "repair_manager" && <button type="button" onClick={() => setEditing(!editing)}>{editing ? "بستن تنظیم آزمایش‌ها" : "تنظیم آزمایش‌ها"}</button>}
+        {editing && <QualityTemplateForm key={data.templates.map((row) => row.id).join(":")} templates={data.templates} busy={busy} run={run} />}
         {selected && <CaseContextHeader item={selected} branch={profile.branch} />}
+        {selected && !receipt && (
+          <button type="button" disabled={busy} onClick={() => void run(async () => {
+            const response = await startV2Quality(selected.id);
+            setReceipt(response.receipt);
+          }, "دریافت دستگاه برای کنترل کیفیت ثبت شد.")}>تأیید دریافت و شروع تست</button>
+        )}
         {template && (
           <div className="v2-checklist">
             <div className="v2-panel-title">
@@ -1589,11 +1628,14 @@ function QualityBoard({
                     <option value="">انتخاب نتیجه</option>
                     <option value="passed">قبول</option>
                     <option value="failed">رد</option>
-                    <option value="not_applicable">قابل اعمال نیست</option>
-                    <option value="not_tested">تست نشده</option>
+                    {item.code !== "repair_issue" && <>
+                      <option value="not_applicable">قابل اعمال نیست</option>
+                      <option value="prior">خرابی از قبل موجود</option>
+                      <option value="not_tested">تست نشده</option>
+                    </>}
                   </select>
                 </label>
-                {checks[item.id] === "failed" && (
+                {["failed", "not_applicable", "prior"].includes(checks[item.id]) && (
                   <label><span>شرح ایراد {item.title} (الزامی)</span><input
                     value={checkNotes[item.id] ?? ""}
                     onChange={(event) => setCheckNotes({ ...checkNotes, [item.id]: event.target.value })}
@@ -1606,8 +1648,8 @@ function QualityBoard({
               {customTests.map((item) => (
                 <div key={item.id} className="v2-qc-test-item">
                   <label><span>عنوان تست سفارشی</span><input value={item.title} onChange={(event) => setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, title: event.target.value } : test))} /></label>
-                  <label><span>نتیجه</span><select value={item.result} onChange={(event) => { const nextResult = event.target.value; setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, result: nextResult } : test)); if (nextResult === "failed") setResult("failed"); }}><option value="passed">قبول</option><option value="failed">رد</option><option value="not_applicable">قابل اعمال نیست</option><option value="not_tested">تست نشده</option></select></label>
-                  {item.result === "failed" && <label><span>شرح ایراد تست {item.title || "سفارشی"} (الزامی)</span><input value={item.notes} onChange={(event) => setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, notes: event.target.value } : test))} placeholder="شرح ایراد تست سفارشی (الزامی)" /></label>}
+                  <label><span>نتیجه</span><select value={item.result} onChange={(event) => { const nextResult = event.target.value; setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, result: nextResult } : test)); if (nextResult === "failed") setResult("failed"); }}><option value="passed">قبول</option><option value="failed">رد</option><option value="not_applicable">قابل اعمال نیست</option><option value="prior">خرابی از قبل موجود</option><option value="not_tested">تست نشده</option></select></label>
+                  {["failed", "not_applicable", "prior"].includes(item.result) && <label><span>شرح ایراد تست {item.title || "سفارشی"} (الزامی)</span><input value={item.notes} onChange={(event) => setCustomTests(customTests.map((test) => test.id === item.id ? { ...test, notes: event.target.value } : test))} placeholder="شرح ایراد تست سفارشی (الزامی)" /></label>}
                   <button type="button" className="v2-mini-action" onClick={() => setCustomTests(customTests.filter((test) => test.id !== item.id))}>حذف</button>
                 </div>
               ))}
@@ -1615,13 +1657,13 @@ function QualityBoard({
             </div>
           </div>
         )}
-        <div className="v2-inline-form">
+        {receipt && <div className="v2-inline-form">
           <label>
             <span>نتیجه نهایی</span>
             <select value={result} onChange={(e) => setResult(e.target.value)}>
               <option value="passed">قبول</option>
               <option value="failed">رد و بازکاری</option>
-              <option value="conditional">قبول مشروط</option>
+              {(profile.role === "repair_manager" || profile.permissions.includes("qc.conditional")) && <option value="conditional">قبول مشروط</option>}
             </select>
           </label>
           <label className="grow">
@@ -1640,12 +1682,12 @@ function QualityBoard({
               !selected ||
               !template ||
               template.items.some(
-                (item) => item.is_required && !checks[item.id],
+                (item) => item.is_required && (!checks[item.id] || checks[item.id] === "not_tested"),
               ) ||
               template.items.some(
-                (item) => checks[item.id] === "failed" && !checkNotes[item.id]?.trim(),
+                (item) => ["failed", "not_applicable", "prior"].includes(checks[item.id]) && !checkNotes[item.id]?.trim(),
               ) ||
-              customTests.some((item) => !item.title.trim() || (item.result === "failed" && !item.notes.trim())) ||
+              customTests.some((item) => !item.title.trim() || (["failed", "not_applicable", "prior"].includes(item.result) && !item.notes.trim())) ||
               (result !== "passed" && !reason.trim())
             }
             onClick={() =>
@@ -1656,7 +1698,7 @@ function QualityBoard({
                   qualityV2Action({
                     action: "run",
                     caseId: selected.id,
-                    templateId: template.id,
+                    receiptId: receipt.publicId,
                     result,
                     failureReason: result === "failed" ? reason : undefined,
                     conditionalLimitations:
@@ -1676,7 +1718,7 @@ function QualityBoard({
             <CheckCircle2 />
             ثبت QC
           </button>
-        </div>
+        </div>}
       </section>
       <section className="v2-table-panel">
         <ResponsiveTable
@@ -1699,6 +1741,48 @@ function QualityBoard({
       </section>
     </div>
   );
+}
+
+
+function QualityTemplateForm({ templates, busy, run }: { templates: V2QcTemplate[]; busy: boolean; run: Run }) {
+  const [current, setCurrent] = useState(templates[0]?.id);
+  const template = templates.find((item) => item.id === current);
+  const [items, setItems] = useState(() => (templates[0]?.items ?? []).filter((item) => item.code !== "repair_issue"));
+  const select = (id: number) => {
+    setCurrent(id);
+    setItems((templates.find((item) => item.id === id)?.items ?? []).filter((item) => item.code !== "repair_issue"));
+  };
+  return <form className="tech-form-grid" onSubmit={(event) => {
+    event.preventDefault();
+    if (!template) return;
+    void run(() => qualityV2Action({
+      action: "save_template", templateId: template.id, workflowCode: template.workflow_code,
+      items: items.map((row) => ({ code: row.code, title: row.title, isRequired: row.is_required })),
+    }), "نسخهٔ جدید چک‌لیست ذخیره شد.");
+  }}>
+    <label>چک‌لیست فعال<select value={current} onChange={(event) => select(Number(event.target.value))}>
+      {templates.map((row) => <option value={row.id} key={row.id}>{row.title}</option>)}
+    </select></label>
+    <p>ایراد اصلی دستگاه در همهٔ چک‌لیست‌ها اجباری است.</p>
+    {items.map((item, index) => <div key={item.code} className="tech-form-grid">
+      <label>عنوان آزمایش<input required maxLength={240} value={item.title} onChange={(event) =>
+        setItems(items.map((row) => row.code === item.code ? { ...row, title: event.target.value } : row))} /></label>
+      <label className="tech-handover-check"><input type="checkbox" checked={!!item.is_required} onChange={(event) =>
+        setItems(items.map((row) => row.code === item.code ? { ...row, is_required: event.target.checked } : row))} /> اجباری</label>
+      <div className="tech-handover-actions">
+        <button type="button" disabled={index === 0} onClick={() => {
+          const next = [...items];
+          [next[index - 1], next[index]] = [next[index], next[index - 1]];
+          setItems(next);
+        }}>انتقال به بالا</button>
+        <button type="button" onClick={() => setItems(items.filter((row) => row.code !== item.code))}>حذف از نسخهٔ جدید</button>
+      </div>
+    </div>)}
+    <button type="button" disabled={items.length >= 100} onClick={() => setItems([...items, {
+      id: 0, code: crypto.randomUUID(), title: "", is_required: true, input_type: "pass_fail",
+    }])}>افزودن آزمایش</button>
+    <button type="submit" disabled={busy || !template}>ذخیرهٔ نسخهٔ چک‌لیست</button>
+  </form>;
 }
 
 function FinanceBoard({

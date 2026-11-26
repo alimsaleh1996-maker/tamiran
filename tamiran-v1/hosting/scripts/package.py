@@ -13,9 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text().strip()
 # A new release timestamp lets PHP OPcache detect replaced sources when ZIP
 # extractors preserve file mtimes. Keep it deterministic within this release.
-STAMP = (2026, 11, 23, 1, 0, 0)
+STAMP = (2026, 11, 25, 23, 0, 0)
 PRIVATE = (
-    ".htaccess", "install.php", "config.example.php", "v2-core.php", "technician-service.php",
+    ".htaccess", "install.php", "config.example.php", "v2-core.php", "technician-service.php", "operations-policy.php", "external-purchase.php", "case-invoice.php", "manager-operations.php",
     "product-service.php", "capability-service.php", "catalog-similarity.php", "backup-engine.php",
     "sms-service.php", "database/schema.sql",
     "captcha-audio.php", "captcha-audio/CREDITS.json",
@@ -99,7 +99,7 @@ def update_files(base: dict[str, bytes]) -> dict[str, bytes]:
         name: data for name, data in base.items()
         if name in {"VERSION", "UPGRADE-FA.md", "UI-FIXES-FA.md", "THIRD-PARTY-NOTICES.txt", "VERIFICATION-FA.md",
                     "public_html/index.php", "public_html/.htaccess", "public_html/favicon.svg", "private/.htaccess",
-                    "private/v2-core.php", "private/technician-service.php", "private/product-service.php", "private/capability-service.php", "private/catalog-similarity.php",
+                    "private/v2-core.php", "private/technician-service.php", "private/operations-policy.php", "private/external-purchase.php", "private/case-invoice.php", "private/manager-operations.php", "private/product-service.php", "private/capability-service.php", "private/catalog-similarity.php",
                     "private/backup-engine.php", "private/sms-service.php", "private/captcha-audio.php", "private/build/manifest.json"}
         or name.startswith(("public_html/assets/", "public_html/api/", "private/captcha-audio/"))
     }
@@ -150,6 +150,8 @@ def main() -> None:
     if VERSION in {"2.0.0-php.2", "2.0.0-php.3", "2.0.0-php.4", "2.0.0-php.5", "2.0.0-php.6", "2.0.0-php.7", "2.0.0-php.8", "2.0.0-php.9", "2.0.0-php.10"}:
         previous = {"2.0.0-php.2": "php.1", "2.0.0-php.3": "php.2", "2.0.0-php.4": "php.3", "2.0.0-php.5": "php.4", "2.0.0-php.6": "php.5", "2.0.0-php.7": "php.6", "2.0.0-php.8": "php.7", "2.0.0-php.9": "php.8", "2.0.0-php.10": "php.9"}[VERSION]
         results.append(write_zip(output / f"tamiran-{VERSION}-update-from-{previous}.zip", update_files(runtime)))
+    if VERSION == "1.0.0-rc.1":
+        results.append(write_zip(output / f"tamiran-{VERSION}-update-from-php.10-or-dev.3.zip", update_files(runtime)))
     (output / f"tamiran-{VERSION}-artifacts.json").write_text(json.dumps(results, indent=2) + "\n")
     for result in results:
         print(f"{result['file']}  {result['bytes']} bytes  SHA256 {result['sha256']}")

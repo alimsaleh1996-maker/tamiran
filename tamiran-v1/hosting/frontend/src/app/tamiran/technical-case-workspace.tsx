@@ -1,3 +1,4 @@
+import { ExternalPurchasePanel } from "./external-purchase-panel";
 import { useEffect, useRef, useState } from "react";
 import { MoneyInput, formatToman } from "./money-input";
 import { moneyDigits } from "./money";
@@ -28,6 +29,7 @@ import {
   type V2InventoryPayload,
   type V2User,
   type V2Handover,
+  type OperationsPolicy,
   type TechnicalActivity,
 } from "./v2-api";
 const message = (e: unknown) =>
@@ -56,7 +58,9 @@ const costLabels = {
 const titles: Record<TechnicalScreen, string> = {
   overview: "پرونده دستگاه",
   work: "میز کار دستگاه",
+  diagnosis: "عیب‌یابی",
   parts: "قطعات",
+  purchases: "خرید خارج از انبار",
   estimate: "اعلام هزینه",
   photos: "تصاویر و فایل‌ها",
   refer: "ارجاع به تکنسین دیگر",
@@ -67,6 +71,9 @@ const titles: Record<TechnicalScreen, string> = {
 const blank = () => ({
   version: 2,
   description: "",
+  diagnosisAssessment: "",
+  diagnosisDescription: "",
+  diagnosisIssues: "",
   attachments: [] as string[],
   correctionOf: null as number | null,
   labor: "",
@@ -74,10 +81,17 @@ const blank = () => ({
   estimateNote: "",
   report: "",
   reason: "",
+  finishReasonCode: "technical_failure",
   referTo: "",
   referReason: "",
+  referReasonId: "other",
+  invoiceLabor: "",
+  invoiceExtraTitle: "",
+  invoiceExtraAmount: "",
+  invoicePrices: {} as Record<string, string>,
   stockId: "",
   stockQuantity: "1",
+  stockLines: [] as Array<{ itemId: number; quantity: number; title: string }>,
   manualRows: [newManualRow()],
 });
 type Draft = ReturnType<typeof blank>;
@@ -108,6 +122,7 @@ export function TechnicalCaseWorkspace({
   onManage?: () => void;
   overviewAction?: { label: string; onClick: () => void };
 }) {
+  const [operationsPolicy, setOperationsPolicy] = useState<OperationsPolicy>();
   const storage = `tamiran:technical-draft:${actorId}:${caseId}`;
   const [draft, setDraft] = useState<Draft>(() => {
     try {
@@ -225,6 +240,7 @@ export function TechnicalCaseWorkspace({
     setItem(fresh);
     setData(projection);
     setUsers(workflow.users);
+    setOperationsPolicy(workflow.operationsPolicy);
     setHandovers(workflow.handovers.filter((h) => h.case_id === caseId));
     onChanged(fresh);
   };
@@ -396,6 +412,18 @@ export function TechnicalCaseWorkspace({
       },
       undefined,
     );
+  const diagnose = () => run("diagnosis", async () => {
+    const payload = {
+      assessment: draft.diagnosisAssessment,
+      description: draft.diagnosisDescription,
+      issues: draft.diagnosisIssues.split("\n").map((line) => line.trim()).filter(Boolean),
+    };
+    const fresh = (await loadV2Workflow(caseId)).cases[0];
+    await workflowV2Action({ action: "technical_diagnosis", caseId, ...payload,
+      lockVersion: fresh.lockVersion, idempotencyKey: keyFor("diagnosis", payload) });
+    delete keys.current.diagnosis;
+    change({ diagnosisAssessment: "", diagnosisDescription: "", diagnosisIssues: "" });
+  }, "estimate");
   const estimate = () =>
     run(
       "estimate",
@@ -492,10 +520,9 @@ export function TechnicalCaseWorkspace({
     run(
       "parts",
       async () => {
-        const payload = {
-          itemId: Number(draft.stockId),
-          quantity: Number(moneyDigits(draft.stockQuantity)),
-        };
+        const selected = draft.stockId ? [{ itemId: Number(draft.stockId), quantity: Number(moneyDigits(draft.stockQuantity)) }] : [];
+        const lines = [...draft.stockLines.map(({ itemId, quantity }) => ({ itemId, quantity })), ...selected];
+        const payload = lines.length === 1 ? lines[0] : { lines };
         await inventoryV2Action({
           action: "request",
           caseId,
@@ -503,7 +530,7 @@ export function TechnicalCaseWorkspace({
           idempotencyKey: keyFor("stock", payload),
         });
         delete keys.current.stock;
-        change({ stockId: "", stockQuantity: "1" });
+        change({ stockId: "", stockQuantity: "1", stockLines: [] });
       },
       returnTo,
     );
@@ -514,6 +541,7 @@ export function TechnicalCaseWorkspace({
         const payload = {
           toUserId: Number(draft.referTo),
           reason: draft.referReason,
+          reasonId: draft.referReasonId,
           partsDisposition: "settle_before_handover",
           hotReturnsDisposition: "settle_before_handover",
         };
@@ -553,6 +581,17 @@ export function TechnicalCaseWorkspace({
       },
       home,
     );
+  const invoiceTotals = { part: 0, labor: 0, diagnostic: 0, other: 0 };
+  for (const line of data?.invoice.items ?? []) {
+    const changedPrice = line.sourceKey ? draft.invoicePrices[line.sourceKey] : undefined;
+    const base = Math.round(Number(line.quantity) * Number(changedPrice ?? line.saleUnitPrice)) - Number(line.discountAmount);
+    invoiceTotals[line.type] += changedPrice === undefined ? line.lineTotal : base + Math.round(base * Number(line.taxRate) / 100);
+  }
+  if (draft.invoiceLabor !== "") invoiceTotals.labor = Number(draft.invoiceLabor);
+  const extraPresent = draft.invoiceExtraTitle.trim() !== "" || Number(draft.invoiceExtraAmount) > 0;
+  const extraValid = !extraPresent || (draft.invoiceExtraTitle.trim() !== "" && Number(draft.invoiceExtraAmount) > 0);
+  if (extraPresent && extraValid) invoiceTotals.other += Number(draft.invoiceExtraAmount);
+  const invoiceTotal = Object.values(invoiceTotals).reduce((sum, value) => sum + value, 0);
   const finish = (outcome: "repaired" | "not_repaired") =>
     run(
       "finish",
@@ -576,6 +615,15 @@ export function TechnicalCaseWorkspace({
           result: outcome,
           report: outcome === "not_repaired" ? draft.reason : draft.report,
           reason: outcome === "not_repaired" ? draft.reason : "",
+          ...(outcome === "not_repaired" ? { reasonCode: draft.finishReasonCode } : {}),
+          ...(outcome === "repaired" ? { invoice: {
+            ...(draft.invoiceLabor !== "" ? { laborAmount: Number(draft.invoiceLabor) } : {}),
+            ...(draft.invoiceExtraTitle.trim() && Number(draft.invoiceExtraAmount) > 0
+              ? { extra: [{ title: draft.invoiceExtraTitle.trim(), amount: Number(draft.invoiceExtraAmount) }] }
+              : {}),
+            expectedTotal: invoiceTotal,
+            partPrices: Object.fromEntries(Object.entries(draft.invoicePrices).map(([key, value]) => [key, Number(value)])),
+          } } : {}),
         };
         await workflowV2Action({
           action: "technical_finish",
@@ -585,7 +633,7 @@ export function TechnicalCaseWorkspace({
           idempotencyKey: keyFor("finish", payload),
         });
         delete keys.current.finish;
-        change({ report: "", reason: "" });
+        change({ report: "", reason: "", invoiceLabor: "", invoiceExtraTitle: "", invoiceExtraAmount: "", invoicePrices: {} });
         notify(
           outcome === "repaired"
             ? "تعمیر پایان یافت و به مرحلهٔ بعد ارسال شد."
@@ -857,7 +905,7 @@ export function TechnicalCaseWorkspace({
                       : "مشاهده گزارش‌های دستگاه"}
                   </button>
                 )}
-                {unstarted && data.permissions.refer && (
+                {unstarted && (data.permissions.refer && operationsPolicy?.handover !== "disabled" && item.productProfile !== "solo") && (
                   <button
                     disabled={disabled || !!pending}
                     onClick={() => go("refer", "overview")}
@@ -877,8 +925,30 @@ export function TechnicalCaseWorkspace({
               {alert("phase")}
             </section>
           ) : null}
+          {screen === "diagnosis" && <section className="tech-task">
+            <h3>عیب‌یابی دستگاه</h3>
+            <p>ایراد ثبت‌شده در پذیرش: {item.declaredIssue}</p>
+            <form onSubmit={(event) => { event.preventDefault(); void diagnose(); }}>
+              <fieldset disabled={disabled}>
+                <label>نتیجه بررسی ایراد پذیرش<select required value={draft.diagnosisAssessment}
+                  onChange={(event) => change({ diagnosisAssessment: event.target.value })}>
+                  <option value="">انتخاب نتیجه</option><option value="confirmed">ایراد تأیید شد</option>
+                  <option value="not_reproduced">ایراد تکرار نشد</option><option value="undetermined">نیازمند بررسی بیشتر</option>
+                </select></label>
+                <label>شرح عیب‌یابی<textarea required maxLength={4000} value={draft.diagnosisDescription}
+                  onChange={(event) => change({ diagnosisDescription: event.target.value })} /></label>
+                <label>ایرادهای تازه، هر مورد در یک خط<textarea value={draft.diagnosisIssues} maxLength={4000}
+                  onChange={(event) => change({ diagnosisIssues: event.target.value })} /></label>
+                <button className="tech-primary" type="submit">ثبت عیب‌یابی و تنظیم برآورد</button>
+              </fieldset>
+            </form>
+            {alert("diagnosis")}
+          </section>}
           {screen === "work" ? (
             <section className="tech-work">
+              {canWrite && ["diagnosing", "qc_rework"].includes(item.status) && (
+                <button type="button" onClick={() => go("diagnosis", "work")}>ثبت نتیجهٔ عیب‌یابی</button>
+              )}
               {canWrite ? (
                 <form
                   id="technical-report-form"
@@ -978,7 +1048,7 @@ export function TechnicalCaseWorkspace({
                       تعمیر شد
                     </button>
                   )}
-                  {data.permissions.refer && (
+                  {(data.permissions.refer && operationsPolicy?.handover !== "disabled" && item.productProfile !== "solo") && (
                     <button
                       disabled={disabled || !!pending}
                       onClick={() => go("refer")}
@@ -1003,6 +1073,7 @@ export function TechnicalCaseWorkspace({
           {screen === "parts" ? (
             <section className="tech-task">
               <h3>{titles.parts}</h3>
+              <button type="button" onClick={() => go("purchases", "parts")}>خرید خارج از انبار</button>
               <TechnicianPartsPage
                 caseId={caseId}
                 actorId={actorId}
@@ -1013,6 +1084,8 @@ export function TechnicalCaseWorkspace({
                 setRows={(manualRows) => change({ manualRows })}
                 stockId={draft.stockId}
                 stockQuantity={draft.stockQuantity}
+                stockLines={draft.stockLines}
+                onStockLines={(stockLines) => change({ stockLines, stockId: "", stockQuantity: "1" })}
                 onStockChange={change}
                 source={source}
                 onSource={setSource}
@@ -1029,6 +1102,7 @@ export function TechnicalCaseWorkspace({
               ))}
             </section>
           ) : null}
+          {screen === "purchases" && <section className="tech-task"><ExternalPurchasePanel key={caseId} caseId={caseId} actorId={actorId} canWrite={data.permissions.parts} onChanged={() => { void reload().catch(() => {}); }} /></section>}
           {screen === "estimate" ? (
             <section className="tech-task">
               <h3>{titles.estimate}</h3>
@@ -1120,7 +1194,7 @@ export function TechnicalCaseWorkspace({
                 <p className="tech-wait">
                   درخواست به {pending.to_user_name} ثبت شده و منتظر پذیرش است.
                 </p>
-              ) : data.permissions.refer ? (
+              ) : (data.permissions.refer && operationsPolicy?.handover !== "disabled" && item.productProfile !== "solo") ? (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -1150,10 +1224,17 @@ export function TechnicalCaseWorkspace({
                       </select>
                     </label>
                     <label>
+                      نوع علت ارجاع
+                      <select required value={draft.referReasonId} onChange={(e) => change({ referReasonId: e.target.value })}>
+                        {(operationsPolicy?.reasons ?? [{ id: "other", title: "سایر موارد", active: true }])
+                          .filter((row) => row.active).map((row) => <option key={row.id} value={row.id}>{row.title}</option>)}
+                      </select>
+                    </label>
+                    <label>
                       علت ارجاع
                       <textarea
-                        required
-                        maxLength={1000}
+                        required={draft.referReasonId === "other"}
+                        maxLength={800}
                         rows={4}
                         value={draft.referReason}
                         onChange={(e) =>
@@ -1201,6 +1282,13 @@ export function TechnicalCaseWorkspace({
                   }}
                 >
                   <fieldset disabled={disabled}>
+                    {screen === "unrepaired" && <label>دستهٔ علت پایان بدون تعمیر
+                      <select value={draft.finishReasonCode} onChange={(event) => change({ finishReasonCode: event.target.value })}>
+                        <option value="technical_failure">تعمیر ناموفق</option><option value="customer_cancelled">انصراف مشتری</option>
+                        <option value="estimate_rejected">عدم تأیید هزینه</option><option value="part_unavailable">عدم تأمین قطعه</option>
+                        <option value="uneconomical">عدم صرفه اقتصادی</option><option value="external_referral">ارجاع خارج از مجموعه</option><option value="other">سایر موارد</option>
+                      </select>
+                    </label>}
                     <label htmlFor="technical-final">
                       {screen === "repaired"
                         ? "نتیجه فنی نهایی"
@@ -1236,6 +1324,26 @@ export function TechnicalCaseWorkspace({
                     )}
                     {screen === "repaired" ? (
                       <>
+                        <h4>پیش‌نویس فاکتور</h4>
+                        <p>سقف مجوز مشتری: {formatToman(String(data.invoice.authorizedAmount))} تومان</p>
+                        {data.invoice.items.filter((line) => line.type !== "labor").map((line, index) => (
+                          <div key={line.sourceKey ?? index}>
+                            <p>{line.title} · {Number(line.quantity).toLocaleString("fa-IR")} · {formatToman(String(line.lineTotal))} تومان</p>
+                            {line.sourceKey && data.invoice.mayEditPartPrices && (
+                              <label>قیمت فروش {line.title}<MoneyInput value={draft.invoicePrices[line.sourceKey] ?? String(line.saleUnitPrice)} onChange={(amount) =>
+                                change({ invoicePrices: { ...draft.invoicePrices, [line.sourceKey!]: amount } })} /></label>
+                            )}
+                          </div>
+                        ))}
+                        <label>اجرت تعمیر<MoneyInput value={draft.invoiceLabor !== "" ? draft.invoiceLabor : String(data.invoice.items.filter((line) => line.type === "labor").reduce((sum, line) => sum + line.lineTotal, 0))}
+                          onChange={(invoiceLabor) => change({ invoiceLabor })} /></label>
+                        <label>عنوان هزینهٔ اضافه<input value={draft.invoiceExtraTitle} onChange={(e) => change({ invoiceExtraTitle: e.target.value })} /></label>
+                        <label>مبلغ هزینهٔ اضافه<MoneyInput value={draft.invoiceExtraAmount} onChange={(invoiceExtraAmount) => change({ invoiceExtraAmount })} /></label>
+                        <p><strong>جمع پیش‌نویس: {formatToman(invoiceTotal)} تومان</strong></p>
+                        {!extraValid && <p className="tech-hint">عنوان و مبلغ هزینهٔ اضافه را کامل یا پاک کنید.</p>}
+                        {invoiceTotal > data.invoice.authorizedAmount && (
+                          <p className="tech-hint">مبلغ از مجوز مشتری بالاتر است. <button type="button" onClick={() => go("estimate", screen)}>اصلاح برآورد</button></p>
+                        )}
                         <p>مقصد بعدی: {data.nextDestination}</p>
                         {!data.cost.authorized && (
                           <>
@@ -1280,7 +1388,14 @@ export function TechnicalCaseWorkspace({
                             ? "پایان تعمیر و ارسال به مرحله بعد تأیید شود؟"
                             : "عدم امکان تعمیر دستگاه ثبت شود؟"}
                         </p>
-                        <button className="tech-primary" type="submit">
+                        {screen === "repaired" && <dl>
+                          <dt>فروش قطعات</dt><dd>{formatToman(invoiceTotals.part)} تومان</dd>
+                          <dt>اجرت تعمیر</dt><dd>{formatToman(invoiceTotals.labor)} تومان</dd>
+                          <dt>عیب‌یابی و سایر هزینه‌ها</dt><dd>{formatToman(invoiceTotals.diagnostic + invoiceTotals.other)} تومان</dd>
+                          <dt>مبلغ دارای مجوز</dt><dd>{formatToman(data.invoice.authorizedAmount)} تومان</dd>
+                          <dt>مبلغ نهایی فاکتور</dt><dd>{formatToman(invoiceTotal)} تومان</dd>
+                        </dl>}
+                        <button className="tech-primary" type="submit" disabled={screen === "repaired" && (!extraValid || invoiceTotal > data.invoice.authorizedAmount)}>
                           تأیید و ثبت نتیجه
                         </button>
                         <button
@@ -1296,7 +1411,7 @@ export function TechnicalCaseWorkspace({
                         type="submit"
                         disabled={
                           partsBlocked ||
-                          (screen === "repaired" && !data.cost.authorized)
+                          (screen === "repaired" && (!data.cost.authorized || !extraValid || invoiceTotal > data.invoice.authorizedAmount))
                         }
                       >
                         {screen === "repaired"

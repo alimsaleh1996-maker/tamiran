@@ -1,7 +1,9 @@
 export const technicalScreens = [
   "overview",
   "work",
+  "diagnosis",
   "parts",
+  "purchases",
   "estimate",
   "photos",
   "refer",

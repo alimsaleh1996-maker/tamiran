@@ -132,8 +132,12 @@ function technician_billable_parts(PDO $pdo,int $caseId): array
 {
     $s=$pdo->prepare("SELECT i.id AS referenceId,i.title,SUM(x.quantity) AS quantity,i.sale_price AS saleUnitPrice,i.purchase_price AS purchaseUnitCost FROM repair_part_issues x JOIN repair_inventory_items i ON i.id=x.item_id WHERE x.case_id=:case AND x.status='consumed' GROUP BY i.id,i.title,i.sale_price,i.purchase_price ORDER BY i.id");$s->execute(['case'=>$caseId]);$parts=[];
     foreach($s->fetchAll() as $part)$parts[]=['sourceType'=>'stock','sourceKey'=>'stock:'.$part['referenceId'],'type'=>'part','discountAmount'=>0,'taxRate'=>0,'warrantyDays'=>30]+$part;
-    $s=$pdo->prepare('SELECT id AS referenceId,title,quantity,sale_unit_price AS saleUnitPrice,purchase_unit_cost AS purchaseUnitCost FROM repair_case_manual_parts WHERE case_id=:case ORDER BY id');$s->execute(['case'=>$caseId]);
-    foreach($s->fetchAll() as $part)$parts[]=['sourceType'=>'manual','sourceKey'=>'manual:'.$part['referenceId'],'type'=>'part','discountAmount'=>0,'taxRate'=>0,'warrantyDays'=>30]+$part;
+    $s=$pdo->prepare('SELECT id AS referenceId,title,quantity,sale_unit_price AS saleUnitPrice,purchase_unit_cost AS purchaseUnitCost,idempotency_key FROM repair_case_manual_parts WHERE case_id=:case ORDER BY id');$s->execute(['case'=>$caseId]);
+    foreach($s->fetchAll() as $part){
+        $source=str_starts_with($part['idempotency_key'],'external-purchase:')?'external':'manual';
+        unset($part['idempotency_key']);
+        $parts[]=['sourceType'=>$source,'sourceKey'=>$source.':'.$part['referenceId'],'type'=>'part','discountAmount'=>0,'taxRate'=>0,'warrantyDays'=>30]+$part;
+    }
     return $parts;
 }
 function technician_cost_state(PDO $pdo,array $case): array
@@ -163,6 +167,14 @@ function technician_finish(PDO $pdo,array $scope,array $input): array
     $key=v2_text($input['idempotencyKey']??'','شناسه نتیجه',160);$outcome=(string)($input['result']??'');
     if(!in_array($outcome,['repaired','not_repaired'],true))throw new TamiranApiException('نتیجه تعمیر را انتخاب کنید.');
     $payload=['result'=>$outcome,'report'=>v2_text($input['report']??'','گزارش نهایی',8000),'reason'=>v2_text($input['reason']??'','علت عدم تعمیر',1000,$outcome==='not_repaired')??''];
+    if ($outcome==='not_repaired'&&isset($input['reasonCode'])) {
+        $code=(string)$input['reasonCode'];
+        if (!in_array($code,['technical_failure','customer_cancelled','estimate_rejected','part_unavailable','uneconomical','external_referral','other'],true)) {
+            throw new TamiranApiException('علت پایان بدون تعمیر معتبر نیست.');
+        }
+        $payload['reasonCode']=$code;
+    }
+    if($outcome==='repaired'&&isset($input['invoice']))$payload['invoice']=$input['invoice'];
     $pdo->beginTransaction();try{
         $case=v2_case($pdo,$scope,(int)($input['caseId']??0),true);technician_access($pdo,$scope,$case,true);
         if($old=technician_replay($pdo,$case,$scope,'technical_finish',$key,$payload)){$pdo->commit();return $old;}
@@ -173,12 +185,13 @@ function technician_finish(PDO $pdo,array $scope,array $input): array
         if($outcome==='repaired'){if(!in_array($case['process_status'],['repairing','parts_closeout','qc_rework'],true))throw new TamiranApiException('ابتدا مجوز هزینه و مرحله تعمیر را تکمیل کنید.',409);technician_require_cost($pdo,$case);}
         $policy=v2_product_policy($pdo,$scope,$case);$target=$outcome==='repaired'?($policy['qcEnabled']?'qc_pending':'finance_pending'):'finance_pending';
         $pdo->prepare('UPDATE repair_cases SET result=:result,operation_report=:report,row_version=row_version+1 WHERE id=:case')->execute(['result'=>$outcome,'report'=>$payload['report'],'case'=>$case['case_id']]);
+        if($outcome==='repaired')case_invoice_record($pdo,$scope,array_replace($case,['result'=>'repaired']),$payload['invoice']??null);
         if($outcome==='not_repaired'){
             $charges=technician_unrepaired_amount($pdo,(int)$case['case_id']);
             if($charges===0&&v2_terminal_finance_blockers($pdo,(int)$case['case_id'])===[])$target='returned_unrepaired';
             $billedLabor=$pdo->prepare("SELECT COUNT(*) FROM repair_invoice_items ii JOIN repair_invoices i ON i.id=ii.invoice_id WHERE i.case_id=:case AND i.status<>'voided' AND ii.item_type NOT IN ('diagnostic','part') AND ii.line_total>0");$billedLabor->execute(['case'=>$case['case_id']]);if((int)$billedLabor->fetchColumn()>0)throw new TamiranApiException('فاکتور قبلی اجرت تعمیر دارد؛ ابتدا مالی باید سند اصلاحی مجاز ثبت کند.',409);
         }
-        $result=technician_event($pdo,$scope,$case,'technical_finish',$key,$payload,['target'=>$target]);
+        $result=technician_event($pdo,$scope,$case,'technical_finish',$key,$payload,['target'=>$target,'technicianId'=>(int)$case['primary_technician_user_id']?:$scope['actor']['id']]);
         // This trusted argument is never accepted from the transition HTTP action.
         v2_transition($pdo,$scope,(int)$case['case_id'],$target,$outcome==='repaired'?'تعمیر شد؛ گزارش نهایی در پرونده ثبت شد':mb_substr('تعمیر نشد؛ '.$payload['reason'],0,1000),(int)$case['lock_version'],'technical-finish:'.$key,true,true);
         $pdo->commit();return $result;
@@ -191,13 +204,14 @@ function technician_projection(PDO $pdo,array $scope,int $caseId): array
     $primary=$scope['role']==='repair_manager'||(int)$case['primary_technician_user_id']===(int)$scope['actor']['id'];
     $parts=technician_billable_parts($pdo,$caseId);if(!technician_purchase_allowed($scope))foreach($parts as &$part)unset($part['purchaseUnitCost']);unset($part);
     $unrepairedAmount=technician_unrepaired_amount($pdo,$caseId);
-    return ['unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','receiptPending'=>!empty($case['physical_receipt_pending']),'permissions'=>['receive'=>!empty($case['physical_receipt_pending'])&&technician_is_receipt_recipient($scope,$case),'refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
+    return ['invoice'=>case_invoice_public(case_invoice_preview($pdo,$scope,$case)), 'unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','receiptPending'=>!empty($case['physical_receipt_pending']),'permissions'=>['receive'=>!empty($case['physical_receipt_pending'])&&technician_is_receipt_recipient($scope,$case),'refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
 }
 
 function technician_manual_part(PDO $pdo,array $scope,array $input): array
 {
     v2_require_permission($scope,'case.part.record',['technician'],'ثبت قطعه مجاز نیست.');
     $caseId=(int)($input['caseId']??0);$key=v2_text($input['idempotencyKey']??'','شناسه قطعه',160);
+    if(str_starts_with($key,'external-purchase:')) throw new TamiranApiException('شناسه قطعه رزرو شده است.');
     $q=$input['quantity']??0;
     if(!is_numeric($q)||!is_finite((float)$q)||(float)$q<=0||(float)$q>10000||round((float)$q,3)!==(float)$q)throw new TamiranApiException('تعداد قطعه با حداکثر سه رقم اعشار معتبر است.');
     $payload=['title'=>v2_text($input['title']??'','نام قطعه',240),'quantity'=>(float)$q,'purchaseUnitCost'=>technician_money($input['purchaseUnitCost']??0),'saleUnitPrice'=>technician_money($input['saleUnitPrice']??0),'note'=>v2_text($input['note']??'','توضیح قطعه',1000,false)??''];
@@ -219,20 +233,54 @@ function technician_manual_part(PDO $pdo,array $scope,array $input): array
 function technician_stock_request(PDO $pdo,array $scope,array $input): array
 {
     v2_require_permission($scope,'part.request',['technician'],'ثبت درخواست قطعه مجاز نیست.');
-    $caseId=(int)($input['caseId']??0);$quantity=$input['quantity']??0;
-    if(filter_var($quantity,FILTER_VALIDATE_INT)===false||(int)$quantity<1||(int)$quantity>100000)throw new TamiranApiException('تعداد صحیح قطعه لازم است.');
+    $caseId=(int)($input['caseId']??0);
+    $batch=isset($input['lines']);
+    $lines=$batch?$input['lines']:[$input];
+    if (!is_array($lines)||$lines===[]||count($lines)>30) throw new TamiranApiException('بین یک و ۳۰ ردیف درخواست قطعه لازم است.');
+    $normalized=[];
+    foreach ($lines as $line) {
+        if (!is_array($line)) throw new TamiranApiException('ردیف درخواست معتبر نیست.');
+        $quantity=filter_var($line['quantity']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>100000]]);
+        $item=(int)($line['itemId']??0);
+        if ($quantity===false||$item<1) throw new TamiranApiException('انتخاب قطعه و تعداد صحیح لازم است.');
+        $normalized[]=['itemId'=>$item,'quantity'=>$quantity,'notes'=>v2_text($line['notes']??'','توضیح درخواست',2000,false)??''];
+    }
+    $payload=$batch?['lines'=>$normalized]:$normalized[0];
     $key=v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه درخواست',160);
-    $payload=['itemId'=>(int)($input['itemId']??0),'quantity'=>(int)$quantity,'notes'=>v2_text($input['notes']??'','توضیح درخواست',2000,false)??''];
-    $pdo->beginTransaction();try{
-        $case=v2_case($pdo,$scope,$caseId,true);technician_access($pdo,$scope,$case,true);
-        if($old=technician_replay($pdo,$case,$scope,'technical_stock_request',$key,$payload)){$pdo->commit();return $old;}
+    $pdo->beginTransaction();
+    try {
+        $case=v2_case($pdo,$scope,$caseId,true);
+        technician_access($pdo,$scope,$case,true);
+        if ($old=technician_replay($pdo,$case,$scope,'technical_stock_request',$key,$payload)) {
+            $pdo->commit();
+            return $old;
+        }
         technician_editable($case);
-        $s=$pdo->prepare('SELECT i.id FROM repair_inventory_items i JOIN repair_branch_stock s ON s.item_id=i.id AND s.shop_id=i.shop_id WHERE i.id=:item AND i.shop_id=:shop AND s.branch_id=:branch AND i.is_active=1');$s->execute(['item'=>$payload['itemId'],'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);if(!$s->fetchColumn())throw new TamiranApiException('قطعه فعال در موجودی این شعبه پیدا نشد.',404);
-        $public=tamiran_id();$pdo->prepare("INSERT INTO repair_part_requests(public_id,shop_id,branch_id,case_id,item_id,requested_by_user_id,quantity,status,notes) VALUES(:public,:shop,:branch,:case,:item,:actor,:quantity,'pending',:notes)")->execute(['public'=>$public,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'case'=>$caseId,'item'=>$payload['itemId'],'actor'=>$scope['actor']['id'],'quantity'=>$payload['quantity'],'notes'=>$payload['notes']]);
-        $result=technician_event($pdo,$scope,$case,'technical_stock_request',$key,$payload,['created'=>true,'publicId'=>$public]);
-        if(in_array($case['process_status'],['diagnosing','estimate_pending','awaiting_customer_approval','repairing'],true))v2_transition($pdo,$scope,$caseId,'awaiting_parts','درخواست قطعه؛ مصرف پس از تحویل انبار ثبت می‌شود',(int)$case['lock_version'],'part-request:'.$public,true,true);
-        $pdo->commit();return $result;
-    }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+        $check=$pdo->prepare('SELECT i.id FROM repair_inventory_items i JOIN repair_branch_stock s ON s.item_id=i.id AND s.shop_id=i.shop_id
+            WHERE i.id=:item AND i.shop_id=:shop AND s.branch_id=:branch AND i.is_active=1');
+        $insert=$pdo->prepare("INSERT INTO repair_part_requests(public_id,shop_id,branch_id,case_id,item_id,requested_by_user_id,quantity,status,notes)
+            VALUES(:public,:shop,:branch,:case,:item,:actor,:quantity,'pending',:notes)");
+        $ids=[];
+        foreach ($normalized as $line) {
+            $check->execute(['item'=>$line['itemId'],'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
+            if (!$check->fetchColumn()) throw new TamiranApiException('قطعه فعال در موجودی این شعبه پیدا نشد.',404);
+            $id=tamiran_id();
+            $insert->execute(['public'=>$id,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'case'=>$caseId,'item'=>$line['itemId'],
+                'actor'=>$scope['actor']['id'],'quantity'=>$line['quantity'],'notes'=>$line['notes']]);
+            $ids[]=$id;
+        }
+        $result=technician_event($pdo,$scope,$case,'technical_stock_request',$key,$payload,
+            ['created'=>true,'publicId'=>$ids[0],'publicIds'=>$ids]);
+        if (in_array($case['process_status'],['diagnosing','estimate_pending','awaiting_customer_approval','repairing'],true)) {
+            v2_transition($pdo,$scope,$caseId,'awaiting_parts','درخواست قطعه؛ مصرف پس از تحویل انبار ثبت می‌شود',
+                (int)$case['lock_version'],'part-request:'.$ids[0],true,true);
+        }
+        $pdo->commit();
+        return $result;
+    } catch(Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
 }
 
 function technician_unrepaired_amount(PDO $pdo,int $caseId): int
@@ -241,4 +289,41 @@ function technician_unrepaired_amount(PDO $pdo,int $caseId): int
     if(is_array($e)){$amount=(int)$e['diagnostic_fee'];$s=$pdo->prepare("SELECT COALESCE(SUM(line_total),0) FROM repair_estimate_items WHERE estimate_id=:estimate AND item_type='diagnostic'");$s->execute(['estimate'=>$e['id']]);$amount+=(int)$s->fetchColumn();}
     foreach(technician_billable_parts($pdo,$caseId) as $part)$amount+=(int)round((float)$part['quantity']*(int)$part['saleUnitPrice']);
     return $amount;
+}
+
+function technician_diagnosis(PDO $pdo, array $scope, array $input): array
+{
+    $caseId=(int)($input['caseId']??0);
+    $key=v2_text($input['idempotencyKey']??'','شناسه گزارش عیب‌یابی',160);
+    $assessment=(string)($input['assessment']??'');
+    if (!in_array($assessment,['confirmed','not_reproduced','undetermined'],true)) {
+        throw new TamiranApiException('نتیجه بررسی ایراد پذیرش را مشخص کنید.');
+    }
+    $issues=$input['issues']??[];
+    if (!is_array($issues)||count($issues)>30) throw new TamiranApiException('فهرست ایرادهای تازه معتبر نیست.');
+    $findings=[];
+    foreach($issues as $issue) {
+        if (!is_string($issue)) throw new TamiranApiException('شرح ایراد تشخیص‌داده‌شده معتبر نیست.');
+        $findings[]=v2_text($issue,'شرح ایراد تشخیص‌داده‌شده',300);
+    }
+    $payload=['assessment'=>$assessment,'issues'=>$findings,'description'=>v2_text($input['description']??'','شرح عیب‌یابی',4000)];
+    $pdo->beginTransaction();
+    try {
+        $case=v2_case($pdo,$scope,$caseId,true);
+        technician_access($pdo,$scope,$case,true);
+        if ($old=technician_replay($pdo,$case,$scope,'technical_diagnosis',$key,$payload)) {
+            $pdo->commit();
+            return $old;
+        }
+        technician_editable($case);
+        if (!in_array($case['process_status'],['diagnosing','qc_rework'],true)) throw new TamiranApiException('پرونده در مرحله عیب‌یابی نیست.',409);
+        if ((int)$case['lock_version']!==(int)($input['lockVersion']??-1)) throw new TamiranApiException('پرونده تغییر کرده است؛ اطلاعات را تازه کنید.',409);
+        $result=technician_event($pdo,$scope,$case,'technical_diagnosis',$key,$payload);
+        v2_transition($pdo,$scope,$caseId,'estimate_pending','نتیجه عیب‌یابی ثبت شد',(int)$case['lock_version'],hash('sha256','diagnosis:'.$key),true,true);
+        $pdo->commit();
+        return $result;
+    } catch(Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
 }

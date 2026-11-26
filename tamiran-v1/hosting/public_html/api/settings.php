@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
+require_once tamiran_private_root().'/v2-core.php';
 
 tamiran_api(static function(): array {
     $actor = tamiran_require_actor();
@@ -19,6 +20,9 @@ tamiran_api(static function(): array {
         $settings = [];
         foreach ($settingsStatement->fetchAll() as $row) {
             $decoded = json_decode((string)$row['value_json'], true);
+            if ($row['setting_key']==='operations_policy'&&is_array($decoded)&&($actor['role']??'')!=='repair_manager') {
+                $decoded['purchaseLimits']=array_intersect_key((array)($decoded['purchaseLimits']??[]),[(int)$actor['id']=>true]);
+            }
             $settings[(string)$row['setting_key']] = $decoded;
         }
         $termStatement=$pdo->prepare('SELECT public_id,version_number,title,body_text,content_sha256,effective_from FROM repair_receipt_term_versions WHERE shop_id=:shop AND is_active=1 AND effective_from<=NOW() AND (effective_to IS NULL OR effective_to>NOW()) ORDER BY version_number DESC LIMIT 1');
@@ -69,9 +73,10 @@ tamiran_api(static function(): array {
         }
         if (array_key_exists('key',$input)) {
             $key = trim((string)$input['key']);
-            $allowed = ['receipt_template','service_forms','customer_address_policy','inventory_policy','security_policy','assignment_policy','delivery_verification','reception_evidence','warranty_policy','technician_compensation','sla_policy','sms_events','device_colors'];
+            $allowed = ['receipt_template','service_forms','customer_address_policy','inventory_policy','security_policy','assignment_policy','operations_policy','delivery_verification','reception_evidence','warranty_policy','technician_compensation','sla_policy','sms_events','device_colors'];
             if (!in_array($key,$allowed,true)) throw new TamiranApiException('کلید تنظیمات معتبر نیست.');
             if (!array_key_exists('value',$input)) throw new TamiranApiException('مقدار تنظیمات ارسال نشده است.');
+            if ($key === 'operations_policy') $input['value'] = operations_policy_validate($input['value']);
             if ($key === 'assignment_policy') {
                 if (!is_array($input['value'])) throw new TamiranApiException('تنظیم تخصیص تکنسین معتبر نیست.');
                 $branchId = (int)($actor['branch']['id'] ?? 0);
