@@ -127,8 +127,6 @@ export type CapabilityModule = {
   navigation: "visible" | "hidden";
   catalog: "visible" | "hidden";
   access: "granted" | "denied" | "locked";
-  cta: "request_activation" | null;
-  activationPending?: boolean;
   trialDaysRemaining: number | null;
   expiresAt: string | null;
 };
@@ -778,16 +776,6 @@ export const loadShopSettings = () =>
   );
 export const loadCapabilities = () =>
   request<CapabilitySnapshot>("/api/capabilities.php");
-export const requestModuleActivation = (module: string, reason = "") =>
-  request<{ requested: boolean; requestId: string }>(
-    "/api/capabilities.php",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "request_activation", module, reason }),
-    },
-    true,
-  );
 export const saveShopSetting = (key: string, value: unknown) =>
   request<{ updated: boolean }>(
     "/api/settings.php",

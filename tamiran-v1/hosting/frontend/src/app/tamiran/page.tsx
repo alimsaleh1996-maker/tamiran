@@ -22,7 +22,6 @@ import {
   Send,
   Settings,
   ShieldCheck,
-  Sparkles,
   UsersRound,
   Wrench,
   X,
@@ -82,7 +81,6 @@ import {
 import { assignV2Case } from "./v2-api";
 import { V2Workspace } from "./v2-workspace";
 import { RepairQueue } from "./repair-queue";
-import { CapabilityCatalog } from "./capabilities";
 import { TechnicianWorkbench } from "./technician-workbench";
 import { CustomerPortal } from "./customer-portal";
 import { APP_VERSION } from "./version";
@@ -149,7 +147,6 @@ const navGroups = [
       { label: "پشتیبانی تعمیران", icon: Bell },
       { label: "تنظیمات", icon: Settings },
       { label: "پیامک و پرتال", icon: Send },
-      { label: "افزودن قابلیت", icon: Sparkles },
     ],
   },
 ];
@@ -262,7 +259,6 @@ const pageSlugs: Record<string, string> = {
   "پشتیبانی تعمیران": "support",
   تنظیمات: "settings",
   "پیامک و پرتال": "messaging",
-  "افزودن قابلیت": "capabilities",
 };
 
 const legacyPageNames: Record<string, string> = {
@@ -316,7 +312,6 @@ export default function Home() {
   const [capabilities, setCapabilities] = useState<CapabilitySnapshot | null>(
     null,
   );
-  const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 960px)");
@@ -376,7 +371,6 @@ export default function Home() {
     setOperationsLoading(true);
     setOperationsError(null);
     bootstrapValid.current = false;
-    setCapabilitiesLoading(true);
     void loadOperationalBootstrap({
       loadFollowUps,
       loadOperations: () => loadOperations(0),
@@ -435,7 +429,6 @@ export default function Home() {
       .finally(() => {
         if (!active) return;
         setOperationsLoading(false);
-        setCapabilitiesLoading(false);
       });
     return () => {
       active = false;
@@ -501,13 +494,14 @@ export default function Home() {
     url.searchParams.delete("techReturn");
     url.searchParams.delete("opsTask");
     url.searchParams.delete("deliveryCase");
+    url.searchParams.delete("financeCase");
     if (requested === "مالی پرونده") url.searchParams.set("deliveryTab", "finance");
     else if (requested === "تحویل تعمیرات") url.searchParams.set("deliveryTab", "ready");
     else url.searchParams.delete("deliveryTab");
     window.history.pushState({ view: pageSlugs[label] }, "", url);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "auto" });
-    if (!["افزودن قابلیت", "پشتیبانی تعمیران"].includes(label)) {
+    if (label !== "پشتیبانی تعمیران") {
       void refreshOperations();
     }
   };
@@ -516,17 +510,6 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(null), 3200);
   }, []);
-
-  const refreshCapabilities = useCallback(async () => {
-    setCapabilitiesLoading(true);
-    try {
-      setCapabilities(await loadCapabilities());
-    } catch {
-      notify("تازه‌سازی قابلیت‌ها انجام نشد.");
-    } finally {
-      setCapabilitiesLoading(false);
-    }
-  }, [notify]);
 
   const authenticate = useCallback((profile: WorkspaceProfile) => {
     setOperationsReady(false);
@@ -974,8 +957,6 @@ export default function Home() {
           workspaceProfile.productProfile === "solo"
         )
           return false;
-        if (item.label === "افزودن قابلیت")
-          return capabilities?.discoverable === true;
         const required = pageRequiredModule[item.label];
         if (!required) return true;
         const capability = capabilities?.modules.find(
@@ -1186,12 +1167,12 @@ export default function Home() {
               <button type="button" className="outline-action" disabled={operationsLoading} onClick={() => setBootstrapAttempt((attempt) => attempt + 1)}>تلاش مجدد</button>
             </section>
           )}
-          {!operationsReady && !["پشتیبانی تعمیران", "افزودن قابلیت"].includes(activePage) ? (
+          {!operationsReady && activePage !== "پشتیبانی تعمیران" ? (
             operationsLoading ? <section className="panel operational-loading" role="status">در حال دریافت اطلاعات عملیاتی...</section> : null
           ) : <>
           {operations.casesPage && operations.casesPage.total > operations.casesPage.limit &&
             !v2Pages.has(activePage) && activePage !== "کارهای من" &&
-            !["پذیرش تعمیرات", "تنظیمات", "پشتیبانی تعمیران", "افزودن قابلیت"].includes(activePage) ? (
+            !["پذیرش تعمیرات", "تنظیمات", "پشتیبانی تعمیران"].includes(activePage) ? (
             <section className="panel" aria-label="صفحه‌بندی پرونده‌ها" style={{ padding: 16, marginBottom: 16 }}>
               <p role="status">
                 نمایش پرونده‌های {new Intl.NumberFormat("fa-IR").format(operations.casesPage.returned ? operations.casesPage.offset + 1 : 0)} تا {new Intl.NumberFormat("fa-IR").format(operations.casesPage.offset + operations.casesPage.returned)} از {new Intl.NumberFormat("fa-IR").format(operations.casesPage.total)} مورد مجاز.
@@ -1217,13 +1198,6 @@ export default function Home() {
             <div className="panel">
               <SupportTickets notify={notify} />
             </div>
-          ) : activePage === "افزودن قابلیت" ? (
-            <CapabilityCatalog
-              snapshot={capabilities}
-              loading={capabilitiesLoading}
-              onRefresh={refreshCapabilities}
-              notify={notify}
-            />
           ) : activePage === "کارهای من" ? (
             <TechnicianWorkbench
               key={`${activePage}-${contentRevision}`}

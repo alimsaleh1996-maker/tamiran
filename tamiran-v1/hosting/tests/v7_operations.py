@@ -317,18 +317,78 @@ def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
         page.unroute_all(behavior='wait')
         search.fill('')
         card.click()
-        browser_expect(page.get_by_role('heading',name='بررسی پیش‌نویس فاکتور',exact=True)).to_be_visible()
-        log.check('finance case opens its stage without a delivery form',lambda:browser_expect(page.get_by_role('button',name='ثبت تحویل واقعی',exact=True)).to_have_count(0))
-        page.screenshot(path=str(output/'finance-desktop.png'),full_page=True)
-        page.get_by_role('button',name='صدور فاکتور',exact=True).click()
-        next_step=page.get_by_role('heading',name='ثبت پرداخت و تعیین تکلیف مالی',exact=True)
-        browser_expect(next_step.or_(page.get_by_role('alert')).first).to_be_visible()
+        invoice_heading=page.get_by_role('heading',name='فاکتور تعمیرات',exact=True)
+        browser_expect(invoice_heading).to_be_visible()
+        log.check('invoice is read-only by default and shows purchased part source',lambda:expect(
+            page.locator('.cashier-lines input').count()==0 and page.get_by_text('خرید خارجی',exact=True).count()==1,
+            'invoice does not show the audited part line in read mode'))
+        cashier=page.locator('.cashier-sheet')
+        for width in (1440,768,390,320):
+            page.set_viewport_size({'width':width,'height':900})
+            log.check(f'invoice fits {width}px',lambda:expect(page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),'horizontal overflow'))
+            if width in (390,1440):
+                page.screenshot(path=str(output/f'invoice-{width}.png'),full_page=True)
+        page.set_viewport_size({'width':1440,'height':900})
+        page.get_by_role('button',name='اصلاح مبالغ',exact=True).click()
+        cashier.locator('tbody tr').filter(has_text='خرید خارجی').locator('input').first.fill('۹۰۰٬۰۰۰')
+        cashier.locator('tbody tr').filter(has_text='اجرت').locator('input').first.fill('۱۰۰٬۰۰۰')
+        page.get_by_role('button',name='پایان اصلاح',exact=True).click()
+        proceed=page.get_by_role('button',name='تأیید فاکتور و ادامه به تسویه حساب',exact=True)
+        log.check('invoice increase is blocked until consent',lambda:browser_expect(proceed).to_have_count(0))
+        finance_url=page.url
+        page.get_by_role('button',name='ارسال برای تأیید هزینه',exact=True).click()
+        approval=page.get_by_role('button',name='ثبت تأیید تلفنی مشتری و ادامه',exact=True)
+        browser_expect(approval.or_(page.get_by_role('alert')).first).to_be_visible(timeout=25000)
+        assert approval.is_visible(), page.get_by_role('alert').all_text_contents()
+        approval.click()
+        browser_expect(page.get_by_text('تأیید مشتری ثبت شد.',exact=True)).to_be_visible()
+        page.goto(finance_url,wait_until='networkidle')
+        log.check('renewed consent restores edited invoice amounts without returning to repair',lambda:expect(
+            proceed.is_visible() and '۱٬۰۰۰٬۰۰۰' in page.locator('.cashier-emphasis strong').inner_text(),
+            'confirmed amount or price edits were lost'))
+        proceed.click()
+        confirmation=page.get_by_role('dialog',name='تأیید مبلغ نهایی')
+        log.check('final amount is confirmed before issuance',lambda:browser_expect(confirmation).to_contain_text('۱٬۰۰۰٬۰۰۰ تومان'))
+        confirmation.get_by_role('button',name='بازگشت و بررسی').click()
+        browser_expect(confirmation).to_have_count(0)
+        proceed.click()
+        confirmation.get_by_role('button',name='تأیید و صدور فاکتور').click()
+        next_step=page.get_by_role('heading',name='تسویه حساب',exact=True)
+        browser_expect(next_step.or_(page.get_by_role('alert')).first).to_be_visible(timeout=25000)
         assert next_step.is_visible(), page.get_by_role('alert').all_text_contents()
-        page.locator('.v2-payment-form select').select_option('cash')
-        page.get_by_role('button',name='ثبت تسویه و آماده تحویل',exact=True).click()
-        browser_expect(page.get_by_role('heading',name='صف نهایی‌سازی مالی',exact=True)).to_be_visible()
-        log.check('payment sets ready stage without physical delivery',lambda:expect(
-            manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='ready_for_delivery','settlement did not prepare delivery'))
+        invoice=next(row for row in manager.api('finance-v2.php')['invoices'] if row['case_id']==case)
+        log.check('edited sale prices and labor were stored in rials',lambda:expect(
+            invoice['total_amount']==10000000 and invoice['paid_amount']==0,'final amount or separation incorrect'))
+        endpoint='finance-v2.php'
+        log.check('unpaid invoice cannot be referred to delivery',lambda:manager.api(endpoint,'POST',
+            {'action':'refer_to_delivery','caseId':case},expected=409))
+        page.get_by_label('مبلغ دریافت',exact=True).fill('۴۵۰٬۰۰۰')
+        page.get_by_label('روش دریافت',exact=True).select_option('cash')
+        page.get_by_role('button',name='ثبت دریافت',exact=True).click()
+        browser_expect(cashier.get_by_text('پرداخت بخشی از مبلغ',exact=True)).to_be_visible(timeout=25000)
+        page.reload(wait_until='networkidle')
+        log.check('prior payments and remaining balance survive reload',lambda:expect(
+            '۵۵۰٬۰۰۰' in page.locator('.cashier-emphasis strong').inner_text()
+            and '۴۵۰٬۰۰۰' in page.locator('.cashier-history').inner_text(),'partial payment was lost'))
+        for width in (1440,768,390,320):
+            page.set_viewport_size({'width':width,'height':900})
+            log.check(f'settlement fits {width}px',lambda:expect(page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),'horizontal overflow'))
+            if width in (390,1440):
+                page.screenshot(path=str(output/f'settlement-{width}.png'),full_page=True)
+        page.set_viewport_size({'width':1440,'height':900})
+        page.get_by_role('button',name='دریافت کل مانده',exact=True).click()
+        page.get_by_role('button',name='ثبت دریافت',exact=True).click()
+        browser_expect(page.get_by_role('heading',name='ارجاع به تحویل',exact=True)).to_be_visible(timeout=25000)
+        log.check('last receipt keeps the case in finance until explicit referral',lambda:expect(
+            manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='finance_pending',
+            'settlement moved the case to delivery'))
+        page.get_by_role('button',name='ارجاع به تحویل',exact=True).click()
+        browser_expect(page.get_by_role('heading',name='صف نهایی‌سازی مالی',exact=True)).to_be_visible(timeout=25000)
+        log.check('explicit referral moves the case without physical delivery',lambda:expect(
+            manager.api(f'workflow-v2.php?caseId={case}')['cases'][0]['status']=='ready_for_delivery',
+            'referral did not prepare delivery'))
+        log.check('referral replay is idempotent',lambda:expect(manager.api(endpoint,'POST',
+            {'action':'refer_to_delivery','caseId':case})['replayed'],'referral duplicated'))
         page.get_by_role('button',name='تحویل دستگاه',exact=True).click()
         page.reload(wait_until='networkidle')
         log.check('explicit delivery selection survives reload',lambda:
@@ -340,7 +400,8 @@ def check_finance_delivery_browser(log,url,manager,case,receipt,folder):
         page.get_by_label('مدرک/توضیح',exact=True).fill('رسید پرونده آزمایشی بازبینی شد')
         for width in (320,390,768,1440):
             page.set_viewport_size({'width':width,'height':900})
-            log.check(f'delivery detail fits {width}px',lambda:expect(page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),'horizontal overflow'))
+            log.check(f'delivery detail fits {width}px',lambda:page.wait_for_function(
+                'document.documentElement.scrollWidth <= innerWidth + 1', timeout=5000))
             if width in (390,1440):
                 page.screenshot(path=str(output/f'delivery-{width}.png'),full_page=True)
         submit.click()
@@ -365,42 +426,17 @@ def check_locked_finance_browser(log,url,manager,case,receipt,folder):
             browser_expect(page.get_by_role('heading',name='پرونده‌های منتظر تکمیل مالی')).to_be_visible())
         browser_expect(page.get_by_role('listitem').filter(has_text=receipt)).to_be_visible()
         browser_expect(page.get_by_role('button',name='صدور فاکتور',exact=True)).to_have_count(0)
-        browser_expect(page.get_by_role('button',name='رفتن به فعال‌سازی مالی',exact=True)).to_be_visible()
+        browser_expect(page.get_by_role('status').filter(has_text='مدیر کل سامانه')).to_be_visible()
+        log.check('workshop finance contains no activation action',lambda:browser_expect(
+            page.get_by_role('button',name='رفتن به فعال‌سازی مالی',exact=True)).to_have_count(0))
         page.screenshot(path=str(Path(folder)/'finance-inactive.png'),full_page=True)
-        posts=[]
-        page.on('request', lambda call: posts.append(call.post_data_json)
-            if call.url.endswith('/api/capabilities.php') and call.method=='POST' else None)
-        page.get_by_role('button',name='رفتن به فعال‌سازی مالی',exact=True).click()
-        card=page.locator('.capability-card').filter(has=page.get_by_role('heading',name='مالی پرونده',exact=True))
-        activate=card.get_by_role('button',name='درخواست فعال‌سازی',exact=True)
-        browser_expect(activate).to_be_visible()
-        page.wait_for_load_state('networkidle')
-        log.check('opening the capability catalog sends no analytics POSTs',lambda:expect(not posts,str(posts)))
-        def hosting_error(route):
-            if route.request.method=='POST':
-                route.fulfill(status=403,content_type='text/html',body='<h1>Forbidden</h1>',headers={'X-Request-ID':'TEST-HOST-403'})
-            else:
-                route.continue_()
-        page.route('**/api/capabilities.php',hosting_error)
-        activate.click()
-        alert=page.get_by_role('alert')
-        log.check('host rejection displays HTTP status and the response identifier',lambda:browser_expect(alert).to_contain_text('HTTP 403'))
-        browser_expect(alert).to_contain_text('TEST-HOST-403')
-        page.wait_for_load_state('networkidle')
-        log.check('host rejection never retries or sends a parallel event',lambda:expect(
-            posts==[{'action':'request_activation','module':'finance','reason':''}],str(posts)))
-        page.unroute('**/api/capabilities.php',hosting_error)
-        activate.click()
-        browser_expect(card.get_by_role('button',name='درخواست ثبت شد',exact=True)).to_be_disabled()
-        page.reload(wait_until='networkidle')
-        log.check('pending activation is retained after refresh',lambda:
-            browser_expect(card.get_by_role('button',name='درخواست ثبت شد',exact=True)).to_be_disabled())
-        log.check('submitting activation sends one POST and refresh sends none',lambda:expect(len(posts)==2,str(posts)))
-        request={'action':'request_activation','module':'finance'}
-        first=manager.api('capabilities.php','POST',request)
-        again=manager.api('capabilities.php','POST',request)
-        log.check('repeating a pending request returns the same request ID',lambda:expect(
-            first['requestId']==again['requestId'],'duplicate activation requests'))
+        page.goto(url+'/?view=capabilities',wait_until='networkidle')
+        log.check('retired capability link falls back to workshop home',lambda:expect(
+            page.get_by_role('heading',name='نبض تعمیرگاه',exact=True).count()>0
+            and page.get_by_role('button',name='افزودن قابلیت',exact=True).count()==0,
+            'retired capability catalog still reachable'))
+        log.check('legacy activation POST is retired',lambda:manager.api('capabilities.php','POST',
+            {'action':'request_activation','module':'finance'},expected=410))
         browser.close()
 
 

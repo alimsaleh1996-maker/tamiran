@@ -6,7 +6,8 @@ import { CaseStageBoard } from "./case-stage-board";
 import { OperationsCaseWorkspace } from "./operations-case-workspace";
 import { technicalCaseFromLocation, writeTechnicalLocation } from "./technician-navigation";
 import { printHandoverReceipt } from "./handover-receipt";
-import { MoneyInput, formatToman } from "./money-input";
+import { formatToman } from "./money-input";
+import { isOpenFinanceInvoice, RepairInvoiceView, SettlementView } from "./finance-case-view";
 import "./iteration-six.css";
 
 import * as React from "react";
@@ -32,7 +33,6 @@ import { FollowUpApiError } from "./followups-api";
 import { matchesQueueSearch } from "./queue-search";
 import {
   deliveryV2Action,
-  financeV2Action,
   handoverDiscrepancy,
   handoverNeedsApproval,
   inventoryControlV2Action,
@@ -54,8 +54,6 @@ import {
   type V2Case,
   type V2DeliveryCase,
   type V2InventoryPayload,
-  type V2Invoice,
-  type V2InvoiceDraft,
   type V2FinanceWorkspace,
   type V2ProcurementPayload,
   type V2QualityPayload,
@@ -348,11 +346,16 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
             <button type="button" aria-pressed={deliveryTab === "ready"} onClick={() => chooseDeliveryTab("ready")}>تحویل دستگاه</button>
           </nav>}
           {deliveryTab === "finance" && finance?.available && (
-            <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={workflow?.cases ?? []} search={queueSearch} profile={profile} busy={busy} run={run} />
+            <FinanceBoard onCaseOpen={setServiceCaseOpen} data={finance} cases={workflow?.cases ?? []} search={queueSearch} busy={busy} run={run} onApproval={(id) => {
+              onNavigate("تأیید هزینه");
+              const url = new URL(location.href);
+              url.searchParams.set("techCase", String(id));
+              url.searchParams.set("opsTask", "approval");
+              history.replaceState(history.state, "", url);
+            }} />
           )}
           {deliveryTab === "finance" && finance?.available === false && (
-            <FinanceUnavailable pending={finance.pending} search={queueSearch}
-              activation={profile.role === "repair_manager" ? () => onNavigate("افزودن قابلیت") : undefined} />
+            <FinanceUnavailable pending={finance.pending} search={queueSearch} />
           )}
           {deliveryTab === "ready" && delivery && (
             <DeliveryBoard onCaseOpen={setServiceCaseOpen} data={delivery} cases={queueCases} profile={profile} busy={busy} run={run} />
@@ -509,7 +512,9 @@ function WorkflowBoard({
       </label>
       <CaseStageBoard
         cases={data.cases.filter((item) =>
-          (page === "تأیید هزینه" ? item.status === "awaiting_customer_approval"
+          (page === "تأیید هزینه" ? (item.status === "awaiting_customer_approval" ||
+            (["finance_pending", "qc_conditional"].includes(item.status) &&
+              ["sent", "explanation_requested"].includes(item.latestEstimate?.status ?? "")))
             : search.trim() !== "" || ["reception", "awaiting_assignment"].includes(item.status)) &&
           matchesQueueSearch(search, [
             item.receiptNumber,
@@ -1406,18 +1411,16 @@ function QualityTemplateForm({ templates, busy, run }: { templates: V2QcTemplate
   </form>;
 }
 
-function FinanceUnavailable({ pending, search, activation }: {
+function FinanceUnavailable({ pending, search }: {
   pending: Extract<V2FinanceWorkspace, { available: false }>["pending"];
   search: string;
-  activation?: () => void;
 }) {
   const cases = pending.filter(item => matchesQueueSearch(search,
     [item.receiptNumber, item.customerName, item.customerMobile, item.identifier ?? "", item.deviceTitle]));
   return (
     <section className="v2-card-form">
       <h3>پرونده‌های منتظر تکمیل مالی</h3>
-      <p role="status" className="service-callout">ماژول مالی برای این تعمیرگاه فعال نیست. صدور فاکتور و تسویه پس از فعال‌سازی انجام می‌شوند.</p>
-      {activation && <button type="button" onClick={activation}>رفتن به فعال‌سازی مالی</button>}
+      <p role="status" className="service-callout">ماژول مالی برای این تعمیرگاه فعال نیست. صدور فاکتور و تسویه پس از فعال‌سازی توسط مدیر کل سامانه امکان‌پذیر است.</p>
       {cases.length ? <ul className="tech-plain-list">
         {cases.map(item => <li key={item.receiptNumber}>
           <strong><bdi>{item.receiptNumber}</bdi> · {item.deviceTitle}</strong>
@@ -1428,343 +1431,83 @@ function FinanceUnavailable({ pending, search, activation }: {
   );
 }
 
-function FinanceBoard({
-  onCaseOpen,
-  data,
-  cases,
-  search,
-  profile,
-  busy,
-  run,
-}: {
+function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval }: {
   onCaseOpen: (open: boolean) => void;
-  data: { invoices: V2Invoice[]; drafts: V2InvoiceDraft[] };
+  data: Extract<V2FinanceWorkspace, { available: true }>;
   cases: V2Case[];
   search: string;
-  profile: WorkspaceProfile;
   busy: boolean;
   run: Run;
+  onApproval: (id: number) => void;
 }) {
-  const [form, setForm] = useState({
-    caseId: "",
-    title: "اجرت تعمیر",
-    amount: "",
-    tax: "0",
-  });
-  const [payment, setPayment] = useState({
-    invoice: "",
-    amount: "",
-    method: "card",
-    tracking: "",
-  });
-  const [refund, setRefund] = useState({
-    invoice: "",
-    amount: "",
-    method: "card",
-    tracking: "",
-    reason: "",
-  });
-  const selectedDraft = data.drafts.find(
-    (item) => item.caseId === Number(form.caseId),
-  );
-  const casesById = new Map(cases.map(item => [item.id, item]));
-  const matchesCase = (
-    id: number, receipt: string, customer: string,
-    device: Pick<V2Invoice, "customer_mobile" | "identifier_snapshot" | "device_title">,
-  ) => {
-    const item = casesById.get(id);
-    return matchesQueueSearch(search, [receipt, customer, device.customer_mobile ?? item?.customerMobile ?? "",
-      device.identifier_snapshot ?? item?.identifier ?? "", device.device_title ?? item?.deviceTitle ?? ""]);
-  };
-  const visibleDrafts = data.drafts.filter(item => matchesCase(item.caseId, item.receiptNumber, item.customerName, item));
-  const selectedInvoice = data.invoices.find((item) => item.public_id === payment.invoice);
-  const selectedRefundInvoice = data.invoices.find((item) => item.public_id === refund.invoice);
-  const selectedFinanceCase = cases.find(
-    (item) => item.id === (selectedDraft?.caseId ?? selectedInvoice?.case_id ?? selectedRefundInvoice?.case_id),
-  );
-  const openInvoices = data.invoices.filter(item =>
-    item.balance > 0 && matchesCase(item.case_id, item.receipt_number, item.customer_name, item));
-  const financeQueue = [
-    ...visibleDrafts.map(draft => ({
-      id: draft.caseId, receipt: draft.receiptNumber, customer: draft.customerName, title: draft.device_title, action: "بررسی پیش‌نویس",
-      open: () => { setRefund({ ...refund, invoice: "" }); setPayment({ ...payment, invoice: "", amount: "" });
-        setForm({ caseId: String(draft.caseId), title: "اجرت تعمیر", amount: "", tax: "0" }); },
-    })),
-    ...openInvoices.map(invoice => ({
-      id: invoice.case_id, receipt: invoice.receipt_number, customer: invoice.customer_name, title: invoice.device_title,
-      action: `مانده ${formatMoney(invoice.balance)} · ثبت پرداخت`,
-      open: () => { setRefund({ ...refund, invoice: "" }); setForm({ ...form, caseId: "" });
-        setPayment({ invoice: invoice.public_id, method: "card", amount: String(invoice.balance), tracking: "" }); },
-    })),
-  ].map(row => ({...row, item: casesById.get(row.id)})).sort((a,b) => compareQueueCases(a.item,b.item));
-  const closeFinance = () => {
-    setForm({ ...form, caseId: "" });
-    setPayment({ ...payment, invoice: "" });
-    setRefund({ ...refund, invoice: "" });
-  };
-  const financeOpen = !!(selectedDraft || selectedInvoice || selectedRefundInvoice);
+  const [caseId, setCaseId] = useState(() => Number(new URL(location.href).searchParams.get("financeCase")) || 0);
+  const [mode, setMode] = useState<"work" | "refund">("work");
+  const selectedDraft = data.drafts.find(item => item.caseId === caseId);
+  const selectedInvoice = data.invoices.find(item => item.case_id === caseId);
+  const financeOpen = Boolean(selectedDraft || selectedInvoice);
   useEffect(() => onCaseOpen(financeOpen), [financeOpen, onCaseOpen]);
-  const paymentKey = React.useRef<{signature: string; key: string} | undefined>(undefined);
-  const issueItems = [
-    ...(selectedDraft?.items ?? []),
-    ...(form.amount
-      ? [{
-          type: "labor",
-          title: form.title,
-          quantity: 1,
-          saleUnitPrice: Number(form.amount),
-          purchaseUnitCost: 0,
-          discountAmount: 0,
-          taxRate: Number(form.tax),
-          warrantyDays: 30,
-        }]
-      : []),
-  ];
-  return (
-    <div className="v2-stack">
-      {!financeOpen && <section className="v2-card-form">
-        <div className="service-card-line"><h3>صف نهایی‌سازی مالی</h3><b>{toman.format(financeQueue.length)} پرونده</b></div>
-        <div className="service-card-grid">
-          {financeQueue.map(row => <ServiceQueueCard key={row.receipt + row.action} receipt={row.receipt} item={row.item}
-            title={row.item?.deviceTitle ?? row.title ?? "دستگاه پرونده"} customer={row.customer} action={row.action} onOpen={row.open} />)}
-          {!financeQueue.length && <Empty text="پرونده‌ای نیازمند اقدام مالی نیست." />}
-        </div>
-      </section>}
-      {financeOpen && <section className="v2-card-form service-case">
-        <div className="service-card-line"><h3>{selectedDraft ? "بررسی پیش‌نویس فاکتور" : selectedRefundInvoice ? "استرداد وجه" : "ثبت پرداخت و تعیین تکلیف مالی"}</h3>
-          <button type="button" disabled={busy} onClick={closeFinance}>بازگشت به صف</button></div>
-        {selectedFinanceCase && <CaseContextHeader item={selectedFinanceCase} branch={profile.branch} />}
-        {selectedDraft && <form
-          className="v2-grid-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (busy) return;
-            const issued = await run(
-              () =>
-                financeV2Action({
-                  action: "issue",
-                  caseId: Number(form.caseId),
-                  idempotencyKey: `repair-invoice-${form.caseId}`,
-                  items: issueItems,
-                }),
-              "فاکتور نهایی صادر شد.",
-            ) as { publicId?: string; readyForDelivery?: boolean; totalAmount?: number } | undefined;
-            if (issued?.publicId) {
-              setForm({ ...form, caseId: "" });
-              if (!issued.readyForDelivery && Number(issued.totalAmount) > 0) {
-                setPayment({ invoice: issued.publicId, amount: String(issued.totalAmount), method: "card", tracking: "" });
-              }
-            }
-          }}
-        >
-          <label>
-            <span>اجرت/هزینه تکمیلی</span>
-            <input
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-            />
-          </label>
-          <label>
-            <span>مبلغ تکمیلی (اختیاری)</span>
-            <MoneyInput value={form.amount} onChange={amount => setForm({ ...form, amount })} />
-          </label>
-          <label>
-            <span>مالیات ٪</span>
-            <input
-              value={form.tax}
-              onChange={(e) => setForm({ ...form, tax: e.target.value })}
-            />
-          </label>
-          {selectedDraft && (
-            <div className="v2-finance-preview grow">
-              <strong>پیش‌نویس خودکار از عملیات پرونده</strong>
-              {selectedDraft.items.length ? selectedDraft.items.map((item, index) => (
-                <span key={item.sourceKey ?? `${item.type}-${item.referenceId ?? index}`}>
-                  {item.title} × {String(item.quantity)}
-                  <b>{formatMoney(Number(item.quantity) * Number(item.saleUnitPrice))}</b>
-                </span>
-              )) : <small>ردیف عملیاتی ثبت نشده؛ در صورت نیاز اجرت تکمیلی را وارد کنید.</small>}
-            </div>
-          )}
-          <button disabled={busy || !form.caseId || issueItems.length === 0}>
-            صدور فاکتور
-          </button>
-        </form>}
-        {selectedInvoice && <form
-          className="v2-grid-form v2-payment-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (busy) return;
-            const signature = JSON.stringify(payment);
-            if (paymentKey.current?.signature !== signature) {
-              paymentKey.current = { signature, key: crypto.randomUUID() };
-            }
-            const paid = await run(
-              () =>
-                financeV2Action({
-                  action: "payment",
-                  invoicePublicId: payment.invoice,
-                  amount: Number(payment.amount),
-                  method: payment.method,
-                  trackingNumber: payment.tracking,
-                  idempotencyKey: paymentKey.current?.key,
-                }),
-              "پرداخت ثبت شد.",
-            ) as { remaining?: number; readyForDelivery?: boolean } | undefined;
-            if (paid) {
-              paymentKey.current = undefined;
-              if (!paid.remaining || paid.readyForDelivery) closeFinance();
-              else setPayment({ ...payment, amount: String(paid.remaining), tracking: "" });
-            }
-          }}
-        >
-          <label>
-            <span>مبلغ پرداخت</span>
-            <MoneyInput value={payment.amount} onChange={amount => setPayment({ ...payment, amount })} />
-          </label>
-          <label>
-            <span>روش</span>
-            <select
-              value={payment.method}
-              onChange={(e) =>
-                setPayment({ ...payment, method: e.target.value })
-              }
-            >
-              <option value="card">کارت</option>
-              <option value="cash">نقد</option>
-              <option value="bank_transfer">حواله</option>
-              <option value="online">آنلاین</option>
-            </select>
-          </label>
-          <label>
-            <span>شماره پیگیری</span>
-            <input
-              value={payment.tracking}
-              onChange={(e) =>
-                setPayment({ ...payment, tracking: e.target.value })
-              }
-            />
-          </label>
-          <button disabled={busy || !payment.invoice || Number(payment.amount) < 1 || Number(payment.amount) > selectedInvoice.balance}>
-            {Number(payment.amount) === selectedInvoice.balance ? "ثبت تسویه و آماده تحویل" : "ثبت پرداخت"}
-          </button>
-        </form>}
-        {profile.role === "repair_manager" && selectedRefundInvoice && (
-          <form
-            className="v2-grid-form v2-refund-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(
-                () =>
-                  financeV2Action({
-                    action: "refund",
-                    invoicePublicId: refund.invoice,
-                    amount: Number(refund.amount),
-                    method: refund.method,
-                    trackingNumber: refund.tracking,
-                    reason: refund.reason.trim(),
-                    idempotencyKey: crypto.randomUUID(),
-                  }),
-                "سند استرداد ثبت شد.",
-              );
-            }}
-          >
-            <div className="v2-form-heading grow">
-              <strong>سند اصلاح مالی / استرداد</strong>
-              <small>پرداخت حذف نمی‌شود؛ سند برگشتی مستقل در دفتر مالی ثبت خواهد شد.</small>
-            </div>
-            <label>
-              <span>مبلغ استرداد</span>
-              <input inputMode="numeric" value={refund.amount} onChange={(event) => setRefund({ ...refund, amount: event.target.value.replace(/\D/g, "") })} />
-            </label>
-            <label>
-              <span>روش استرداد</span>
-              <select value={refund.method} onChange={(event) => setRefund({ ...refund, method: event.target.value })}>
-                <option value="card">کارت</option><option value="cash">نقد</option><option value="bank_transfer">حواله</option><option value="online">آنلاین</option>
-              </select>
-            </label>
-            <label>
-              <span>شماره پیگیری</span>
-              <input value={refund.tracking} onChange={(event) => setRefund({ ...refund, tracking: event.target.value })} />
-            </label>
-            <label className="grow">
-              <span>علت اصلاح *</span>
-              <input value={refund.reason} onChange={(event) => setRefund({ ...refund, reason: event.target.value })} placeholder="علت دقیق استرداد یا اصلاح مالی" />
-            </label>
-            <button disabled={busy || Number(refund.amount) < 1 || Number(refund.amount) > selectedRefundInvoice.paid_amount - selectedRefundInvoice.refunded_amount || !refund.reason.trim()}>
-              ثبت سند استرداد
-            </button>
-          </form>
-        )}
-      </section>}
-      {!financeOpen && <section className="v2-table-panel">
-        <ResponsiveTable headers={["فاکتور", "مشتری", "کل", "پرداخت", "مانده", "عملیات"]}>
-          {data.invoices.map((invoice) => (
-            <tr key={invoice.id}>
-              <td data-label="فاکتور">
-                <strong>{invoice.invoice_number}</strong>
-                <small>{invoice.receipt_number}</small>
-              </td>
-              <td data-label="مشتری">{invoice.customer_name}</td>
-              <td data-label="کل">{formatMoney(invoice.total_amount)}</td>
-              <td data-label="پرداخت">
-                {formatMoney(invoice.paid_amount - invoice.refunded_amount)}
-              </td>
-              <td data-label="مانده">
-                <span
-                  className={
-                    invoice.balance > 0 ? "v2-balance due" : "v2-balance"
-                  }
-                >
-                  {formatMoney(invoice.balance)}
-                </span>
-                {profile.role === "repair_manager" && invoice.balance > 0 && (
-                  <button
-                    className="v2-mini-action"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(
-                        () =>
-                          financeV2Action({
-                            action: "receivable",
-                            invoicePublicId: invoice.public_id,
-                            dueAt: new Date(Date.now() + 7 * 86400000)
-                              .toISOString()
-                              .slice(0, 19)
-                              .replace("T", " "),
-                            customerCommitmentText:
-                              "تعهد پرداخت مانده تا سررسید ثبت‌شده",
-                            evidence: { recordedByManager: true },
-                          }),
-                        "مطالبه و تعهد مشتری ثبت شد.",
-                      )
-                    }
-                  >
-                    تحویل با مانده
-                  </button>
-                )}
-              </td>
-              <td data-label="عملیات">
-                {profile.role === "repair_manager" && invoice.paid_amount - invoice.refunded_amount > 0 ? (
-                  <button
-                    type="button"
-                    className="v2-mini-action"
-                    onClick={() => {
-                      setForm({ ...form, caseId: "" });
-                      setPayment({ ...payment, invoice: "", amount: "" });
-                      setRefund({ invoice: invoice.public_id, amount: String(invoice.paid_amount - invoice.refunded_amount), method: "card", tracking: "", reason: "" });
-                    }}
-                  >
-                    ثبت اصلاح مالی
-                  </button>
-                ) : <small>—</small>}
-              </td>
-            </tr>
-          ))}
-        </ResponsiveTable>
-      </section>}
-    </div>
-  );
+  const select = (id: number, nextMode: "work" | "refund" = "work") => {
+    const url = new URL(location.href);
+    if (id) url.searchParams.set("financeCase", String(id));
+    else url.searchParams.delete("financeCase");
+    history.replaceState(history.state, "", url);
+    setCaseId(id);
+    setMode(nextMode);
+    window.scrollTo({ top: 0 });
+  };
+  const close = () => select(0);
+  const casesById = new Map(cases.map(item => [item.id, item]));
+  const queue = [
+    ...data.drafts.map(item => ({ id: item.caseId, receipt: item.receiptNumber, customer: item.customerName,
+      device: item, action: "فاکتور تعمیرات" })),
+    ...data.invoices.filter(isOpenFinanceInvoice).map(item => ({
+      id: item.case_id, receipt: item.receipt_number, customer: item.customer_name, device: item,
+      action: item.balance > 0 ? "تسویه حساب" : "ارجاع به تحویل",
+    })),
+  ].map(row => ({ ...row, item: casesById.get(row.id) }))
+    .filter(({ receipt, customer, device, item }) => matchesQueueSearch(search,
+      [receipt, customer, device.customer_mobile ?? item?.customerMobile ?? "",
+        device.identifier_snapshot ?? item?.identifier ?? "", device.device_title ?? item?.deviceTitle ?? ""]))
+    .sort((a, b) => compareQueueCases(a.item, b.item));
+
+  if (selectedDraft) {
+    return <RepairInvoiceView key={selectedDraft.caseId} draft={selectedDraft} permissions={data.permissions}
+      busy={busy} run={run} onClose={close} onIssue={() => window.scrollTo({ top: 0 })} onApproval={() => onApproval(selectedDraft.caseId)} />;
+  }
+  if (selectedInvoice) {
+    return <SettlementView key={selectedInvoice.public_id + mode} invoice={selectedInvoice} permissions={data.permissions}
+      mode={mode} busy={busy} run={run} onClose={mode === "refund" ? () => select(caseId) : close}
+      onReferred={close} onRefund={() => select(caseId, "refund")} />;
+  }
+  const historyRows = data.invoices.filter(invoice => !isOpenFinanceInvoice(invoice) && matchesQueueSearch(search,
+    [invoice.receipt_number, invoice.customer_name, invoice.customer_mobile ?? "", invoice.identifier_snapshot ?? "", invoice.device_title ?? ""]));
+  return <div className="v2-stack">
+    <section className="v2-card-form">
+      <div className="service-card-line"><h3>صف نهایی‌سازی مالی</h3><b>{toman.format(queue.length)} پرونده</b></div>
+      <div className="service-card-grid">
+        {queue.map(row => <ServiceQueueCard key={row.id} receipt={row.receipt} item={row.item}
+          title={row.item?.deviceTitle ?? row.device.device_title ?? "دستگاه پرونده"} customer={row.customer}
+          action={row.action} onOpen={() => select(row.id)} />)}
+        {!queue.length && <Empty text="پرونده‌ای نیازمند اقدام مالی نیست." />}
+      </div>
+    </section>
+    {historyRows.length > 0 && <section className="v2-table-panel">
+      <h3>سوابق فاکتورها</h3>
+      <ResponsiveTable headers={["فاکتور", "مشتری", "مبلغ نهایی", "مانده", "عملیات"]}>
+        {historyRows.map(invoice => <tr key={invoice.id}>
+          <td data-label="فاکتور"><strong>{invoice.invoice_number}</strong><small>{invoice.receipt_number}</small></td>
+          <td data-label="مشتری">{invoice.customer_name}</td>
+          <td data-label="مبلغ نهایی">{formatMoney(invoice.total_amount)}</td>
+          <td data-label="مانده">{formatMoney(invoice.balance)}</td>
+          <td data-label="عملیات">
+            <button type="button" className="v2-mini-action" onClick={() => select(invoice.case_id)}>مشاهده فاکتور</button>
+            {data.permissions.manage && Number(invoice.paid_amount) > Number(invoice.refunded_amount) &&
+              <button type="button" className="v2-mini-action" onClick={() => select(invoice.case_id, "refund")}>ثبت اصلاح مالی</button>}
+          </td>
+        </tr>)}
+      </ResponsiveTable>
+    </section>}
+  </div>;
 }
 
 function DeliveryBoard({

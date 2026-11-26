@@ -108,11 +108,20 @@ def run(args):
     out.check('repaired case is in finance',lambda:expect(row(id)['status']=='finance_pending','wrong final stage'))
     draft=next(d for d in finance.api('finance-v2.php')['drafts'] if d['caseId']==id)
     out.check('canonical draft includes diagnostic fee once',lambda:expect(sum(int(p['saleUnitPrice']) for p in draft['items'] if p['type']=='diagnostic')==100000,'diagnostic omitted/doubled'))
+    out.check('cashier draft has quantities from consumed stock and manual parts without purchase costs',lambda:expect(
+        {item['sourceType'] for item in draft['items'] if item['type']=='part'}=={'manual','stock'}
+        and all('purchaseUnitCost' not in item for item in draft['items']),'cost leak or missing part'))
     part=next(p for p in draft['items'] if p['type']=='part')
     out.check('duplicate part billing rejected',lambda:finance.api('finance-v2.php','POST',{'action':'issue','caseId':id,'items':draft['items']+[part]},expected=409))
     out.check('finance cannot exceed current cost authorization',lambda:finance.api('finance-v2.php','POST',{'action':'issue','caseId':id,'items':draft['items']+[{'type':'labor','title':'invalid extra','quantity':1,'saleUnitPrice':9000000}]},expected=409))
     invoice=out.check('canonical mixed invoice issued once',lambda:finance.api('finance-v2.php','POST',{'action':'issue','caseId':id,'items':draft['items']}))
     out.check('invoice retry does not add finance rows',lambda:expect(finance.api('finance-v2.php','POST',{'action':'issue','caseId':id,'items':draft['items']})['replayed'],'invoice duplicated'))
+    def check_cashier_invoice():
+        stored=next(item for item in finance.api('finance-v2.php')['invoices'] if item['case_id']==id)
+        return expect('directCost' not in stored and 'grossOperationalProfit' not in stored
+            and all('purchase_unit_cost' not in item for item in stored['items'])
+            and all('direct_cost_delta' not in item for item in stored['ledger']),'cashier can see internal costs')
+    out.check('cashier invoice and ledger omit cost and profit',check_cashier_invoice)
     # Unrepaired with real synthetic parts and diagnostic fee; no QC or approval fabricated.
     un=create();transition(un,'diagnosing');estimate(un);manual(un)
     out.check('unrepaired can end technical work without QC',lambda:finish(un,'not_repaired'))
@@ -120,9 +129,21 @@ def run(args):
     d=next(d for d in finance.api('finance-v2.php')['drafts'] if d['caseId']==un)
     out.check('unrepaired proposal removes labor and warranty',lambda:expect({x['type'] for x in d['items']}=={'diagnostic','part'} and all(int(x['warrantyDays'])==0 for x in d['items']),'unrepaired billing wrong'))
     out.check('unrepaired repair labor cannot be injected',lambda:finance.api('finance-v2.php','POST',{'action':'issue','caseId':un,'items':d['items']+[{'type':'labor','title':'bad','quantity':1,'saleUnitPrice':1}]},expected=409))
-    inv=finance.api('finance-v2.php','POST',{'action':'issue','caseId':un,'items':d['items']})
+    inv=finance.api('finance-v2.php','POST',{'action':'issue','caseId':un,'items':d['items'],'deferDelivery':True})
     out.check('unpaid unrepaired cannot close',lambda:expect(row(un)['status']=='finance_pending','unpaid closed'))
-    out.check('payment settles synthetic invoice without gateway',lambda:finance.api('finance-v2.php','POST',{'action':'payment','invoicePublicId':inv['publicId'],'amount':inv['totalAmount'],'method':'cash','idempotencyKey':secrets.token_hex(12)}))
+    payment={'action':'payment','invoicePublicId':inv['publicId'],'amount':inv['totalAmount'],'method':'cash',
+        'idempotencyKey':secrets.token_hex(12),'deferDelivery':True}
+    out.check('synthetic payment requires no gateway',lambda:finance.api('finance-v2.php','POST',payment))
+    out.check('payment retry returns same receipt without creating a payment',lambda:expect(
+        finance.api('finance-v2.php','POST',payment)['replayed']
+        and next(item for item in finance.api('finance-v2.php')['invoices'] if item['case_id']==un)['paid_amount']==inv['totalAmount'],
+        'duplicate payment'))
+    out.check('payment key cannot be reused with another amount',lambda:finance.api('finance-v2.php','POST',
+        {**payment,'amount':payment['amount']-10},expected=409))
+    out.check('settled unrepaired waits for explicit referral',lambda:expect(row(un)['status']=='finance_pending','settlement also referred case'))
+    handoff={'action':'refer_to_delivery','caseId':un}
+    out.check('technician cannot refer from finance',lambda:tech.api('finance-v2.php','POST',handoff,expected=403))
+    out.check('finance refers unrepaired without QC',lambda:finance.api('finance-v2.php','POST',handoff))
     out.check('settled unrepaired routes to returned_unrepaired without QC',lambda:expect(row(un)['status']=='returned_unrepaired','unrepaired not routed'))
     out.check('locked return rejects new activities',lambda:activity(un,expected=409))
     out.check('locked return rejects free parts',lambda:manual(un,expected=409))

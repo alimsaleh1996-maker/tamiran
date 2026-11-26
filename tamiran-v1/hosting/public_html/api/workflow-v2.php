@@ -537,6 +537,18 @@ function workflow_v2_add_manual_part(PDO $pdo,array $scope,array $input):array
     return technician_manual_part($pdo,$scope,$input);
 }
 
+function workflow_v2_check_finance_reapproval(PDO $pdo,array $scope,array $case):void
+{
+    v2_require_permission($scope,'finance.issue',['finance_cashier'],'درخواست تأیید مبلغ فاکتور مجاز نیست.');
+    v2_require_case_access($pdo,$scope,$case);
+    if ($case['locked_at']!==null||!in_array($case['process_status'],['finance_pending','qc_conditional'],true)) {
+        throw new TamiranApiException('پرونده در مرحله قابل اصلاح مالی نیست.',409);
+    }
+    $invoice=$pdo->prepare('SELECT id FROM repair_invoices WHERE case_id=:case');
+    $invoice->execute(['case'=>$case['case_id']]);
+    if ($invoice->fetchColumn()!==false) throw new TamiranApiException('فاکتور قطعی از مسیر اصلاح مالی تغییر می‌کند.',409);
+}
+
 function workflow_v2_estimate(PDO $pdo,array $scope,array $input): array
 {
     v2_require_permission($scope,'estimate.manage',['technician','reception'],'ثبت برآورد برای نقش فعلی مجاز نیست.');
@@ -546,7 +558,13 @@ function workflow_v2_estimate(PDO $pdo,array $scope,array $input): array
     try{
         $row=v2_case($pdo,$scope,$caseId,true);if($row['locked_at']!==null)throw new TamiranApiException('پرونده بسته قابل برآورد نیست.',409);
         if($scope['role']==='technician')v2_transition_role_allowed($pdo,$scope,$row,'estimate_pending');
-        technician_editable($row);
+        $financeReapproval=($input['financeReapproval']??false)===true;
+        if ($financeReapproval) {
+            workflow_v2_check_finance_reapproval($pdo,$scope,$row);
+            if ((int)($input['lockVersion']??-1)!==(int)$row['lock_version']) {
+                throw new TamiranApiException('پرونده تغییر کرده است؛ آن را تازه‌سازی کنید.',409);
+            }
+        } else technician_editable($row);
         $key=v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه برآورد',160);
         $estimatePayload=['items'=>$items,'diagnosticFee'=>technician_money($input['diagnosticFee']??0)];
         if($old=technician_replay($pdo,$row,$scope,'technical_estimate',$key,$estimatePayload)){$pdo->commit();return $old['estimate'];}
@@ -562,6 +580,9 @@ function workflow_v2_estimate(PDO $pdo,array $scope,array $input): array
             $subtotal+=$base;$discountTotal+=$discount;$taxTotal+=$tax;$normalized[]=[$type,$item['referenceId']??null,$title,$quantity,$unit,$discount,$taxRate,$tax,$line];
         }
         $diagnostic=technician_money($input['diagnosticFee']??0);$total=$subtotal-$discountTotal+$taxTotal+$diagnostic;$requiresCustomerApproval=$total>(int)$row['preapproved_amount'];$status=$requiresCustomerApproval?'draft':'approved';
+        if ($financeReapproval&&$total<=case_invoice_authorized_amount($pdo,$row)) {
+            throw new TamiranApiException('مبلغ جدید در محدوده مجوز فعلی است.',409);
+        }
         if($total>1000000000000)throw new TamiranApiException('جمع برآورد خارج از محدوده است.');
         $number='EST-'.$scope['shop_id'].'-'.$caseId.'-'.$revision;$public=tamiran_id();
         $pdo->prepare('UPDATE repair_estimates SET status=\'superseded\' WHERE case_id=:case AND status IN (\'draft\',\'sent\',\'explanation_requested\')')->execute(['case'=>$caseId]);
@@ -662,7 +683,8 @@ function workflow_v2_estimate_send(PDO $pdo,array $scope,array $input): array
     $pdo->beginTransaction();try{
         $case=v2_case($pdo,$scope,(int)$caseId,true);v2_require_case_access($pdo,$scope,$case);
         if($scope['role']==='technician')v2_transition_role_allowed($pdo,$scope,$case,'estimate_pending');
-        technician_editable($case);
+        if (($input['financeReapproval']??false)===true) workflow_v2_check_finance_reapproval($pdo,$scope,$case);
+        else technician_editable($case);
         $q=$pdo->prepare('SELECT public_id,status FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1 FOR UPDATE');$q->execute(['case'=>$caseId]);$estimate=$q->fetch();
         if(!is_array($estimate)||$estimate['public_id']!==$public||!in_array($estimate['status'],['draft','sent','approved'],true))throw new TamiranApiException('برآورد جاری قابل ارسال نیست.',409);
         if($estimate['status']==='draft'){

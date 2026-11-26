@@ -31,6 +31,43 @@ function finance_advance_readiness(PDO $pdo,array $scope,int $caseId,string $key
     }catch(Throwable$error){tamiran_log('warning','automatic_delivery_readiness_failed',['case_id'=>$caseId,'message'=>$error->getMessage()]);return false;}
 }
 
+function finance_handoff(PDO $pdo,array $scope,int $caseId):array
+{
+    v2_require_permission($scope,'finance.payment',['finance_cashier'],'ارجاع به تحویل مجاز نیست.');
+    $pdo->beginTransaction();
+    try {
+        $case=v2_case($pdo,$scope,$caseId,true);
+        if (in_array($case['process_status'],['ready_for_delivery','returned_unrepaired','delivered'],true)) {
+            $pdo->commit();
+            return ['referred'=>true,'replayed'=>true];
+        }
+        if (!in_array($case['process_status'],['finance_pending','qc_conditional'],true)) {
+            throw new TamiranApiException('پرونده در مرحله مالی نیست.',409);
+        }
+        $invoice=$pdo->prepare('SELECT status FROM repair_invoices WHERE case_id=:case FOR UPDATE');
+        $invoice->execute(['case'=>$caseId]);
+        if (!in_array($invoice->fetchColumn(),['issued','partially_paid','paid'],true)) {
+            throw new TamiranApiException('ابتدا فاکتور معتبر صادر کنید.',409);
+        }
+        $blockers=v2_case_blockers($pdo,$scope,$case);
+        $errors=array_merge($blockers['parts'],$blockers['qc'],$blockers['finance']);
+        if ($errors!==[]) throw new TamiranApiException(implode('، ',$errors),409);
+        $key='finance-handoff:'.$caseId;
+        if ($case['process_status']==='qc_conditional') {
+            $case=v2_transition($pdo,$scope,$caseId,'finance_pending','تکمیل کنترل کیفیت',
+                (int)$case['lock_version'],$key.':qc',true,false,true);
+        }
+        $target=technician_unrepaired($pdo,$case)?'returned_unrepaired':'ready_for_delivery';
+        v2_transition($pdo,$scope,$caseId,$target,'ارجاع از مالی به تحویل',
+            (int)$case['lock_version'],$key,true,false,true);
+        $pdo->commit();
+        return ['referred'=>true];
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
 function finance_workspace(PDO $pdo, array $scope, array $policy): array
 {
     v2_require_permission($scope,'finance.view',['finance_cashier'],'مشاهده مالی پرونده مجاز نیست.');
@@ -52,22 +89,26 @@ function finance_workspace(PDO $pdo, array $scope, array $policy): array
 function finance_payload(PDO $pdo,array $scope):array
 {
     v2_require_permission($scope,'finance.view',['finance_cashier'],'مشاهده مالی پرونده مجاز نیست.');
+    $canSeeCosts=v2_has_permission($scope,'finance.cost.view');
     $statement=$pdo->prepare(
-        'SELECT i.*,c.receipt_number,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
+        'SELECT i.*,w.process_status,c.receipt_number,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
+                tech.display_name AS technician_name,
                 c.identifier_snapshot,CONCAT_WS(\' \',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title
          FROM repair_invoices i
          INNER JOIN repair_cases c ON c.id=i.case_id AND c.shop_id=i.shop_id
          INNER JOIN repair_customers cu ON cu.id=c.customer_id AND cu.shop_id=i.shop_id
+         INNER JOIN repair_case_workflows w ON w.case_id=i.case_id
+         LEFT JOIN tamiran_users tech ON tech.id=w.primary_technician_user_id
          WHERE i.shop_id=:shop AND i.branch_id=:branch
-         ORDER BY i.updated_at DESC LIMIT 500'
+         ORDER BY (w.process_status IN (\'finance_pending\',\'qc_conditional\')) DESC,i.updated_at DESC LIMIT 500'
     );
     $statement->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
     $invoices=$statement->fetchAll();
-    $items=$pdo->prepare('SELECT * FROM repair_invoice_items WHERE invoice_id=:invoice ORDER BY id');
+    $items=$pdo->prepare('SELECT public_id,item_type,reference_id,title,quantity,sale_unit_price,discount_amount,tax_rate,tax_amount,line_total,warranty_days'.($canSeeCosts?',purchase_unit_cost':'').' FROM repair_invoice_items WHERE invoice_id=:invoice ORDER BY id');
     $payments=$pdo->prepare('SELECT * FROM repair_payments WHERE invoice_id=:invoice ORDER BY paid_at,id');
     $refunds=$pdo->prepare('SELECT * FROM repair_refunds WHERE invoice_id=:invoice ORDER BY refunded_at,id');
     $receivables=$pdo->prepare('SELECT * FROM repair_receivables WHERE invoice_id=:invoice ORDER BY created_at DESC');
-    $ledger=$pdo->prepare('SELECT public_id,event_type,customer_balance_delta,cash_delta,direct_cost_delta,reference_type,reference_public_id,metadata_json,occurred_at FROM repair_financial_ledger WHERE invoice_id=:invoice ORDER BY occurred_at,id');
+    $ledger=$pdo->prepare('SELECT public_id,event_type,customer_balance_delta,cash_delta,reference_type,reference_public_id,metadata_json,occurred_at'.($canSeeCosts?',direct_cost_delta':'')." FROM repair_financial_ledger WHERE invoice_id=:invoice".($canSeeCosts?'':" AND event_type NOT IN ('part_cost_posted','technician_commission_accrued')").' ORDER BY occurred_at,id');
     foreach($invoices as &$invoice){
         $items->execute(['invoice'=>$invoice['id']]);
         $invoice['items']=$items->fetchAll();
@@ -82,26 +123,67 @@ function finance_payload(PDO $pdo,array $scope):array
         $origins=[];foreach($invoice['ledger'] as $entry){if($entry['event_type']==='invoice_issued')$origins=(json_decode((string)$entry['metadata_json'],true)['partSources']??[]);}
         foreach($invoice['items'] as &$invoiceItem){$origin=$origins[$invoiceItem['public_id']]??null;if(is_string($origin)){$invoiceItem['sourceKey']=$origin;$invoiceItem['sourceType']=explode(':',$origin,2)[0];}}unset($invoiceItem);
         $invoice['balance']=(int)$invoice['total_amount']-((int)$invoice['paid_amount']-(int)$invoice['refunded_amount']);
-        $directCost=0;
-        foreach($invoice['items'] as $item){
-            $directCost+=(int)round((float)$item['quantity']*(int)$item['purchase_unit_cost']);
+        if ($canSeeCosts) {
+            $directCost=0;
+            foreach ($invoice['items'] as $item) {
+                $directCost+=(int)round((float)$item['quantity']*(int)$item['purchase_unit_cost']);
+            }
+            $invoice['directCost']=$directCost;
+            $invoice['grossOperationalProfit']=(int)$invoice['total_amount']-(int)$invoice['tax_amount']-$directCost;
+        } else {
+            foreach ($invoice['ledger'] as &$entry) unset($entry['metadata_json']);
+            unset($entry);
         }
-        $invoice['directCost']=$directCost;
-        $invoice['grossOperationalProfit']=(int)$invoice['total_amount']-(int)$invoice['tax_amount']-$directCost;
+        $invoice['blockers']=[];
+        if (in_array($invoice['process_status'],['finance_pending','qc_conditional'],true)) {
+            $case=v2_case($pdo,$scope,(int)$invoice['case_id']);
+            $invoice['blockers']=array_values(array_merge(...array_values(v2_case_blockers($pdo,$scope,$case))));
+        }
     }
     unset($invoice);
     $draftStatement=$pdo->prepare("SELECT c.id AS caseId,c.receipt_number AS receiptNumber,
             cu.full_name AS customerName,cu.mobile AS customer_mobile,c.identifier_snapshot,
+            w.lock_version AS lockVersion, w.process_status,tech.display_name AS technician_name,
+            w.preapproved_amount,c.qc_mode_snapshot,c.result,
             CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title
         FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id
         INNER JOIN repair_customers cu ON cu.id=c.customer_id
+        LEFT JOIN tamiran_users tech ON tech.id=w.primary_technician_user_id
         LEFT JOIN repair_invoices i ON i.case_id=c.id
         WHERE w.shop_id=:shop AND w.branch_id=:branch AND w.process_status IN ('finance_pending','qc_conditional') AND i.id IS NULL
         ORDER BY w.updated_at");
     $draftStatement->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
     $drafts=$draftStatement->fetchAll();
-    foreach($drafts as&$draft)$draft=array_merge($draft,finance_draft_items($pdo,(int)$draft['caseId']));unset($draft);
-    return['invoices'=>$invoices,'drafts'=>$drafts];
+    $approval=$pdo->prepare("SELECT status,total_amount FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1");
+    foreach ($drafts as &$draft) {
+        $caseId=(int)$draft['caseId'];
+        $draft['authorizedAmount']=case_invoice_authorized_amount($pdo,['case_id'=>$caseId]+$draft);
+        $approval->execute(['case'=>$caseId]);
+        $estimate=$approval->fetch();
+        $draft['approvalStatus']=$estimate['status']??null;
+        $draft['approvalAmount']=isset($estimate['total_amount'])?(int)$estimate['total_amount']:null;
+        $draft['qualityStatus']=$draft['qc_mode_snapshot']==='off'||$draft['result']==='not_repaired'
+            ? null : (v2_qc_blockers($pdo,$caseId)===[]?'passed':'pending');
+        $lines=finance_draft_items($pdo,$caseId);
+        $draft+=($canSeeCosts?$lines:case_invoice_public($lines));
+        unset($draft['preapproved_amount'],$draft['qc_mode_snapshot'],$draft['result']);
+    }
+    unset($draft);
+    $allowBalance=false;
+    if ($scope['role']==='repair_manager') {
+        $setting=$pdo->prepare('SELECT allow_delivery_with_balance FROM repair_shops WHERE id=:shop');
+        $setting->execute(['shop'=>$scope['shop_id']]);
+        $allowBalance=(bool)$setting->fetchColumn();
+    }
+    return ['invoices'=>$invoices,'drafts'=>$drafts,'permissions'=>[
+        'issue'=>v2_has_permission($scope,'finance.issue',['finance_cashier']),
+        'payment'=>v2_has_permission($scope,'finance.payment',['finance_cashier']),
+        'manage'=>$scope['role']==='repair_manager',
+        'receivable'=>$allowBalance,
+        'reapproval'=>v2_has_permission($scope,'finance.issue',['finance_cashier'])
+            && v2_has_permission($scope,'estimate.manage',['reception','technician'])
+            && v2_has_permission($scope,'estimate.send',['reception','technician']),
+    ]];
 }
 
 function finance_issue(PDO $pdo,array $scope,array $input):array
@@ -111,8 +193,8 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
     $idempotency=v2_text($input['idempotencyKey']??('repair-invoice-'.$caseId),'شناسه یکتای صدور فاکتور',160);
     $items=is_array($input['items']??null)?$input['items']:[];
     $estimatePublic=trim((string)($input['estimatePublicId']??''));
-    if($items===[]&&$estimatePublic!=='')$items=finance_draft_items($pdo,$caseId)['items'];
-    if($items===[]||count($items)>200)throw new TamiranApiException('حداقل یک ردیف فاکتور الزامی است.');
+    $deferDelivery=($input['deferDelivery']??false)===true;
+    if(count($items)>200)throw new TamiranApiException('تعداد ردیف‌های فاکتور بیش از حد مجاز است.');
 
     $pdo->beginTransaction();
     try{
@@ -124,14 +206,23 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
         if(is_array($existing)){
             if((int)$existing['case_id']!==$caseId||(int)$existing['branch_id']!==(int)$scope['branch_id'])throw new TamiranApiException('شناسه فاکتور قبلاً برای پرونده دیگری استفاده شده است.',409);
             $pdo->commit();
-            $ready=finance_advance_readiness($pdo,$scope,$caseId,'invoice:'.$existing['public_id']);
+            $ready=!$deferDelivery&&finance_advance_readiness($pdo,$scope,$caseId,'invoice:'.$existing['public_id']);
             return['issued'=>true,'replayed'=>true,'publicId'=>$existing['public_id'],'invoiceNumber'=>$existing['invoice_number'],'totalAmount'=>(int)$existing['total_amount'],'readyForDelivery'=>$ready];
         }
 
+        if (!in_array($case['process_status'],['finance_pending','qc_conditional'],true)) {
+            throw new TamiranApiException('صدور فاکتور فقط در مرحله مالی مجاز است.',409);
+        }
+        if (isset($input['lockVersion'])&&(int)$input['lockVersion']!==(int)$case['lock_version']) {
+            throw new TamiranApiException('فاکتور تغییر کرده است؛ اطلاعات را تازه‌سازی کنید.',409);
+        }
+        $draft=finance_draft_items($pdo,$caseId);
+        if ($items===[]&&$estimatePublic!=='') $items=$draft['items'];
+        if ($items===[]&&(!$deferDelivery||$draft['items']!==[])) throw new TamiranApiException('حداقل یک ردیف فاکتور الزامی است.');
         $unrepaired=technician_unrepaired($pdo,$case);
         $canonical=technician_billable_parts($pdo,$caseId);$seenSources=[];$partSources=[];
         $subtotal=0;$discountTotal=0;$taxTotal=0;$laborBasis=0;$partBasis=0;$directCost=0;$normalized=[];
-        foreach($items as $item){
+        foreach($items as $index=>$item){
             $type=(string)($item['type']??'');
             if(!in_array($type,['part','labor','diagnostic','other'],true))throw new TamiranApiException('نوع ردیف فاکتور معتبر نیست.');
             if($unrepaired&&!in_array($type,['part','diagnostic'],true))throw new TamiranApiException('فاکتور تعمیرنشده فقط عیب‌یابی و قطعه مصرف‌شده دارد.',409);
@@ -144,14 +235,21 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
             }else $partSources[]=null;
             $title=v2_text($item['title']??'','عنوان ردیف',240);
             $quantity=(float)($item['quantity']??1);
-            $purchase=technician_money($type==='part'?$part['purchaseUnitCost']:($item['purchaseUnitCost']??0));
+            $purchase=$type==='part'?technician_money($part['purchaseUnitCost']):0;
             $sale=technician_money($item['saleUnitPrice']??$item['unitPrice']??0);
-            $discount=max(0,(int)($item['discountAmount']??0));
+            $discount=technician_money($item['discountAmount']??0);
             $taxRate=(float)($item['taxRate']??0);
-            if($quantity<=0||$taxRate<0||$taxRate>100)throw new TamiranApiException('مقدار ردیف معتبر نیست.');
+            if(!is_finite($quantity)||$quantity<=0||$quantity>10000000||round($quantity,2)!==$quantity
+                ||!is_finite($taxRate)||$taxRate<0||$taxRate>100||round($taxRate,2)!==$taxRate)throw new TamiranApiException('مقدار ردیف معتبر نیست.');
             $base=(int)round($quantity*$sale);
             if($discount>$base)throw new TamiranApiException('تخفیف ردیف معتبر نیست.');
-            if($discount>0&&$scope['role']!=='repair_manager')throw new TamiranApiException('اعمال تخفیف فقط برای مدیر مجاز است.',403);
+            if ($discount>0&&$scope['role']!=='repair_manager') {
+                $original=$draft['items'][$index]??[];
+                if ((int)($original['discountAmount']??0)!==$discount||($original['type']??'')!==$type
+                    ||($original['title']??'')!==$title||($original['sourceKey']??null)!==($item['sourceKey']??null)) {
+                    throw new TamiranApiException('تغییر تخفیف فقط برای مدیر مجاز است.',403);
+                }
+            }
             $netBase=$base-$discount;
             if($type==='labor')$laborBasis+=$netBase;
             if($type==='part'){
@@ -163,7 +261,7 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
             $normalized[]=[$type,$item['referenceId']??null,$title,$quantity,$purchase,$sale,$discount,$taxRate,$tax,$netBase+$tax,$unrepaired?0:max(0,(int)($item['warrantyDays']??0))];
         }
 
-        if (!$unrepaired&&case_invoice_saved($pdo,$caseId)!==null&&count($seenSources)!==count($canonical)) {
+        if (count($seenSources)!==count($canonical)) {
             throw new TamiranApiException('همه قطعات مصرف‌شده باید در فاکتور نهایی ثبت شوند.',409);
         }
         $pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE')->execute(['shop'=>$scope['shop_id']]);
@@ -173,9 +271,11 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
         $invoicePublic=tamiran_id();
         $total=$subtotal-$discountTotal+$taxTotal;
         if($total>1000000000000)throw new TamiranApiException('جمع فاکتور خارج از محدوده است.');
-        if($total>(int)$case['preapproved_amount']){
-            $budget=$pdo->prepare("SELECT total_amount,status,valid_until FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1");$budget->execute(['case'=>$caseId]);$authorization=$budget->fetch();
-            if(!is_array($authorization)||$authorization['status']!=='approved'||$total>(int)$authorization['total_amount']||(!empty($authorization['valid_until'])&&strtotime($authorization['valid_until'])<time()))throw new TamiranApiException('فاکتور از مجوز هزینه معتبر بیشتر است؛ ابتدا برآورد و تأیید تازه ثبت شود.',409);
+        if (isset($input['expectedTotal'])&&technician_money($input['expectedTotal'])!==$total) {
+            throw new TamiranApiException('مبلغ محاسبه‌شده تغییر کرده است؛ فاکتور را دوباره بررسی کنید.',409);
+        }
+        if ($total>case_invoice_authorized_amount($pdo,$case)) {
+            throw new TamiranApiException('فاکتور از مجوز هزینه معتبر بیشتر است؛ ابتدا برآورد و تأیید تازه ثبت شود.',409);
         }
         $pdo->prepare("INSERT INTO repair_invoices(public_id,invoice_number,shop_id,branch_id,case_id,status,subtotal_amount,discount_amount,tax_amount,total_amount,issued_by_user_id,idempotency_key,issued_at) VALUES(:public,:number,:shop,:branch,:case,'issued',:subtotal,:discount,:tax,:total,:actor,:idempotency,NOW())")->execute([
             'public'=>$invoicePublic,'number'=>$number,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id'],'case'=>$caseId,
@@ -211,9 +311,16 @@ function finance_issue(PDO $pdo,array $scope,array $input):array
                 }
             }
         }
-        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'invoice.issue','repair_invoice',$invoicePublic,null,['number'=>$number,'total'=>$total,'directCost'=>$directCost]);
+        $oldAmounts=array_map(static fn(array $line):array=>['title'=>$line['title'],'source'=>$line['sourceKey']??null,
+            'unitPrice'=>(int)$line['saleUnitPrice'],'discount'=>(int)$line['discountAmount']],$draft['items']);
+        $issuedAmounts=[];
+        foreach ($normalized as $index=>$line) {
+            $issuedAmounts[]=['title'=>$line[2],'source'=>$partSources[$index],'unitPrice'=>$line[5],'discount'=>$line[6]];
+        }
+        tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'invoice.issue','repair_invoice',
+            $invoicePublic,['amounts'=>$oldAmounts],['number'=>$number,'total'=>$total,'directCost'=>$directCost,'amounts'=>$issuedAmounts]);
         $pdo->commit();
-        $ready=finance_advance_readiness($pdo,$scope,$caseId,'invoice:'.$invoicePublic);
+        $ready=!$deferDelivery&&finance_advance_readiness($pdo,$scope,$caseId,'invoice:'.$invoicePublic);
         return['issued'=>true,'publicId'=>$invoicePublic,'invoiceNumber'=>$number,'totalAmount'=>$total,'readyForDelivery'=>$ready];
     }catch(Throwable $error){
         if($pdo->inTransaction())$pdo->rollBack();
@@ -225,7 +332,9 @@ function finance_payment(PDO $pdo,array $scope,array $input):array
 {
     v2_require_permission($scope,'finance.payment',['finance_cashier'],'ثبت پرداخت مجاز نیست.');
     $invoicePublic=v2_text($input['invoicePublicId']??'','فاکتور',80);
-    $amount=(int)($input['amount']??0);$method=(string)($input['method']??'');
+    $amount=technician_money($input['amount']??0);$method=(string)($input['method']??'');
+    $deferDelivery=($input['deferDelivery']??false)===true;
+    $tracking=v2_text($input['trackingNumber']??'','شماره پیگیری',160,false);
     $idempotency=v2_text($input['idempotencyKey']??tamiran_request_id(),'شناسه یکتای پرداخت',100);
     if($amount<1||!in_array($method,['cash','card','bank_transfer','online','credit'],true))throw new TamiranApiException('مبلغ یا روش پرداخت معتبر نیست.');
     $pdo->beginTransaction();
@@ -233,23 +342,26 @@ function finance_payment(PDO $pdo,array $scope,array $input):array
         $statement=$pdo->prepare("SELECT * FROM repair_invoices WHERE public_id=:public AND shop_id=:shop AND branch_id=:branch AND status NOT IN ('corrected','voided') FOR UPDATE");
         $statement->execute(['public'=>$invoicePublic,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
         $invoice=$statement->fetch();if(!is_array($invoice))throw new TamiranApiException('فاکتور پیدا نشد.',404);
-        $existing=$pdo->prepare('SELECT public_id,amount FROM repair_payments WHERE invoice_id=:invoice AND idempotency_key=:idempotency LIMIT 1');
+        $existing=$pdo->prepare('SELECT public_id,amount,method,tracking_number FROM repair_payments WHERE invoice_id=:invoice AND idempotency_key=:idempotency LIMIT 1');
         $existing->execute(['invoice'=>$invoice['id'],'idempotency'=>$idempotency]);$replayed=$existing->fetch();
         if(is_array($replayed)){
+            if ((int)$replayed['amount']!==$amount||$replayed['method']!==$method||$replayed['tracking_number']!==$tracking) {
+                throw new TamiranApiException('شناسه پرداخت قبلاً با اطلاعات دیگری ثبت شده است.',409);
+            }
             $remaining=(int)$invoice['total_amount']-((int)$invoice['paid_amount']-(int)$invoice['refunded_amount']);
-            $pdo->commit();$ready=finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'payment:'.$idempotency);return['paid'=>true,'replayed'=>true,'publicId'=>$replayed['public_id'],'remaining'=>$remaining,'readyForDelivery'=>$ready];
+            $pdo->commit();$ready=!$deferDelivery&&finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'payment:'.$idempotency);return['paid'=>true,'replayed'=>true,'publicId'=>$replayed['public_id'],'remaining'=>$remaining,'readyForDelivery'=>$ready];
         }
         $balance=(int)$invoice['total_amount']-((int)$invoice['paid_amount']-(int)$invoice['refunded_amount']);
         if($amount>$balance)throw new TamiranApiException('مبلغ پرداخت از مانده فاکتور بیشتر است.',409);
         $case=finance_invoice_case($pdo,$scope,$invoice);
         $paymentPublic=tamiran_id();
-        $pdo->prepare('INSERT INTO repair_payments(public_id,invoice_id,amount,method,tracking_number,paid_by_name,received_by_user_id,idempotency_key,notes) VALUES(:public,:invoice,:amount,:method,:tracking,:payer,:actor,:idempotency,:notes)')->execute(['public'=>$paymentPublic,'invoice'=>$invoice['id'],'amount'=>$amount,'method'=>$method,'tracking'=>v2_text($input['trackingNumber']??'','شماره پیگیری',160,false),'payer'=>v2_text($input['paidByName']??'','پرداخت‌کننده',180,false),'actor'=>$scope['actor']['id'],'idempotency'=>$idempotency,'notes'=>v2_text($input['notes']??'','توضیحات',2000,false)]);
+        $pdo->prepare('INSERT INTO repair_payments(public_id,invoice_id,amount,method,tracking_number,paid_by_name,received_by_user_id,idempotency_key,notes) VALUES(:public,:invoice,:amount,:method,:tracking,:payer,:actor,:idempotency,:notes)')->execute(['public'=>$paymentPublic,'invoice'=>$invoice['id'],'amount'=>$amount,'method'=>$method,'tracking'=>$tracking,'payer'=>v2_text($input['paidByName']??'','پرداخت‌کننده',180,false),'actor'=>$scope['actor']['id'],'idempotency'=>$idempotency,'notes'=>v2_text($input['notes']??'','توضیحات',2000,false)]);
         $paid=(int)$invoice['paid_amount']+$amount;$status=$paid-(int)$invoice['refunded_amount']>=(int)$invoice['total_amount']?'paid':'partially_paid';
         $pdo->prepare('UPDATE repair_invoices SET paid_amount=:paid,status=:status WHERE id=:id')->execute(['paid'=>$paid,'status'=>$status,'id'=>$invoice['id']]);
         $pdo->prepare("UPDATE repair_receivables SET outstanding_amount=GREATEST(0,outstanding_amount-:amount),status=CASE WHEN outstanding_amount<=:amount2 THEN 'settled' ELSE 'partially_paid' END,settled_at=CASE WHEN outstanding_amount<=:amount3 THEN NOW() ELSE NULL END WHERE invoice_id=:invoice AND status IN ('open','partially_paid','overdue')")->execute(['amount'=>$amount,'amount2'=>$amount,'amount3'=>$amount,'invoice'=>$invoice['id']]);
         v2_financial_event($pdo,$scope,$case,(int)$invoice['id'],'payment_received',-$amount,$amount,0,'repair_payment',$paymentPublic,'payment:'.$idempotency,['method'=>$method]);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'payment.create','repair_payment',$paymentPublic,null,['invoice'=>$invoicePublic,'amount'=>$amount,'method'=>$method]);
-        $pdo->commit();$ready=finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'payment:'.$idempotency);return['paid'=>true,'publicId'=>$paymentPublic,'remaining'=>$balance-$amount,'readyForDelivery'=>$ready];
+        $pdo->commit();$ready=!$deferDelivery&&finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'payment:'.$idempotency);return['paid'=>true,'publicId'=>$paymentPublic,'remaining'=>$balance-$amount,'readyForDelivery'=>$ready];
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw$error;}
 }
 
@@ -283,6 +395,7 @@ function finance_receivable(PDO $pdo,array $scope,array $input):array
 {
     if($scope['role']!=='repair_manager')throw new TamiranApiException('مجوز تحویل با مانده فقط برای مدیر همان پرونده است.',403);
     $invoicePublic=v2_text($input['invoicePublicId']??'','فاکتور',80);$due=v2_text($input['dueAt']??'','سررسید',40);
+    $deferDelivery=($input['deferDelivery']??false)===true;
     $commitment=v2_text($input['customerCommitmentText']??'','تعهد مشتری',4000);
     $pdo->beginTransaction();
     try{
@@ -292,14 +405,14 @@ function finance_receivable(PDO $pdo,array $scope,array $input):array
         if(!(bool)$invoice['allow_delivery_with_balance'])throw new TamiranApiException('تحویل با مانده در تنظیمات تعمیرگاه فعال نیست.',409);
         $open=$pdo->prepare("SELECT public_id,original_amount FROM repair_receivables WHERE invoice_id=:invoice AND status IN ('open','partially_paid','overdue') LIMIT 1 FOR UPDATE");
         $open->execute(['invoice'=>$invoice['id']]);$existing=$open->fetch();
-        if(is_array($existing)){$pdo->commit();$ready=finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'receivable:'.$existing['public_id']);return['created'=>true,'replayed'=>true,'publicId'=>$existing['public_id'],'amount'=>(int)$existing['original_amount'],'readyForDelivery'=>$ready];}
+        if(is_array($existing)){$pdo->commit();$ready=!$deferDelivery&&finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'receivable:'.$existing['public_id']);return['created'=>true,'replayed'=>true,'publicId'=>$existing['public_id'],'amount'=>(int)$existing['original_amount'],'readyForDelivery'=>$ready];}
         $balance=(int)$invoice['total_amount']-((int)$invoice['paid_amount']-(int)$invoice['refunded_amount']);
         if($balance<1)throw new TamiranApiException('فاکتور مانده‌ای ندارد.',409);
         $case=finance_invoice_case($pdo,$scope,$invoice);$receivablePublic=tamiran_id();
         $pdo->prepare('INSERT INTO repair_receivables(public_id,invoice_id,case_id,original_amount,outstanding_amount,due_at,customer_commitment_text,customer_evidence_json,approved_by_manager_user_id) VALUES(:public,:invoice,:case,:amount,:outstanding,:due,:commitment,:evidence,:actor)')->execute(['public'=>$receivablePublic,'invoice'=>$invoice['id'],'case'=>$invoice['case_id'],'amount'=>$balance,'outstanding'=>$balance,'due'=>$due,'commitment'=>$commitment,'evidence'=>v2_json($input['evidence']??[]),'actor'=>$scope['actor']['id']]);
         v2_financial_event($pdo,$scope,$case,(int)$invoice['id'],'receivable_opened',0,0,0,'repair_receivable',$receivablePublic,'receivable:'.$receivablePublic,['amount'=>$balance,'dueAt'=>$due]);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'receivable.create','repair_receivable',$receivablePublic,null,['invoice'=>$invoicePublic,'amount'=>$balance,'dueAt'=>$due],'مجوز موردی مدیر برای تحویل با مانده');
-        $pdo->commit();$ready=finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'receivable:'.$receivablePublic);return['created'=>true,'publicId'=>$receivablePublic,'amount'=>$balance,'readyForDelivery'=>$ready];
+        $pdo->commit();$ready=!$deferDelivery&&finance_advance_readiness($pdo,$scope,(int)$invoice['case_id'],'receivable:'.$receivablePublic);return['created'=>true,'publicId'=>$receivablePublic,'amount'=>$balance,'readyForDelivery'=>$ready];
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw$error;}
 }
 
@@ -314,6 +427,7 @@ tamiran_api(static function():array{
     return match((string)($input['action']??'')){
         'issue'=>finance_issue($pdo,$scope,$input),'payment'=>finance_payment($pdo,$scope,$input),
         'refund'=>finance_refund($pdo,$scope,$input),'receivable'=>finance_receivable($pdo,$scope,$input),
+        'refer_to_delivery'=>finance_handoff($pdo,$scope,(int)($input['caseId']??0)),
         default=>throw new TamiranApiException('عملیات مالی معتبر نیست.'),
     };
 });

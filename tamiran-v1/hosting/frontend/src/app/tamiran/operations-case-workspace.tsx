@@ -564,7 +564,7 @@ export function OperationsCaseWorkspace({
       {task === "approval" &&
         canDecide &&
         !selected.isLocked &&
-        selected.status === "awaiting_customer_approval" &&
+        ["awaiting_customer_approval", "finance_pending", "qc_conditional"].includes(selected.status) &&
         selected.latestEstimate &&
         ["sent", "explanation_requested"].includes(
           selected.latestEstimate.status,
@@ -694,7 +694,7 @@ export function OperationsCaseWorkspace({
         canDecide &&
         !selected.isLocked &&
         !(
-          selected.status === "awaiting_customer_approval" &&
+          ["awaiting_customer_approval", "finance_pending", "qc_conditional"].includes(selected.status) &&
           selected.latestEstimate &&
           ["sent", "explanation_requested", "approved"].includes(
             selected.latestEstimate.status,

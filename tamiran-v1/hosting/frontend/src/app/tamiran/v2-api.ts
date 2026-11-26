@@ -345,6 +345,8 @@ export const qualityV2Action = (payload: Record<string, unknown>) =>
   jsonPost<Record<string, unknown>>("/api/quality-v2.php", payload);
 
 type V2FinanceDevice = {
+  technician_name?: string | null;
+  process_status: string;
   customer_mobile?: string;
   identifier_snapshot?: string | null;
   device_title?: string;
@@ -361,6 +363,7 @@ export type V2Invoice = V2FinanceDevice & {
   paid_amount: number;
   refunded_amount: number;
   balance: number;
+  blockers: string[];
   items: Array<Record<string, string | number>>;
   payments: Array<Record<string, string | number>>;
   refunds: Array<Record<string, string | number>>;
@@ -371,6 +374,12 @@ export type V2InvoiceDraft = V2FinanceDevice & {
   receiptNumber: string;
   customerName: string;
   estimatePublicId: string | null;
+  lockVersion: number;
+  authorizedAmount: number;
+  approvalAmount: number | null;
+  approvalStatus: string | null;
+  unrepaired: boolean;
+  qualityStatus: "passed" | "pending" | null;
   items: Array<{
     type: "part" | "labor" | "diagnostic" | "other";
     sourceKey?: string;
@@ -379,14 +388,14 @@ export type V2InvoiceDraft = V2FinanceDevice & {
     title: string;
     quantity: number;
     saleUnitPrice: number;
-    purchaseUnitCost: number;
     discountAmount: number;
     taxRate: number;
     warrantyDays: number;
   }>;
 };
+export type V2FinancePermissions = { issue: boolean; payment: boolean; manage: boolean; receivable: boolean; reapproval: boolean };
 export type V2FinanceWorkspace =
-  | { available: true; invoices: V2Invoice[]; drafts: V2InvoiceDraft[] }
+  | { available: true; invoices: V2Invoice[]; drafts: V2InvoiceDraft[]; permissions: V2FinancePermissions }
   | { available: false; pending: Array<{
       receiptNumber: string; customerName: string; customerMobile: string;
       identifier: string | null; deviceTitle: string;

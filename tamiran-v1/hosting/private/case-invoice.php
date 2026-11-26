@@ -23,17 +23,23 @@ function case_invoice_saved(PDO $pdo,int $caseId):?array
     return is_array($result)?$result:null;
 }
 
-function case_invoice_preview(PDO $pdo,array $scope,array $case,mixed $adjustments=null,?array $initial=null):array
+function case_invoice_authorized_amount(PDO $pdo,array $case):int
 {
-    $caseId=(int)$case['case_id'];
-    $draft=$initial??case_invoice_default($pdo,$caseId);
     $estimate=$pdo->prepare('SELECT status,total_amount,valid_until FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1');
-    $estimate->execute(['case'=>$caseId]);
+    $estimate->execute(['case'=>(int)$case['case_id']]);
     $approval=$estimate->fetch();
     $authorized=(int)$case['preapproved_amount'];
     if (is_array($approval)&&$approval['status']==='approved'&&(empty($approval['valid_until'])||strtotime($approval['valid_until'])>=time())) {
         $authorized=max($authorized,(int)$approval['total_amount']);
     }
+    return $authorized;
+}
+
+function case_invoice_preview(PDO $pdo,array $scope,array $case,mixed $adjustments=null,?array $initial=null):array
+{
+    $caseId=(int)$case['case_id'];
+    $draft=$initial??case_invoice_default($pdo,$caseId);
+    $authorized=case_invoice_authorized_amount($pdo,$case);
     $mayEditPrice=$scope['role']==='repair_manager'||in_array('finance.issue',$scope['permissions'],true);
     if ($adjustments!==null&&!is_array($adjustments)) throw new TamiranApiException('پیش‌نویس فاکتور معتبر نیست.');
     if (isset($adjustments['laborAmount'])) {

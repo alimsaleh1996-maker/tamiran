@@ -1,0 +1,131 @@
+.cashier-sheet {
+  --cashier-ink: #153532;
+  --cashier-muted: #486460;
+  --cashier-accent: #12634f;
+  --cashier-border: #d7e5df;
+  width: min(100%, 1100px);
+  margin-inline: auto;
+  padding: clamp(14px, 3vw, 34px);
+  border: 1px solid var(--cashier-border);
+  border-radius: 18px;
+  background: #fff;
+  color: var(--cashier-ink);
+  display: grid;
+  gap: 22px;
+}
+.cashier-sheet :is(h3, h4, p, dl, dd, ul) { margin: 0; }
+.cashier-sheet button { font: inherit; cursor: pointer; }
+.cashier-sheet button:disabled { opacity: .55; cursor: not-allowed; }
+.cashier-sheet :is(button, input, select):focus-visible { outline: 2px solid var(--cashier-accent); outline-offset: 3px; }
+.cashier-header, .cashier-line-heading, .cashier-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.cashier-header h3 { font-size: clamp(1.2rem, 3vw, 1.6rem); }
+.cashier-header h3:focus { outline: none; }
+.cashier-step, .cashier-meta dt, .cashier-breakdown dt, .cashier-lines small, .cashier-history small, .cashier-empty {
+  color: var(--cashier-muted);
+}
+.cashier-step { display: block; font-size: .79rem; margin-bottom: 4px; }
+.cashier-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  border-block: 1px solid var(--cashier-border);
+  padding-block: 13px;
+}
+.cashier-meta div { min-width: 105px; }
+.cashier-meta dt, .cashier-lines small, .cashier-history small { display: block; font-size: .77rem; }
+.cashier-meta dd { font-size: .92rem; font-weight: 650; overflow-wrap: anywhere; }
+.cashier-sheet .cashier-quiet, .cashier-sheet .cashier-primary {
+  border-radius: 10px;
+  min-height: 42px;
+  max-width: 100%;
+  padding: 8px 14px;
+}
+.cashier-sheet .cashier-quiet {
+  background: #fff;
+  color: var(--cashier-accent);
+  border: 1px solid var(--cashier-border);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.cashier-sheet .cashier-quiet:hover:not(:disabled) { background: #f1f7f4; }
+.cashier-sheet .cashier-primary { color: white; border: 1px solid var(--cashier-accent); background: var(--cashier-accent); font-weight: 700 !important; }
+.cashier-sheet .cashier-primary:hover:not(:disabled) { background: #0e5141; }
+.cashier-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.cashier-badges span {
+  background: #edf5f1;
+  color: #27584b;
+  padding: 3px 10px;
+  border-radius: 7px;
+  font-size: .79rem;
+}
+.cashier-lines { width: 100%; border-spacing: 0; table-layout: fixed; text-align: right; }
+.cashier-lines th { background: #f1f7f4; color: var(--cashier-muted); font-weight: 600; font-size: .8rem; }
+.cashier-lines th:first-child { width: 36%; border-start-start-radius: 7px; }
+.cashier-lines th:nth-child(2) { width: 12%; }
+.cashier-lines th:last-child { border-start-end-radius: 7px; }
+.cashier-lines :is(th, td) { padding: 10px; overflow-wrap: anywhere; }
+.cashier-lines td { border-bottom: 1px solid var(--cashier-border); vertical-align: top; }
+.cashier-lines td:last-child, .cashier-lines th:last-child { text-align: left; }
+.cashier-lines td small { margin-top: 4px; }
+.cashier-lines input, .cashier-payment input, .cashier-payment select {
+  min-width: 0;
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--cashier-border);
+  border-radius: 8px;
+  font: inherit;
+  padding-inline: 8px;
+  background: #fff;
+  color: var(--cashier-ink);
+}
+.cashier-field { display: grid; gap: 4px; min-width: 0; }
+.cashier-field > :is(span, label) { font-size: .85rem; }
+.cashier-field small { margin-inline-start: 3px; color: var(--cashier-muted); }
+.cashier-field + .cashier-field { margin-top: 7px; }
+.cashier-payment .cashier-field + .cashier-field { margin: 0; }
+.cashier-edit-actions > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.cashier-totals, .cashier-settlement { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .9fr); gap: 20px; align-items: start; }
+.cashier-breakdown { display: grid; gap: 7px; font-size: .88rem; padding-block: 6px; }
+.cashier-breakdown div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 10px; }
+.cashier-breakdown dd { font-weight: 650; overflow-wrap: anywhere; }
+.cashier-breakdown .cashier-over-cap :is(dt, dd), .cashier-blockers { color: #9d3926; }
+.cashier-emphasis { display: grid; gap: 9px; padding: clamp(13px, 3vw, 22px); border-radius: 12px; background: #edf6f1; }
+.cashier-emphasis strong, .cashier-dialog > strong {
+  color: var(--cashier-accent);
+  font-size: clamp(1.25rem, 3.5vw, 2rem);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.cashier-emphasis > p { color: #803725; font-size: .86rem; }
+.cashier-emphasis .cashier-settlement-status { font-size: .87rem; color: #27584b; }
+.cashier-payment { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(142px, 100%), 1fr)); align-items: end; gap: 10px; }
+.cashier-handoff { border-block: 1px solid var(--cashier-border); padding-block: 14px; display: grid; justify-items: start; gap: 10px; }
+.cashier-handoff p { display: flex; align-items: center; gap: 7px; color: var(--cashier-accent); font-weight: 700; }
+.cashier-blockers { padding-inline-start: 19px; }
+.cashier-history ul { list-style: none; padding: 0; }
+.cashier-history li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 14px; border-bottom: 1px solid var(--cashier-border); padding-block: 8px; overflow-wrap: anywhere; }
+.cashier-history time { color: var(--cashier-muted); font-size: .8rem; }
+.cashier-history h4 { margin-bottom: 8px; }
+.cashier-backdrop { position: fixed; inset: 0; background: #0b252480; z-index: 1400; display: grid; place-items: center; padding: 12px; }
+.cashier-dialog { width: min(100%, 460px); max-height: 90vh; overflow: auto; display: grid; gap: 12px; background: #fff; border-radius: 16px; padding: 20px; }
+.cashier-dialog > svg { color: var(--cashier-accent); }
+.cashier-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 620px) {
+  .cashier-totals, .cashier-settlement { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .cashier-lines, .cashier-lines tbody { display: block; }
+  .cashier-lines thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .cashier-lines tr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-bottom: 1px solid var(--cashier-border); padding: 10px 0; }
+  .cashier-lines td { border: 0; padding: 0; min-width: 0; }
+  .cashier-lines td:first-child { grid-column: 1 / -1; }
+  .cashier-lines td:last-child { text-align: right; }
+  .cashier-lines td[data-label]::before { content: attr(data-label); color: var(--cashier-muted); display: block; font-size: .74rem; }
+  .cashier-history li { grid-template-columns: 1fr auto; gap: 4px 8px; }
+  .cashier-history time { grid-column: 1; grid-row: 2; }
+}
