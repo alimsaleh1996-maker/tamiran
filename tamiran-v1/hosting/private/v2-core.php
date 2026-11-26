@@ -253,7 +253,7 @@ function v2_open_part_blockers(PDO $pdo, int $caseId): array
     if((int)$statement->fetchColumn()>0) $blockers[]='تعهد داغی باز';
     $statement=$pdo->prepare("SELECT 1 FROM repair_case_events e
         WHERE e.case_id=:case AND e.event_type='external_purchase_state'
-        AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.status')) IN ('pending','approved','bought','returning')
+        AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.status')) IN ('pending','approved','bought','received','returning')
         AND NOT EXISTS(SELECT 1 FROM repair_case_events later WHERE later.case_id=e.case_id
             AND later.event_type=e.event_type AND later.id>e.id
             AND JSON_UNQUOTE(JSON_EXTRACT(later.metadata_json,'$.publicId'))=JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.publicId')))

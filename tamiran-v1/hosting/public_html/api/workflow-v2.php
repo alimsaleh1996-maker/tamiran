@@ -106,10 +106,14 @@ function workflow_v2_payload(PDO $pdo,array $scope,?int $caseId=null,?string $qu
             'purchaseUnitCost'=>technician_purchase_allowed($scope)?(int)$part['purchase_unit_cost']:0,'saleUnitPrice'=>(int)$part['sale_unit_price'],
             'note'=>$part['note']??'','createdAt'=>$part['created_at'],
         ];
-        $estimateStatement=$pdo->prepare("SELECT e.case_id,e.public_id,e.status,e.total_amount,e.sent_at FROM repair_estimates e INNER JOIN (SELECT case_id,MAX(revision) AS revision FROM repair_estimates WHERE case_id IN ({$placeholders}) GROUP BY case_id) latest ON latest.case_id=e.case_id AND latest.revision=e.revision WHERE e.case_id IN ({$placeholders})");
+        $estimateStatement=$pdo->prepare("SELECT e.case_id,e.public_id,e.status,e.total_amount,e.sent_at,
+            (SELECT COALESCE(SUM(i.line_total),0) FROM repair_estimate_items i WHERE i.estimate_id=e.id AND i.item_type='part') AS parts_amount,
+            (SELECT COALESCE(SUM(i.line_total),0) FROM repair_estimate_items i WHERE i.estimate_id=e.id AND i.item_type='labor') AS labor_amount
+            FROM repair_estimates e INNER JOIN (SELECT case_id,MAX(revision) AS revision FROM repair_estimates WHERE case_id IN ({$placeholders}) GROUP BY case_id) latest ON latest.case_id=e.case_id AND latest.revision=e.revision WHERE e.case_id IN ({$placeholders})");
         $estimateStatement->execute(array_merge($caseIds,$caseIds));
         foreach($estimateStatement->fetchAll() as $estimate)$latestEstimateByCase[(int)$estimate['case_id']]=[
             'publicId'=>$estimate['public_id'],'status'=>$estimate['status'],'totalAmount'=>(int)$estimate['total_amount'],'sentAt'=>$estimate['sent_at'],
+            'partsAmount'=>(int)$estimate['parts_amount'],'laborAmount'=>(int)$estimate['labor_amount'],
         ];
     }
     $cases=[];
@@ -606,6 +610,9 @@ function workflow_v2_update_promise(PDO $pdo,array $scope,array $input):array
     $pdo->beginTransaction();
     try{
         $row=v2_case($pdo,$scope,$caseId,true);
+        if (in_array($row['process_status'],['diagnosing','estimate_pending','qc_rework'],true)&&$parsed->getTimestamp()<=time()) {
+            throw new TamiranApiException('زمان تقریبی اتمام باید پس از زمان فعلی باشد.');
+        }
         if($row['locked_at']!==null)throw new TamiranApiException('پرونده بسته قابل تغییر نیست.',409);
         if($scope['role']==='technician'&&(int)$row['primary_technician_user_id']!==(int)$scope['actor']['id'])throw new TamiranApiException('فقط تکنسین مسئول می‌تواند موعد را تغییر دهد.',403);
         $pdo->prepare('UPDATE repair_case_workflows SET promised_at=:promised,lock_version=lock_version+1 WHERE id=:id')->execute(['promised'=>$promised,'id'=>$row['id']]);
@@ -697,9 +704,11 @@ function workflow_v2_estimate_send(PDO $pdo,array $scope,array $input): array
 
 tamiran_api(static function():array{
     $pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';
+    if($method==='GET'&&isset($_GET['managerPulse']))return manager_pulse($pdo,$scope);
     if($method==='GET'&&isset($_GET['managerFollowups']))return manager_followup_queue($pdo,$scope,$_GET['filter']??'all',$_GET['offset']??0);
     if($method==='GET'&&isset($_GET['managerReport']))return manager_operations_report($pdo,$scope,$_GET['from']??'',$_GET['to']??'');
-    if($method==='GET'&&isset($_GET['externalPurchase']))return external_purchase_view($pdo,$scope,isset($_GET['caseId'])?(int)$_GET['caseId']:null);
+    if($method==='GET'&&isset($_GET['externalCatalog']))return external_purchase_catalog($pdo,$scope,(int)($_GET['caseId']??0),$_GET['q']??'');
+    if($method==='GET'&&isset($_GET['externalPurchase']))return external_purchase_view($pdo,$scope,isset($_GET['caseId'])?(int)$_GET['caseId']:null,($_GET['summary']??'')==='1');
     if($method==='GET'&&isset($_GET['handoverReceipt']))return workflow_v2_handover_receipt($pdo,$scope,$_GET['handoverReceipt']);
     if($method==='GET'&&($_GET['technical']??'')==='1')return technician_projection($pdo,$scope,(int)($_GET['caseId']??0));
     if($method==='GET'&&($_GET['technicalActivities']??'')==='1')return technician_activities($pdo,$scope,(int)($_GET['caseId']??0),(int)($_GET['beforeId']??0));
@@ -711,6 +720,7 @@ tamiran_api(static function():array{
         'external_catalog_add'=>external_purchase_add_catalog($pdo,$scope,$input),
         'external_purchase'=>external_purchase_change($pdo,$scope,$input),
         'technical_diagnosis'=>technician_diagnosis($pdo,$scope,$input),
+        'technical_device_password'=>technician_device_password($pdo,$scope,(int)($input['caseId']??0)),
         'technical_receive'=>technician_confirm_receipt($pdo,$scope,$input),
         'technical_activity'=>technician_activity_add($pdo,$scope,$input),
         'technical_finish'=>technician_finish($pdo,$scope,$input),

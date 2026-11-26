@@ -21,7 +21,7 @@ function external_purchase_rows(PDO $pdo, array $scope, ?int $caseId): array
     return $rows;
 }
 
-function external_purchase_view(PDO $pdo, array $scope, ?int $caseId): array
+function external_purchase_view(PDO $pdo, array $scope, ?int $caseId, bool $summary=false): array
 {
     $manager=$scope['role']==='repair_manager';
     if ($caseId===null && !$manager) throw new TamiranApiException('صف مجوز خرید تنها برای مدیر است.',403);
@@ -32,12 +32,14 @@ function external_purchase_view(PDO $pdo, array $scope, ?int $caseId): array
     }
     $records=external_purchase_rows($pdo,$scope,$caseId);
     if ($caseId===null) $records=array_filter($records,static fn(array $r):bool=>in_array($r['status'],['pending','returning'],true));
+    $ownCommitted=0;
     foreach ($records as &$record) {
-        if (!$manager && (int)$record['requestedBy']!==(int)$scope['actor']['id']) unset($record['unitCost'],$record['total']);
+        if ((int)$record['requestedBy']===(int)$scope['actor']['id']&&!in_array($record['status'],['rejected','cancelled'],true)) $ownCommitted+=(int)$record['total'];
+        if (!$manager) unset($record['unitCost'],$record['total']);
     }
     unset($record);
     $items=[];
-    if ($caseId!==null) {
+    if ($caseId!==null&&!$summary) {
         $catalog=$pdo->prepare('SELECT id,item_code AS code,title,sale_price AS salePrice FROM repair_inventory_items WHERE shop_id=:shop AND is_active=1 ORDER BY title,id LIMIT 500');
         $catalog->execute(['shop'=>$scope['shop_id']]);
         while ($item=$catalog->fetch()) {
@@ -45,8 +47,44 @@ function external_purchase_view(PDO $pdo, array $scope, ?int $caseId): array
         }
     }
     $rules=operations_policy($pdo,(int)$scope['shop_id']);
-    return ['rows'=>array_values($records),'catalog'=>$items,'policy'=>$rules['purchase'],
-        'canManageCatalog'=>$manager,'ownLimit'=>(int)($rules['purchaseLimits'][(int)$scope['actor']['id']]??0)];
+    return ['rows'=>array_values($records),'catalog'=>$items,'policy'=>$manager?'free':$rules['purchase'],
+        'canManageCatalog'=>$manager,'ownCommitted'=>$ownCommitted,'ownLimit'=>(int)($rules['purchaseLimits'][(int)$scope['actor']['id']]??0)];
+}
+
+function external_purchase_catalog(PDO $pdo,array $scope,int $caseId,mixed $search):array
+{
+    $case=v2_case($pdo,$scope,$caseId);
+    v2_require_case_access($pdo,$scope,$case);
+    v2_require_permission($scope,'case.part.record',['technician'],'جست‌وجوی قطعه مجاز نیست.');
+    $query=v2_text($search,'جست‌وجوی قطعات',120,false);
+    $term='%'.strtr((string)$query,['!'=>'!!','%'=>'!%','_'=>'!_']).'%';
+    $catalog=$pdo->prepare("SELECT id,item_code AS code,title,sale_price AS salePrice
+        FROM repair_inventory_items WHERE shop_id=:shop AND is_active=1
+        AND (title LIKE :title ESCAPE '!' OR item_code LIKE :code ESCAPE '!' OR category LIKE :category ESCAPE '!')
+        ORDER BY title,id LIMIT 20");
+    $catalog->execute(['shop'=>$scope['shop_id'],'title'=>$term,'code'=>$term,'category'=>$term]);
+    return ['items'=>array_map(static fn($item)=>array_replace($item,['id'=>(int)$item['id'],'salePrice'=>(int)$item['salePrice']]),$catalog->fetchAll())];
+}
+
+function external_purchase_requires_customer_authorization(PDO $pdo,array $case,array $records,int $saleAmount):void
+{
+    $cost=technician_cost_state($pdo,$case);
+    $committed=0;
+    foreach ($records as $record) {
+        if (in_array($record['status'],['bought','received'],true)) $committed+=(int)$record['salePrice']*(int)$record['quantity'];
+    }
+    $limit=$cost['capAmount'];
+    if ($cost['estimatePublicId']!==null) {
+        if (!$cost['authorized']) throw new TamiranApiException('پیش از خرید، تأیید معتبر هزینه مشتری را تکمیل کنید.',409);
+        $estimate=$pdo->prepare('SELECT status,total_amount FROM repair_estimates WHERE public_id=:public AND case_id=:case');
+        $estimate->execute(['public'=>$cost['estimatePublicId'],'case'=>$case['case_id']]);
+        $quote=$estimate->fetch();
+        if (($quote['status']??'')==='approved') $limit=max($limit,(int)$quote['total_amount']);
+    }
+    $fixed=$cost['totalAmount']-max($cost['partsAmount'],$cost['quotedPartsAmount']);
+    if ($fixed+max($cost['quotedPartsAmount'],$cost['partsAmount']+$committed+$saleAmount)>$limit) {
+        throw new TamiranApiException('مجموع هزینه قطعات از مبلغ مجاز مشتری بیشتر است. برآورد را اصلاح کنید.',409);
+    }
 }
 
 function external_purchase_event(PDO $pdo, array $scope, array $case, array $record, ?string $reason=null): void
@@ -56,6 +94,7 @@ function external_purchase_event(PDO $pdo, array $scope, array $case, array $rec
         'approved'=>'مجوز خرید قطعه خارج از انبار',
         'rejected'=>'رد خرید قطعه خارج از انبار',
         'bought'=>'ثبت خرید واقعی قطعه خارج از انبار',
+        'received'=>'دریافت فیزیکی قطعه خرید خارج از انبار',
         'used'=>'مصرف قطعه خارج از انبار',
         'returning'=>'درخواست تعیین تکلیف قطعه خارج از انبار',
         'returned'=>'تعیین تکلیف فیزیکی قطعه خارج از انبار ثبت شد',
@@ -76,7 +115,7 @@ function external_purchase_change(PDO $pdo, array $scope, array $input): array
     $key=v2_text($input['idempotencyKey']??'','شناسه درخواست خرید',160);
     $manager=$scope['role']==='repair_manager';
     $reason=v2_text($input['reason']??'','توضیح عملیات خرید',1000,in_array($action,['reject','return','confirm_return','cancel'],true))??'';
-    if (!in_array($action,['request','approve','reject','buy','use','return','confirm_return','cancel'],true)) {
+    if (!in_array($action,['request','approve','reject','buy','receive','use','return','confirm_return','cancel'],true)) {
         throw new TamiranApiException('عملیات خرید معتبر نیست.');
     }
     if (!$manager && in_array($action,['approve','reject','confirm_return'],true)) throw new TamiranApiException('تصمیم درباره مجوز فقط با مدیر است.',403);
@@ -89,6 +128,7 @@ function external_purchase_change(PDO $pdo, array $scope, array $input): array
         $payload=['decision'=>$action,'reason'=>$reason];
         if ($action==='request') {
             $payload['lines']=$input['lines']??null;
+            if (($input['purchase']??false)===true) $payload['purchase']=true;
         } else {
             $payload['publicId']=v2_text($input['publicId']??'','شناسه خرید',80);
         }
@@ -134,6 +174,11 @@ function external_purchase_change(PDO $pdo, array $scope, array $input): array
             $needApproval=!$manager&&($rules['purchase']==='approval'
                 || ($rules['purchase']==='limit'&&$committed+$entryTotal>(int)($rules['purchaseLimits'][$actor]??0)));
             $status=$needApproval?'pending':'approved';
+            if (!$needApproval&&!empty($payload['purchase'])) {
+                $saleAmount=array_sum(array_map(static fn($entry)=>$entry['salePrice']*$entry['quantity'],$entries));
+                external_purchase_requires_customer_authorization($pdo,$case,$records,$saleAmount);
+                $status='bought';
+            }
             foreach ($entries as $entry) external_purchase_event($pdo,$scope,$case,$entry+['status'=>$status],$reason);
             $result=['status'=>$status,'publicIds'=>array_column($entries,'publicId')];
         } else {
@@ -141,13 +186,14 @@ function external_purchase_change(PDO $pdo, array $scope, array $input): array
             if (!is_array($record)) throw new TamiranApiException('خرید برای این پرونده پیدا نشد.',404);
             $from=[
                 'approve'=>['pending'],'reject'=>['pending'],'buy'=>['approved'],
-                'use'=>['bought'],'return'=>['bought'],'confirm_return'=>['returning'],'cancel'=>['pending','approved'],
+                'receive'=>['bought'],'use'=>['received'],'return'=>['received'],'confirm_return'=>['returning'],'cancel'=>['pending','approved'],
             ];
             if (!in_array($record['status'],$from[$action],true)) throw new TamiranApiException('این خرید در مرحله مناسب عملیات نیست.',409);
             if (!$manager && in_array($action,['buy','cancel'],true)&&(int)$record['requestedBy']!==$actor) {
                 throw new TamiranApiException('خرید یا لغو مجوز فقط برای درخواست‌کننده یا مدیر مجاز است.',403);
             }
-            $status=match($action){'approve'=>'approved','reject'=>'rejected','buy'=>'bought','use'=>'used','return'=>'returning','confirm_return'=>'returned','cancel'=>'cancelled'};
+            if ($action==='buy') external_purchase_requires_customer_authorization($pdo,$case,$records,(int)$record['salePrice']*(int)$record['quantity']);
+            $status=match($action){'approve'=>'approved','reject'=>'rejected','buy'=>'bought','receive'=>'received','use'=>'used','return'=>'returning','confirm_return'=>'returned','cancel'=>'cancelled'};
             if ($action==='use') {
                 $insert=$pdo->prepare('INSERT INTO repair_case_manual_parts(public_id,shop_id,case_id,title,quantity,purchase_unit_cost,sale_unit_price,note,idempotency_key,created_by_user_id)
                     VALUES(:public,:shop,:case,:title,:quantity,:cost,:sale,:note,:key,:actor)');

@@ -653,3 +653,27 @@
 .tech-receipt-details > div { background: #edf5f1; border-radius: 8px; padding: 10px 12px; }
 .tech-receipt-details dt { color: var(--tech-muted); font-size: 13px; }
 .tech-receipt-details dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.tech-task .tech-diagnosis-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr));
+  gap: 8px;
+}
+.technical-desk .tech-diagnosis-choices label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid #cadfd7;
+  border-radius: 8px;
+}
+.technical-desk .tech-diagnosis-choices label:has(input:checked),
+.technical-desk .tech-due button[aria-pressed="true"] { background: #e7f2ed; border-color: #236557; }
+.technical-desk .tech-diagnosis-choices input { flex: 0 0 auto; width: 18px; height: 18px; min-height: 0; }
+.tech-task fieldset.tech-due { padding: 10px; border: 1px solid #cadfd7; border-radius: 8px; }
+.tech-due > div { margin-block: 8px; }
+.tech-approval-summary dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 10px; margin-inline: 0; }
+.tech-approval-summary dd { font-weight: 650; margin: 0; }
+.tech-catalog-results { padding: 0; margin: 0; list-style: none; display: grid; gap: 6px; }
+.tech-catalog-results button { width: 100%; justify-content: space-between; text-align: start; }

@@ -3,6 +3,7 @@
 import argparse
 import datetime as dt
 import os
+import re
 import secrets
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -53,7 +54,7 @@ def run(args):
             'action':'create_case','receiptMode':'issue_only','customerName':marker,'customerMobile':prefix+'09',
             'deviceModelId':model,'identifier':synthetic_imei(),'declaredIssue':'TEST شارژ قطع می‌شود',
             'customerConsent':{'dataHandling':'coordinate_first'},'assignedToUserId':technician,'accessories':['بدون لوازم'],
-            'preapprovedAmount':7500000,'idempotencyKey':secrets.token_hex(12),
+            'preapprovedAmount':7500000,'devicePassword':' 0048 Ab ','idempotencyKey':secrets.token_hex(12),
             **({'promisedAt':promised_at} if promised_at else {}),
         })['repairCase']['id']
         command(tech, case, 'technical_receive', lockVersion=row(case)['lockVersion'])
@@ -81,6 +82,31 @@ def run(args):
     save_policy(handover='disabled')
     original_due=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
     case = create(original_due)
+    active_device = next(entry for entry in manager.api(f'operations.php?customerMobile={prefix}09')['customer']['devices']
+        if entry['lastReceipt']==row(case)['receiptNumber'])
+    recall_payload = {
+        'action':'create_case','receiptMode':'issue_only','customerName':marker,
+        'customerMobile':prefix+'09','deviceModelId':model,'identifier':active_device['identifier'],
+        'declaredIssue':'TEST ایراد جدید','preapprovedAmount':0,'customerConsent':{'dataHandling':'no_erasure'},
+        'previousDeviceId':active_device['id'],'expectedDeviceVersion':active_device['expectedDeviceVersion'],
+    }
+    log.check('active intake cannot be recalled via lookup or direct POST',lambda:expect(
+        active_device['recallEligible'] is False,
+        'lookup allows recalling an active case'))
+    log.check('server blocks direct recall of active intake',lambda:manager.api('operations.php','POST',
+        {**recall_payload,'idempotencyKey':secrets.token_hex(12)},expected=409))
+    log.check('case password preserves leading zero and literal text for current technician',lambda:expect(
+        command(tech,case,'technical_device_password')['password']==' 0048 Ab ', 'device password changed'))
+    log.check('unassigned technician cannot reveal device password',lambda:command(destination,case,'technical_device_password',expected=403))
+    log.check('technician cannot load manager pulse',lambda:tech.api('workflow-v2.php?managerPulse=1',expected=403))
+    pulse = manager.api('workflow-v2.php?managerPulse=1')
+    log.check('manager pulse reflects real workflow and assigned cases',lambda:expect(
+        pulse['stages']['diagnosing']>=1 and any(person['id']==technician and person['active']>=1 for person in pulse['technicians']),
+        'branch workflow counts are incorrect'))
+    log.check('additional diagnosis can be recorded without leaving diagnosis',lambda:expect(
+        command(tech,case,'technical_diagnosis',assessment='undetermined',description='TEST بررسی بیشتر لازم است',
+            issues=[],lockVersion=row(case)['lockVersion'])['recorded'] and row(case)['status']=='diagnosing',
+        'additional diagnosis advanced to estimate'))
     log.check('manager-only policy blocks technician referral',lambda:command(tech,case,'handover_request',expected=403,toUserId=recipient,reasonId='expertise',partsDisposition='transfer_to_new',hotReturnsDisposition='transfer_to_new'))
 
     log.check('diagnosis preserves acceptance issue and moves to estimation',lambda:expect(
@@ -97,14 +123,52 @@ def run(args):
     log.check('manager can reject pending purchase',lambda:command(manager,case,'external_purchase',decision='reject',publicId=second_id,reason='TEST موارد تکراری'))
     command(tech,case,'external_purchase',decision='buy',publicId=first_id)
     log.check('bought parts stop finish until determined',lambda:expect(any('خرید خارج' in blocker for blocker in row(case)['blockers']['parts']),'bought part is invisible to closeout'))
+    log.check('bought part cannot be used before physical receipt',lambda:command(tech,case,'external_purchase',expected=409,decision='use',publicId=first_id))
+    log.check('external part receipt is independent of purchase and consumption',lambda:expect(
+        command(tech,case,'external_purchase',decision='receive',publicId=first_id)['status']=='received',
+        'external receipt not saved'))
     command(tech,case,'external_purchase',decision='use',publicId=first_id)
     technical=tech.api(f'workflow-v2.php?caseId={case}&technical=1')
     save_policy(purchase='free')
     log.check('catalog item can be defined outside inventory movement', lambda:command(manager,case,'external_catalog_add',code='TEST-V7-OTHER',title='قطعه آزمایشی بدون موجودی',salePrice=450000))
+    log.check('catalog-only parts are visible at zero stock',lambda:expect(
+        any(part['item_code']=='TEST-V7-OTHER' and part['physical_quantity']==0 for part in warehouse.api('inventory-v2.php?catalog=1')['items']),
+        'zero-stock catalog item is hidden'))
+    log.check('case catalog search stays scoped to the assigned technician',lambda:destination.api(
+        f'workflow-v2.php?externalCatalog=1&caseId={case}&q=TEST-V7-OTHER',expected=403))
+
     log.check('technician cannot define unauthorized catalog item', lambda:command(tech,case,'external_catalog_add',expected=403,code='TEST-V7-X',title='آزمایش'))
+    policy_case=create()
+    log.check('free policy records an actual purchase without requiring manager approval',lambda:expect(
+        command(tech,policy_case,'external_purchase',decision='request',purchase=True,lines=[line])['status']=='bought',
+        'free policy did not record purchase'))
+    save_policy(purchase='approval',approval='phone')
+    approval_request=command(tech,policy_case,'external_purchase',decision='request',purchase=True,lines=[line])
+    log.check('manager policy overrides a direct-purchase request',lambda:expect(
+        approval_request['status']=='pending','direct request bypassed approval policy'))
+    approval_id=approval_request['publicIds'][0]
+    command(manager,policy_case,'external_purchase',decision='approve',publicId=approval_id)
+    command(tech,policy_case,'technical_diagnosis',assessment='confirmed',description='TEST نتیجه عیب‌یابی',issues=['TEST اتصال'],
+        lockVersion=row(policy_case)['lockVersion'])
+    cost_quote=command(tech,policy_case,'estimate_create',items=[
+        {'type':'labor','title':'TEST اجرت','quantity':1,'unitPrice':8000000},
+        {'type':'part','title':'TEST قیمت قطعه','quantity':1,'unitPrice':2000000},
+    ])['estimate']['publicId']
+    command(tech,policy_case,'estimate_send',estimatePublicId=cost_quote)
+    command(tech,policy_case,'transition',target='awaiting_customer_approval',lockVersion=row(policy_case)['lockVersion'])
+    log.check('manager-approved purchase still waits for customer cost approval',lambda:command(
+        tech,policy_case,'external_purchase',decision='buy',publicId=approval_id,expected=409))
+    log.check('technician cannot record a standalone phone confirmation',lambda:command(
+        tech,policy_case,'estimate_decide',estimatePublicId=cost_quote,channel='recorded_phone',decision='approved',expected=403))
+    log.check('valid phone confirmation permits separately approved purchase',lambda:expect(
+        command(manager,policy_case,'estimate_decide',estimatePublicId=cost_quote,channel='recorded_phone',decision='approved')['approval']['decided']
+        and command(tech,policy_case,'external_purchase',decision='buy',publicId=approval_id)['status']=='bought',
+        'phone approval failed to authorize the current estimate'))
+    save_policy(purchase='free')
     before_stock=next(part['physical_quantity'] for part in manager.api('inventory-v2.php')['items'] if part['id']==item)
     returned=command(tech,case,'external_purchase',decision='request',lines=[line])['publicIds'][0]
     command(tech,case,'external_purchase',decision='buy',publicId=returned)
+    command(tech,case,'external_purchase',decision='receive',publicId=returned)
     command(tech,case,'external_purchase',decision='return',publicId=returned,disposition='stock',reason='TEST سالم است')
     log.check('stock does not increase before physical confirmation',lambda:expect(next(part['physical_quantity'] for part in manager.api('inventory-v2.php')['items'] if part['id']==item)==before_stock,'inventory increased early'))
     log.check('only manager confirms stock receipt',lambda:command(tech,case,'external_purchase',expected=403,decision='confirm_return',publicId=returned,reason='TEST confirmation'))
@@ -177,7 +241,16 @@ def run(args):
     if args.browser_dir:
         check_supply_browser(log,args.url,warehouse,row(stock_case)['receiptNumber'],args.browser_dir)
         check_finance_delivery_browser(log,args.url,manager,case,row(case)['receiptNumber'],args.browser_dir)
+        delivered_device = next(entry for entry in manager.api(f'operations.php?customerMobile={prefix}09')['customer']['devices']
+            if entry['id']==active_device['id'])
+        log.check('physically delivered device is eligible to recall',lambda:expect(delivered_device['recallEligible'], 'delivered case remains blocked'))
+        recall = manager.api('operations.php','POST',{**recall_payload,'expectedDeviceVersion':delivered_device['expectedDeviceVersion'],
+            'idempotencyKey':secrets.token_hex(12),'devicePassword':''})['repairCase']
+        log.check('repeat intake creates a new case without a password',lambda:expect(
+            recall['id'] != case and recall['identifier']==active_device['identifier'] and row(case)['status']=='delivered',
+            'repeat intake changed previous case'))
         check_operations_browser(log,args.url,manager,tech,stock_case,args.browser_dir)
+        check_intake_print(log,args.url,manager,recall['receiptNumber'],args.browser_dir)
 
     pending = create()
     command(tech,pending,'estimate_create',items=[{'type':'labor','title':'اجرت آزمایشی','quantity':1,'unitPrice':200000}])
@@ -559,20 +632,65 @@ def check_operations_browser(log,url,manager,tech,case,folder):
         log.check('standalone operations center is absent from desktop navigation',lambda:browser_expect(page.get_by_role('button',name='مرکز عملیات تعمیرات',exact=True)).to_have_count(0))
         page.get_by_role('button',name='سیاست‌های تعمیرگاه',exact=True).click()
         log.check('manager browser shows persisted referral setting',lambda:browser_expect(page.get_by_label('سیاست ارجاع',exact=True)).to_have_value('disabled'))
-        page.get_by_role('button',name='پیگیری پرونده‌ها',exact=True).click()
+        page.goto(url+'/?view=home',wait_until='networkidle')
         browser_expect(page.get_by_role('heading',name='پرونده‌های نیازمند پیگیری')).to_be_visible()
-        page.get_by_role('button',name='عملکرد تکنسین‌ها',exact=True).click()
+        log.check('manager pulse shows branch queues',lambda:browser_expect(
+            page.get_by_role('button',name=re.compile('در انتظار ارجاع')).first).to_be_visible())
+        for width in (360,390,768,1024,1280,1440,1920):
+            page.set_viewport_size({'width':width,'height':900})
+            log.check(f'manager pulse fits {width}px',lambda:page.wait_for_function(
+                'document.documentElement.scrollWidth <= innerWidth + 1',timeout=10000))
+            if width in (390,1440): page.screenshot(path=str(output/f'pulse-{width}.png'),full_page=True)
+        page.set_viewport_size({'width':1440,'height':900})
+        page.goto(url+'/?view=technician-performance',wait_until='networkidle')
         page.get_by_role('button',name='دریافت گزارش',exact=True).click()
         log.check('manager browser loads verified metrics',lambda:browser_expect(page.locator('meter').first).to_be_visible())
         page.screenshot(path=str(output/'performance-desktop.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':900})
+        page.wait_for_function('document.documentElement.scrollWidth <= innerWidth + 1')
         log.check('manager performance fits mobile',lambda:expect(page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'),'horizontal overflow'))
         log.check('manager JS stays error-free',lambda:expect(not errors,str(errors)))
         tc=open_as(browser,url,tech)
         entry=tc.new_page()
         entry.goto(url+f'/?view=my-work&techCase={case}&techTask=purchases',wait_until='networkidle')
-        log.check('technician browser sees authorized catalog',lambda:browser_expect(entry.get_by_label('انتخاب کالا')).to_contain_text('کابل آزمایشی'))
+        entry.get_by_label('جست‌وجوی بانک قطعات').fill('کابل آزمایشی')
+        log.check('technician browser sees authorized catalog',lambda:browser_expect(entry.get_by_role('button',name=re.compile('کابل آزمایشی')).first).to_be_visible())
         entry.screenshot(path=str(output/'external-purchase-mobile.png'),full_page=True)
+        browser.close()
+
+
+def check_intake_print(log,url,manager,receipt,folder):
+    from playwright.sync_api import sync_playwright, expect as browser_expect
+    output=Path(folder)
+    with sync_playwright() as tooling:
+        browser=tooling.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+        ctx=open_as(browser,url,manager,width=1440)
+        page=ctx.new_page()
+        page.goto(url+'/?view=receipts',wait_until='networkidle')
+        page.get_by_role('button',name=f'مشاهده رسید {receipt}',exact=True).click()
+        log.check('intake receipt has real tracking QR and no credential',lambda:expect(
+            page.locator('.tamiran-receipt svg').count()>=1
+            and '0048 Ab' not in page.locator('.tamiran-receipt').inner_text(),'receipt QR missing or password leaked'))
+        page.evaluate("""() => {
+          const open = window.open.bind(window);
+          window.open = (...args) => {
+            const popup = open(...args);
+            if (popup) popup.print = () => {};
+            return popup;
+          };
+        }""")
+        for size, label in (('A4','a4'),('A5','a5'),('حرارتی','thermal')):
+            document=page.locator('.tamiran-receipt')
+            document.evaluate('(node, size) => node.dataset.printSize = size',size)
+            with page.expect_popup() as printed:
+                page.get_by_role('button',name='چاپ رسید',exact=True).click()
+            print_page=printed.value
+            browser_expect(print_page.locator('.tamiran-receipt')).to_contain_text(receipt)
+            print_page.evaluate('document.fonts.ready')
+            print_page.pdf(path=str(output/f'intake-{label}.pdf'),prefer_css_page_size=True)
+            log.check(f'intake {label} prints without a credential',lambda:expect(
+                '0048 Ab' not in print_page.locator('.tamiran-receipt').inner_text(),'credential leaked to print'))
+            print_page.close()
         browser.close()
 
 

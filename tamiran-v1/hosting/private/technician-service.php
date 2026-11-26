@@ -151,7 +151,7 @@ function technician_cost_state(PDO $pdo,array $case): array
     $total=$nonpart+max($actual,$quotedParts);$cap=(int)$case['preapproved_amount'];
     $valid=is_array($e) && !in_array($e['status'],['rejected','explanation_requested','superseded'],true) && (empty($e['valid_until'])||strtotime($e['valid_until'])>=time()) && ($total<=$cap || ($e['status']==='approved'&&$total<=(int)$e['total_amount']));
     $state=!is_array($e)?'needs_estimate':($e['status']==='rejected'?'rejected':($valid?'approved':(($total>(int)$e['total_amount']||$e['status']==='explanation_requested')?'needs_revision':'waiting_customer')));
-    return ['state'=>$state,'authorized'=>$valid,'totalAmount'=>$total,'partsAmount'=>$actual,'capAmount'=>$cap,'estimatePublicId'=>is_array($e)?$e['public_id']:null];
+    return ['state'=>$state,'authorized'=>$valid,'totalAmount'=>$total,'partsAmount'=>$actual,'quotedPartsAmount'=>$quotedParts,'capAmount'=>$cap,'estimatePublicId'=>is_array($e)?$e['public_id']:null];
 }
 function technician_require_cost(PDO $pdo,array $case): void
 {
@@ -217,8 +217,28 @@ function technician_projection(PDO $pdo,array $scope,int $caseId): array
     $qc=$pdo->prepare('SELECT result FROM repair_qc_runs WHERE case_id=:case AND shop_id=:shop ORDER BY id DESC LIMIT 1');
     $qc->execute(['case'=>$caseId,'shop'=>$scope['shop_id']]);
     $qcLabel=match($qc->fetchColumn()){'passed'=>'تأیید شد','failed'=>'مردود / بازکاری','conditional'=>'تأیید مشروط',default=>null};
-    $summary=['diagnosedIssues'=>$diagnosisData['payload']['issues']??[],'qcResult'=>$qcLabel];
-    return ['summary'=>$summary,'reworkDestination'=>$reworkDestination,'invoice'=>case_invoice_public(case_invoice_preview($pdo,$scope,$case)), 'unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','receiptPending'=>!empty($case['physical_receipt_pending']),'permissions'=>['receive'=>!empty($case['physical_receipt_pending'])&&technician_is_receipt_recipient($scope,$case),'refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
+    $summary=['diagnosedIssues'=>$diagnosisData['payload']['issues']??[],'customerIssueAssessment'=>$diagnosisData['payload']['assessment']??null,'qcResult'=>$qcLabel];
+    return ['summary'=>$summary,'reworkDestination'=>$reworkDestination,'invoice'=>case_invoice_public(case_invoice_preview($pdo,$scope,$case)), 'unrepairedAmount'=>$unrepairedAmount,'unrepairedFinanceBlockers'=>$unrepairedAmount>0?v2_finance_blockers($pdo,$caseId):v2_terminal_finance_blockers($pdo,$caseId),'cost'=>technician_cost_state($pdo,$case),'parts'=>$parts,'activities'=>technician_activities($pdo,$scope,$caseId),'report'=>$case['operation_report']??'','result'=>$case['result'],'receptionNotes'=>$case['reception_notes']??'','nextDestination'=>$policy['qcEnabled']?'کنترل کیفیت':'مالی و تحویل','receiptPending'=>!empty($case['physical_receipt_pending']),'permissions'=>['devicePassword'=>technician_device_password_allowed($scope,$case)&&!empty($case['temporary_device_secret_ciphertext']), 'receive'=>!empty($case['physical_receipt_pending'])&&technician_is_receipt_recipient($scope,$case),'refer'=>$write&&$primary&&(int)$case['primary_technician_user_id']>0,'activity'=>$write,'parts'=>$write&&$primary,'finish'=>$write&&$primary,'purchase'=>technician_purchase_allowed($scope),'stock'=>$policy['stockPartsAvailable']]];
+}
+
+function technician_device_password_allowed(array $scope,array $case):bool
+{
+    $principal=(int)$case['primary_technician_user_id'];
+    return ($scope['role']==='repair_manager'||($scope['role']==='technician'&&$principal===(int)$scope['actor']['id']))
+        && $case['locked_at']===null && empty($case['physical_receipt_pending'])
+        && in_array($case['process_status'],['assigned','diagnosing','estimate_pending','awaiting_customer_approval','awaiting_parts','repairing','parts_closeout','qc_rework'],true);
+}
+function technician_device_password(PDO $pdo,array $scope,int $caseId):array
+{
+    $case=v2_case($pdo,$scope,$caseId);
+    if (!technician_device_password_allowed($scope,$case)) throw new TamiranApiException('مشاهده رمز دستگاه در این مرحله یا با دسترسی فعلی مجاز نیست.',403);
+    $encrypted=$case['temporary_device_secret_ciphertext']??null;
+    $expires=$case['temporary_secret_expires_at']??null;
+    if (!$encrypted||!$expires||strtotime($expires.' UTC')<=time()) return ['password'=>null];
+    $value=tamiran_decrypt_secret($encrypted);
+    tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'case.device_password.view','repair_case',$case['case_public_id'],null,null);
+    header('Cache-Control: no-store, private');
+    return ['password'=>$value];
 }
 
 function technician_manual_part(PDO $pdo,array $scope,array $input): array
@@ -333,7 +353,9 @@ function technician_diagnosis(PDO $pdo, array $scope, array $input): array
         if (!in_array($case['process_status'],['diagnosing','qc_rework'],true)) throw new TamiranApiException('پرونده در مرحله عیب‌یابی نیست.',409);
         if ((int)$case['lock_version']!==(int)($input['lockVersion']??-1)) throw new TamiranApiException('پرونده تغییر کرده است؛ اطلاعات را تازه کنید.',409);
         $result=technician_event($pdo,$scope,$case,'technical_diagnosis',$key,$payload);
-        v2_transition($pdo,$scope,$caseId,'estimate_pending','نتیجه عیب‌یابی ثبت شد',(int)$case['lock_version'],hash('sha256','diagnosis:'.$key),true,true);
+        if ($assessment!=='undetermined') {
+            v2_transition($pdo,$scope,$caseId,'estimate_pending','نتیجه عیب‌یابی ثبت شد',(int)$case['lock_version'],hash('sha256','diagnosis:'.$key),true,true);
+        }
         $pdo->commit();
         return $result;
     } catch(Throwable $error) {
