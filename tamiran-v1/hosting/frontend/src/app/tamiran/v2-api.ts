@@ -129,6 +129,7 @@ export type V2HandoverReceipt = {
     toName: string;
     reason: string;
     accessories: string[];
+    activities?: Array<{ id: number; text: string }>;
     partIssues: V2HandoverItem[];
     installedParts: V2HandoverItem[];
     hotReturns: V2HandoverItem[];
@@ -422,6 +423,7 @@ export type TechnicalActivity = {
 export type TechnicalProjection = {
   receiptPending?: boolean;
   invoice: TechnicalInvoice;
+  summary?: { diagnosedIssues: string[]; qcResult: string | null };
   reworkDestination?: "diagnosing" | "repairing" | null;
   unrepairedAmount: number;
   unrepairedFinanceBlockers: string[];

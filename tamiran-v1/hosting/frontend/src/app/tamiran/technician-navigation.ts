@@ -1,3 +1,5 @@
+import type { V2Case } from "./v2-api";
+
 export const technicalScreens = [
   "overview",
   "work",
@@ -43,4 +45,25 @@ export function writeTechnicalLocation(
 export function technicalCaseFromLocation() {
   const id = Number(new URL(location.href).searchParams.get("techCase") ?? 0);
   return Number.isSafeInteger(id) && id > 0 ? id : 0;
+}
+
+export function technicalStageScreen(item?: V2Case): TechnicalScreen {
+  if (!item || item.receiptPending) return "overview";
+  switch (item.status) {
+    case "diagnosing": return "diagnosis";
+    case "estimate_pending": return "diagnosis";
+    case "awaiting_parts":
+    case "parts_closeout": return "parts";
+    case "awaiting_customer_approval":
+    case "qc_pending":
+    case "qc_conditional":
+    case "finance_pending":
+    case "ready_for_delivery":
+    case "delivered":
+    case "closed":
+    case "returned_unrepaired": return "overview";
+    case "repairing":
+    case "qc_rework": return "work";
+    default: return "overview";
+  }
 }

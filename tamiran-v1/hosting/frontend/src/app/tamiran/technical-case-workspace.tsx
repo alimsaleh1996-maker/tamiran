@@ -1,3 +1,5 @@
+import { Smartphone, X } from "lucide-react";
+import { PersianDatePicker } from "./persian-date-picker";
 import { ExternalPurchasePanel } from "./external-purchase-panel";
 import { useEffect, useRef, useState } from "react";
 import { MoneyInput, formatToman } from "./money-input";
@@ -13,6 +15,7 @@ import {
   readTechnicalScreen,
   writeTechnicalLocation,
   technicalScreens,
+  technicalStageScreen,
   type TechnicalScreen,
 } from "./technician-navigation";
 import {
@@ -74,6 +77,9 @@ const blank = () => ({
   diagnosisAssessment: "",
   diagnosisDescription: "",
   diagnosisIssues: "",
+  diagnosisIssue: "",
+  diagnosisDueDate: "",
+  diagnosisDueTime: "12:00",
   attachments: [] as string[],
   correctionOf: null as number | null,
   labor: "",
@@ -108,6 +114,7 @@ export function TechnicalCaseWorkspace({
   exitLabel = "بازگشت به دستگاه‌های من",
   onManage,
   overviewAction,
+  stageDriven = false,
 }: {
   caseId: number;
   initial?: V2Case;
@@ -121,6 +128,7 @@ export function TechnicalCaseWorkspace({
   exitLabel?: string;
   onManage?: () => void;
   overviewAction?: { label: string; onClick: () => void };
+  stageDriven?: boolean;
 }) {
   const [operationsPolicy, setOperationsPolicy] = useState<OperationsPolicy>();
   const storage = `tamiran:technical-draft:${actorId}:${caseId}`;
@@ -181,6 +189,8 @@ export function TechnicalCaseWorkspace({
     [saved, setSaved] = useState(""),
     [source, setSource] = useState<"manual" | "stock">("manual"),
     [confirmed, setConfirmed] = useState(false);
+  const summary = useRef<HTMLDialogElement>(null);
+  const lastLoaded = useRef<V2Case | undefined>(undefined);
   const lockedUrl = useRef(location.href);
   const lock = useRef(false),
     alive = useRef(true),
@@ -190,7 +200,7 @@ export function TechnicalCaseWorkspace({
   const unstarted = item
     ? ["assigned", "reception", "awaiting_assignment"].includes(item.status)
     : true;
-  const home: TechnicalScreen = unstarted ? "overview" : "work";
+  const home: TechnicalScreen = stageDriven ? technicalStageScreen(item) : unstarted ? "overview" : "work";
   const persist = (next: Draft) => {
     try {
       localStorage.setItem(
@@ -216,7 +226,9 @@ export function TechnicalCaseWorkspace({
     persist(draftNow.current);
     return keys.current[area].key;
   };
-  const go = (next: TechnicalScreen, back: TechnicalScreen = home) => {
+  const go = (next: TechnicalScreen, back: TechnicalScreen =
+    stageDriven && ["refer", "repaired", "unrepaired"].includes(next) && !unstarted ? "work" : home
+  ) => {
     if (lock.current) return;
     setError(null);
     setConfirmed(false);
@@ -225,7 +237,7 @@ export function TechnicalCaseWorkspace({
     writeTechnicalLocation(
       caseId,
       next,
-      next === "overview" || next === "work" ? undefined : back,
+      stageDriven ? (next === back ? undefined : back) : next === "overview" || next === "work" ? undefined : back,
     );
     window.scrollTo({ top: 0, behavior: "instant" });
   };
@@ -237,6 +249,7 @@ export function TechnicalCaseWorkspace({
     const fresh = workflow.cases.find((c) => c.id === caseId);
     if (!fresh) throw new Error("پرونده در دسترسی فعلی شما نیست.");
     if (!alive.current) return;
+    lastLoaded.current = fresh;
     setItem(fresh);
     setData(projection);
     setUsers(workflow.users);
@@ -255,7 +268,17 @@ export function TechnicalCaseWorkspace({
   };
   useEffect(() => {
     alive.current = true;
-    void reload().catch((e) => {
+    void reload().then(() => {
+      if (!stageDriven || !alive.current || new URL(location.href).searchParams.has("techReturn")) return;
+      const requested = readTechnicalScreen();
+      if (!["work", "overview", "diagnosis", "estimate", "parts"].includes(requested)) return;
+      const stage = lastLoaded.current;
+      const next = technicalStageScreen(stage);
+      if (stage && requested !== next) {
+        setScreen(next);
+        writeTechnicalLocation(caseId, next, undefined, true);
+      }
+    }).catch((e) => {
       if (alive.current) setError({ area: "page", text: message(e) });
     });
     return () => {
@@ -265,7 +288,7 @@ export function TechnicalCaseWorkspace({
   }, [caseId]);
   useEffect(() => {
     heading.current?.focus();
-    if (screen === "parts" && data?.permissions.stock) void loadStock();
+    if ((screen === "parts" || (stageDriven && screen === "work")) && data?.permissions.stock) void loadStock();
   }, [screen, data?.permissions.stock]);
   useEffect(() => {
     const prevent = (e: BeforeUnloadEvent) => {
@@ -317,7 +340,7 @@ export function TechnicalCaseWorkspace({
   const run = async (
     area: string,
     job: () => Promise<void>,
-    next?: TechnicalScreen,
+    next?: TechnicalScreen | (() => TechnicalScreen),
     refresh = true,
   ) => {
     if (lock.current) return;
@@ -359,7 +382,9 @@ export function TechnicalCaseWorkspace({
       onBusyChange(false);
     }
     if (ok && next && alive.current) {
-      go(next);
+      const destination = typeof next === "function" ? next() : next;
+      const changedStage = ["receipt", "phase", "diagnosis", "estimate", "finish"].includes(area);
+      go(destination, stageDriven && changedStage ? destination : undefined);
       if (refreshFailed)
         setError({
           area: "page",
@@ -412,23 +437,8 @@ export function TechnicalCaseWorkspace({
       },
       undefined,
     );
-  const diagnose = () => run("diagnosis", async () => {
-    const payload = {
-      assessment: draft.diagnosisAssessment,
-      description: draft.diagnosisDescription,
-      issues: draft.diagnosisIssues.split("\n").map((line) => line.trim()).filter(Boolean),
-    };
-    const fresh = (await loadV2Workflow(caseId)).cases[0];
-    await workflowV2Action({ action: "technical_diagnosis", caseId, ...payload,
-      lockVersion: fresh.lockVersion, idempotencyKey: keyFor("diagnosis", payload) });
-    delete keys.current.diagnosis;
-    change({ diagnosisAssessment: "", diagnosisDescription: "", diagnosisIssues: "" });
-  }, "estimate");
-  const estimate = () =>
-    run(
-      "estimate",
-      async () => {
-        if (!data) return;
+  const persistEstimate = async () => {
+        if (!data) throw new Error("اطلاعات پرونده در دسترس نیست.");
         const payload = {
           items: [
             {
@@ -478,15 +488,45 @@ export function TechnicalCaseWorkspace({
             idempotencyKey: `estimate-route:${result.estimate.publicId}`,
           });
         delete keys.current.estimate;
-        change({ labor: "", diagnostic: "", estimateNote: "" });
+        change({ labor: "", diagnostic: "", estimateNote: "", diagnosisDueDate: "", diagnosisDueTime: "12:00" });
         notify(
           result.estimate.requiresCustomerApproval
             ? "هزینه اعلام شد؛ منتظر تأیید معتبر مشتری است."
             : "هزینه در محدودهٔ مجوز پذیرش ثبت شد.",
         );
-      },
-      "work",
-    );
+        return target;
+  };
+  const diagnose = () => {
+    let next: TechnicalScreen = "estimate";
+    return run("diagnosis", async () => {
+      const fresh = (await loadV2Workflow(caseId)).cases[0];
+      if (fresh.status === "diagnosing" || fresh.status === "qc_rework") {
+        const payload = {
+          assessment: draft.diagnosisAssessment,
+          description: draft.diagnosisDescription,
+          issues: [...draft.diagnosisIssues.split("\n"), draft.diagnosisIssue].map((line) => line.trim()).filter(Boolean),
+        };
+        await workflowV2Action({ action: "technical_diagnosis", caseId, ...payload,
+          lockVersion: fresh.lockVersion, idempotencyKey: keyFor("diagnosis", payload) });
+      }
+      if (stageDriven) {
+        if (draft.diagnosisDueDate) {
+          const promisedAt = new Date(`${draft.diagnosisDueDate}T${draft.diagnosisDueTime}:00+03:30`).toISOString().slice(0, 19).replace("T", " ");
+          if (fresh.promisedAt !== promisedAt) await workflowV2Action({ action: "update_promise", caseId, promisedAt, reason: "موعد برآورد عیب‌یابی" });
+        }
+        next = await persistEstimate() === "repairing" ? "work" : "overview";
+      }
+      delete keys.current.diagnosis;
+      change({ diagnosisAssessment: "", diagnosisDescription: "", diagnosisIssues: "", diagnosisIssue: "" });
+    }, () => next);
+  };
+  const estimate = () => {
+    let next: TechnicalScreen = "work";
+    return run("estimate", async () => {
+      const target = await persistEstimate();
+      if (stageDriven && target === "awaiting_customer_approval") next = "overview";
+    }, () => next);
+  };
   const saveManual = () =>
     run(
       "parts",
@@ -557,7 +597,7 @@ export function TechnicalCaseWorkspace({
           "درخواست ارجاع ثبت شد؛ تا پذیرش تحویل‌گیرنده مسئولیت تغییر نمی‌کند.",
         );
       },
-      home,
+      returnTo,
     );
   const upload = (file: File) =>
     run(
@@ -579,7 +619,7 @@ export function TechnicalCaseWorkspace({
         });
         notify("فایل به پرونده و گزارش بعدی متصل شد.");
       },
-      home,
+      returnTo,
     );
   const invoiceTotals = { part: 0, labor: 0, diagnostic: 0, other: 0 };
   for (const line of data?.invoice.items ?? []) {
@@ -743,12 +783,57 @@ export function TechnicalCaseWorkspace({
     if (item.isLocked) return "این پرونده بسته و فقط قابل مشاهده است.";
     return "";
   };
+  const stageNumber = item ? item.receiptPending ? 0 : ({
+    assigned: 0, reception: 0, awaiting_assignment: 0, diagnosing: 1, estimate_pending: 1,
+    awaiting_customer_approval: 2, repairing: 3, awaiting_parts: 3, qc_rework: 3,
+    parts_closeout: 5, qc_pending: 6, qc_conditional: 6, finance_pending: 7,
+    ready_for_delivery: 8, returned_unrepaired: 8, delivered: 8, closed: 8,
+  } as Record<string, number>)[item.status] ?? 0 : 0;
+  const progress = screen === "repaired" ? 4 : stageNumber;
+  const estimateInputs = <>
+    <div className="tech-form-grid">
+      <label htmlFor="technical-labor">مبلغ پیشنهادی اجرت
+        <MoneyInput id="technical-labor" required value={draft.labor} onChange={(labor) => change({ labor })} />
+      </label>
+      <label htmlFor="technical-diagnostic">هزینه عیب‌یابی، در صورت نیاز
+        <MoneyInput id="technical-diagnostic" value={draft.diagnostic} onChange={(diagnostic) => change({ diagnostic })} />
+      </label>
+    </div>
+    <label>توضیح هزینه، اختیاری<textarea rows={2} maxLength={4000} value={draft.estimateNote}
+      onChange={(event) => change({ estimateNote: event.target.value })} /></label>
+  </>;
   const canWrite = !!data?.permissions.activity,
     disabled = !!busy,
     pending = handovers.find((h) => h.status === "requested"),
     partsBlocked = !!item?.blockers.parts.length;
+  const stageRoot = !new URL(location.href).searchParams.has("techReturn");
   return (
     <article className="tech-case" aria-busy={disabled}>
+      {stageDriven ? <>
+        <header className="tech-v7-work-head">
+          <div className="tech-v7-device">
+            <span className="tech-v7-glyph"><Smartphone size={22} aria-hidden="true" /></span>
+            <div>
+              <h2 ref={heading} tabIndex={-1} dir="auto">{item?.deviceTitle ?? "در حال دریافت دستگاه…"}</h2>
+              <p>پذیرش <bdi>{item?.receiptNumber ?? caseId}</bdi>{item?.customerName && ` · ${item.customerName}`}</p>
+            </div>
+          </div>
+          <nav className="tech-v7-work-nav" aria-label="گام‌های پرونده">
+            <button data-tech-exit type="button" disabled={disabled} onClick={() =>
+              stageRoot ? onExit() : go(returnTo)
+            }>{stageRoot ? exitLabel : "بازگشت به میز کار"}</button>
+            {data && <button type="button" className="tech-v7-ghost" disabled={disabled} onClick={() => summary.current?.showModal()}>خلاصه پرونده</button>}
+            <button type="button" className="tech-v7-ghost" disabled={disabled} onClick={() => void run("refresh", async () => {})}>تازه‌سازی</button>
+          </nav>
+        </header>
+        {item && <div className="tech-v7-work-phase">
+          <span className="tech-v7-eyebrow">{item.technicianView.statusLabel}</span>
+          <span className="tech-v7-pill" data-priority={item.status === "qc_rework" ? "rework" : item.priority}>{item.status === "qc_rework" ? "بازکاری QC" : item.priority === "critical" ? "بسیار فوری" : item.priority === "urgent" ? "فوری" : "عادی"}</span>
+        </div>}
+        {item && <div role="progressbar" aria-label="پیشرفت پرونده" aria-valuemin={1} aria-valuemax={9} aria-valuenow={progress + 1} className="tech-v7-stepbar">
+          {Array.from({ length: 9 }, (_, step) => <span key={step} data-step={step < progress ? "done" : step === progress ? "current" : undefined} />)}
+        </div>}
+        </> : <>
       <div className="tech-page-nav">
         <button
           data-tech-exit
@@ -801,7 +886,8 @@ export function TechnicalCaseWorkspace({
           </>
         )}
       </header>
-      <p className="tech-save" role="status">
+      </>}
+      <p className={stageDriven && !disabled && saved === "ثبت شد" ? "tech-visually-hidden" : "tech-save"} role="status">
         {busy
           ? ["refresh", "history"].includes(busy)
             ? "در حال دریافت…"
@@ -813,6 +899,7 @@ export function TechnicalCaseWorkspace({
         <section className="tech-entry tech-receipt" aria-labelledby="device-receipt-heading">
           <h3 id="device-receipt-heading">تأیید دریافت دستگاه</h3>
           <dl className="tech-receipt-details">
+            {stageDriven && <div><dt>ایراد اولیه</dt><dd>{item.declaredIssue}</dd></div>}
             <div><dt>مشتری</dt><dd>{item.customerName}</dd></div>
             <div><dt>مسئول</dt><dd>{item.technicianName || "تعمیرکار تعمیرگاه"}</dd></div>
             <div><dt>سقف هزینه در پذیرش</dt><dd>{formatToman(item.preapprovedAmount)} تومان</dd></div>
@@ -822,16 +909,16 @@ export function TechnicalCaseWorkspace({
           {data.permissions.receive ? (
             <>
               <p>پس از تحویل فیزیکی دستگاه، دریافت آن را ثبت کنید.</p>
-              <button className="tech-primary" disabled={disabled} onClick={() => void run("receipt", async () => {
+              <div className={stageDriven ? "tech-v7-action-bar" : undefined}><button className="tech-primary" disabled={disabled} onClick={() => void run("receipt", async () => {
                 await workflowV2Action({
                   action: "technical_receive",
                   caseId,
                   lockVersion: item.lockVersion,
                   idempotencyKey: keyFor("receipt", { lockVersion: item.lockVersion }),
                 });
-              }, "work")}>
-                تأیید دریافت دستگاه
-              </button>
+              }, stageDriven ? "diagnosis" : "work")}>
+                {stageDriven ? "تأیید دریافت و شروع بررسی" : "تأیید دریافت دستگاه"}
+              </button></div>
             </>
           ) : <p role="status">منتظر تأیید دریافت توسط مسئول دستگاه</p>}
           {alert("receipt")}
@@ -889,7 +976,7 @@ export function TechnicalCaseWorkspace({
                     className="tech-primary"
                     disabled={disabled}
                     onClick={() =>
-                      void run("phase", () => transition("diagnosing"), "work")
+                      void run("phase", () => transition("diagnosing"), stageDriven ? "diagnosis" : "work")
                     }
                   >
                     شروع بررسی دستگاه
@@ -898,7 +985,7 @@ export function TechnicalCaseWorkspace({
                   <button
                     className="tech-primary"
                     disabled={disabled}
-                    onClick={() => go("work")}
+                    onClick={() => go("work", "overview")}
                   >
                     {canWrite
                       ? "ادامه کار روی دستگاه"
@@ -926,27 +1013,60 @@ export function TechnicalCaseWorkspace({
             </section>
           ) : null}
           {screen === "diagnosis" && <section className="tech-task">
-            <h3>عیب‌یابی دستگاه</h3>
-            <p>ایراد ثبت‌شده در پذیرش: {item.declaredIssue}</p>
+            <h3>{stageDriven ? "عیب‌یابی و برآورد" : "عیب‌یابی دستگاه"}</h3>
+            {stageDriven && <p className="tech-v7-description">ایرادهای تشخیص‌داده‌شده و برآورد را ثبت کنید.</p>}
+            <p className={stageDriven ? "tech-v7-callout" : undefined}>ایراد پذیرش · {item.declaredIssue}</p>
             <form onSubmit={(event) => { event.preventDefault(); void diagnose(); }}>
               <fieldset disabled={disabled}>
-                <label>نتیجه بررسی ایراد پذیرش<select required value={draft.diagnosisAssessment}
-                  onChange={(event) => change({ diagnosisAssessment: event.target.value })}>
-                  <option value="">انتخاب نتیجه</option><option value="confirmed">ایراد تأیید شد</option>
-                  <option value="not_reproduced">ایراد تکرار نشد</option><option value="undetermined">نیازمند بررسی بیشتر</option>
-                </select></label>
-                <label>شرح عیب‌یابی<textarea required maxLength={4000} value={draft.diagnosisDescription}
-                  onChange={(event) => change({ diagnosisDescription: event.target.value })} /></label>
-                <label>ایرادهای تازه، هر مورد در یک خط<textarea value={draft.diagnosisIssues} maxLength={4000}
-                  onChange={(event) => change({ diagnosisIssues: event.target.value })} /></label>
-                <button className="tech-primary" type="submit">ثبت عیب‌یابی و تنظیم برآورد</button>
+                {item.status !== "estimate_pending" && <>
+                  <label>نتیجه بررسی ایراد پذیرش<select required value={draft.diagnosisAssessment}
+                    onChange={(event) => change({ diagnosisAssessment: event.target.value })}>
+                    <option value="">انتخاب نتیجه</option><option value="confirmed">ایراد تأیید شد</option>
+                    <option value="not_reproduced">ایراد تکرار نشد</option><option value="undetermined">نیازمند بررسی بیشتر</option>
+                  </select></label>
+                  <label>شرح عیب‌یابی<textarea required maxLength={4000} rows={2} value={draft.diagnosisDescription}
+                    onChange={(event) => change({ diagnosisDescription: event.target.value })} /></label>
+                  {stageDriven ? <>
+                    {draft.diagnosisIssues.split("\n").filter(Boolean).map((issue, index, issues) => (
+                      <div key={index} className="tech-v7-row"><span>{issue}</span><button type="button" onClick={() => change({ diagnosisIssues: issues.filter((_, i) => i !== index).join("\n") })}>حذف</button></div>
+                    ))}
+                    <div className="tech-v7-composer">
+                      <input aria-label="شرح ایراد جدید" placeholder="شرح ایراد جدید" maxLength={300} value={draft.diagnosisIssue} onChange={(event) => change({ diagnosisIssue: event.target.value })} />
+                      <button type="button" disabled={!draft.diagnosisIssue.trim()} onClick={() => change({ diagnosisIssues: [draft.diagnosisIssues, draft.diagnosisIssue.trim()].filter(Boolean).join("\n"), diagnosisIssue: "" })}>افزودن ایراد</button>
+                    </div>
+                  </> : <label>ایرادهای تازه، هر مورد در یک خط<textarea value={draft.diagnosisIssues} maxLength={4000}
+                    onChange={(event) => change({ diagnosisIssues: event.target.value })} /></label>}
+                </>}
+                {stageDriven && <>
+                  {estimateInputs}
+                  <div className="tech-form-grid">
+                    <div><label>موعد برآوردی اتمام</label><PersianDatePicker ariaLabel="موعد برآوردی اتمام" value={draft.diagnosisDueDate} onChange={(diagnosisDueDate) => change({ diagnosisDueDate })} /></div>
+                    {draft.diagnosisDueDate && <label>ساعت موعد به وقت ایران<input required dir="ltr" type="time" value={draft.diagnosisDueTime} onChange={(event) => change({ diagnosisDueTime: event.target.value })} /></label>}
+                  </div>
+                </>}
+                <div className={stageDriven ? "tech-v7-action-bar" : undefined}>
+                  {stageDriven && <button type="button" onClick={() => go("work", "diagnosis")}>گزارش‌های پرونده</button>}
+                  <button className="tech-primary" type="submit">{stageDriven ? "ثبت برآورد و ادامه" : "ثبت عیب‌یابی و تنظیم برآورد"}</button>
+                </div>
               </fieldset>
             </form>
             {alert("diagnosis")}
           </section>}
           {screen === "work" ? (
             <section className="tech-work">
-              {canWrite && ["diagnosing", "qc_rework"].includes(item.status) && (
+              {stageDriven && <>
+                <h3>{item.status === "repairing" || item.status === "qc_rework" ? "عملیات تعمیر" : "گزارش‌های پرونده"}</h3>
+                <p className="tech-v7-description">اقدامات فنی و قطعات دستگاه</p>
+                <div className="tech-v7-callout tech-v7-row"><span>{data.cost.authorized ? "سقف هزینه تأییدشده" : "سقف هزینه در پذیرش"}</span>
+                  <strong>{formatToman(data.invoice.authorizedAmount)} تومان</strong>
+                </div>
+                <div className="tech-v7-row tech-v7-work-section">
+                  <h4>اقدامات انجام‌شده</h4>
+                  {canWrite && <button disabled={disabled} onClick={() => go("estimate", "work")}>افزایش برآورد</button>}
+                </div>
+                {timeline(true)}
+              </>}
+              {canWrite && (!stageDriven || data.reworkDestination === "diagnosing") && ["diagnosing", "qc_rework"].includes(item.status) && (
                 <button type="button" onClick={() => go("diagnosis", "work")}>{data.reworkDestination === "diagnosing" ? "شروع عیب‌یابی مجدد" : "ثبت نتیجهٔ عیب‌یابی"}</button>
               )}
               {canWrite ? (
@@ -957,7 +1077,7 @@ export function TechnicalCaseWorkspace({
                     void record();
                   }}
                 >
-                  <fieldset disabled={disabled}>
+                  <fieldset disabled={disabled} className={stageDriven ? "tech-v7-report-form" : undefined}>
                     {draft.correctionOf && (
                       <p>
                         گزارش اصلاحی برای شمارهٔ{" "}
@@ -972,7 +1092,7 @@ export function TechnicalCaseWorkspace({
                         </button>
                       </p>
                     )}
-                    <label htmlFor="technical-report">
+                    <label className={stageDriven ? "tech-visually-hidden" : undefined} htmlFor="technical-report">
                       گزارش اقدام انجام‌شده
                     </label>
                     <textarea
@@ -980,7 +1100,7 @@ export function TechnicalCaseWorkspace({
                       ref={composer}
                       required
                       maxLength={4000}
-                      rows={4}
+                      rows={stageDriven ? 2 : 4}
                       placeholder="چه کاری روی دستگاه انجام دادید؟"
                       value={draft.description}
                       onChange={(e) => change({ description: e.target.value })}
@@ -1015,16 +1135,26 @@ export function TechnicalCaseWorkspace({
                   نتیجهٔ ثبت‌شده: {data.report}
                 </p>
               )}
+              {stageDriven && <section className="tech-v7-work-section">
+                <h4>قطعات تعمیر</h4>
+                {data.parts.length ? <ul className="tech-v7-receipt-lines">{data.parts.map((part) =>
+                  <li key={part.sourceKey}><strong>{part.title}</strong><span>{Number(part.quantity).toLocaleString("fa-IR")} عدد · مصرف‌شده</span></li>)}</ul> : <p className="tech-v7-description">هنوز قطعه‌ای مصرف نشده است.</p>}
+                {item.blockers.parts.map((blocker) => <p key={blocker} className="tech-v7-description">{blocker}</p>)}
+                {data.permissions.parts && <div className="tech-v7-part-actions">
+                  {data.permissions.stock && <button type="button" disabled={disabled} onClick={() => { setSource("stock"); go("parts", "work"); }}>درخواست قطعه از انبار</button>}
+                  <button type="button" disabled={disabled} onClick={() => go("purchases", "work")}>قطعه خارج از انبار</button>
+                </div>}
+              </section>}
               <nav className="tech-tools" aria-label="ابزارهای دستگاه">
-                <button disabled={disabled} onClick={() => go("parts")}>
+                <button disabled={disabled} onClick={() => go("parts", "work")}>
                   قطعات
                 </button>
-                {canWrite && (
+                {canWrite && !stageDriven && (
                   <button disabled={disabled} onClick={() => go("estimate")}>
                     اعلام هزینه
                   </button>
                 )}
-                <button disabled={disabled} onClick={() => go("photos")}>
+                <button disabled={disabled} onClick={() => go("photos", "work")}>
                   افزودن عکس و مشاهده تصاویر
                 </button>
               </nav>
@@ -1042,37 +1172,38 @@ export function TechnicalCaseWorkspace({
                 </button>
               )}
               {canWrite && (
-                <div className="tech-outcome-actions">
+                <div className={stageDriven ? "tech-v7-action-bar" : "tech-outcome-actions"}>
                   {data.permissions.finish && (
-                    <button disabled={disabled} onClick={() => go("repaired")}>
-                      تعمیر شد
+                    <button className={stageDriven ? "tech-primary tech-v7-next" : undefined} aria-label="تعمیر شد" disabled={disabled} onClick={() => go("repaired", "work")}>
+                      {stageDriven ? "تعمیر شد، ادامه به فاکتور" : "تعمیر شد"}
                     </button>
                   )}
                   {(data.permissions.refer && operationsPolicy?.handover !== "disabled" && item.productProfile !== "solo") && (
                     <button
                       disabled={disabled || !!pending}
-                      onClick={() => go("refer")}
+                      onClick={() => go("refer", "work")}
                     >
                       ارجاع به تکنسین دیگر
                     </button>
                   )}
                   {data.permissions.finish && (
                     <button
+                      className={stageDriven ? "tech-v7-danger" : undefined}
                       disabled={disabled}
-                      onClick={() => go("unrepaired")}
+                      onClick={() => go("unrepaired", "work")}
                     >
                       اعلام عدم امکان تعمیر
                     </button>
                   )}
                 </div>
               )}
-              <h3>گزارش‌های ثبت‌شده</h3>
-              {timeline(true)}
+              {!stageDriven && <><h3>گزارش‌های ثبت‌شده</h3>{timeline(true)}</>}
             </section>
           ) : null}
           {screen === "parts" ? (
             <section className="tech-task">
               <h3>{titles.parts}</h3>
+              {stageDriven && stageRoot && canWrite && <button type="button" disabled={disabled} onClick={() => go("work", "parts")}>گزارش‌های پرونده</button>}
               <button type="button" onClick={() => go("purchases", "parts")}>خرید خارج از انبار</button>
               <TechnicianPartsPage
                 caseId={caseId}
@@ -1127,34 +1258,7 @@ export function TechnicalCaseWorkspace({
                   }}
                 >
                   <fieldset disabled={disabled}>
-                    <label htmlFor="technical-labor">
-                      مبلغ پیشنهادی اجرت
-                      <MoneyInput
-                        id="technical-labor"
-                        required
-                        value={draft.labor}
-                        onChange={(labor) => change({ labor })}
-                      />
-                    </label>
-                    <label htmlFor="technical-diagnostic">
-                      هزینه عیب‌یابی، در صورت نیاز
-                      <MoneyInput
-                        id="technical-diagnostic"
-                        value={draft.diagnostic}
-                        onChange={(diagnostic) => change({ diagnostic })}
-                      />
-                    </label>
-                    <label>
-                      توضیح هزینه، اختیاری
-                      <textarea
-                        rows={2}
-                        maxLength={4000}
-                        value={draft.estimateNote}
-                        onChange={(e) =>
-                          change({ estimateNote: e.target.value })
-                        }
-                      />
-                    </label>
+                    {estimateInputs}
                     <p className="tech-hint">
                       برای تعمیر رایگان صفر وارد کنید. بالاتر از سقف، پاسخ مستند
                       مشتری باید با نقش مجاز ثبت شود.
@@ -1496,6 +1600,23 @@ export function TechnicalCaseWorkspace({
       ) : (
         <p role="status">در حال دریافت پرونده…</p>
       )}
+      {stageDriven && item && data && <dialog className="tech-handover-dialog tech-v7-summary-dialog" ref={summary} aria-labelledby="tech-v7-summary-title">
+        <header className="tech-v7-dialog-header">
+          <h2 id="tech-v7-summary-title">خلاصه عملیاتی پرونده</h2>
+          <button type="button" className="tech-v7-ghost" aria-label="بستن خلاصه" onClick={() => summary.current?.close()}><X size={20} aria-hidden="true" /></button>
+        </header>
+        <div className="tech-v7-callout"><strong>{item.deviceTitle}</strong> · <bdi>{item.receiptNumber}</bdi><p>{item.technicianView.statusLabel}</p></div>
+        <dl className="tech-v7-summary-grid">
+          <div><dt>مسئول پرونده</dt><dd>{item.technicianName || "تخصیص داده نشده"}</dd></div>
+          <div><dt>موعد برآوردی</dt><dd>{date(item.promisedAt)}</dd></div>
+          <div><dt>مبلغ دارای مجوز</dt><dd>{formatToman(data.invoice.authorizedAmount)} تومان</dd></div>
+          <div><dt>آخرین کنترل کیفیت</dt><dd>{data.summary?.qcResult ?? "انجام نشده"}</dd></div>
+        </dl>
+        <section className="tech-v7-summary-section"><h4>ایراد اعلام‌شده در پذیرش</h4><p>{item.declaredIssue}</p>{data.receptionNotes && <p>{data.receptionNotes}</p>}</section>
+        <section className="tech-v7-summary-section"><h4>ایرادهای تشخیص‌داده‌شده</h4>{data.summary?.diagnosedIssues.length ? <ul>{data.summary.diagnosedIssues.map((issue, i) => <li key={i}>{issue}</li>)}</ul> : <p>ایراد جدیدی ثبت نشده است.</p>}</section>
+        <section className="tech-v7-summary-section"><h4>عملیات فنی</h4>{data.activities.activities.length ? <ul>{data.activities.activities.map((activity) => <li key={activity.id}>{activity.description} · {activity.actorName}</li>)}</ul> : <p>هنوز اقدامی ثبت نشده است.</p>}</section>
+        <section className="tech-v7-summary-section"><h4>قطعات و تعهدات</h4>{data.parts.length ? <ul>{data.parts.map((part) => <li key={part.sourceKey}>{part.title} · {Number(part.quantity).toLocaleString("fa-IR")} عدد</li>)}</ul> : <p>قطعه‌ای مصرف نشده است.</p>}{item.blockers.parts.map((blocker) => <p key={blocker}>{blocker}</p>)}</section>
+      </dialog>}
     </article>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, RefreshCw, Smartphone, X } from "lucide-react";
 import type { WorkspaceProfile } from "./access";
 import type { RepairCaseRecord, RepairCaseStatus } from "./operations";
 import {
@@ -16,9 +17,11 @@ import {
 import { TechnicalCaseWorkspace } from "./technical-case-workspace";
 import {
   technicalCaseFromLocation,
+  technicalStageScreen,
   writeTechnicalLocation,
 } from "./technician-navigation";
 import "./technician-workspace.css";
+import "./technician-v7.css";
 type Props = {
   profile: WorkspaceProfile;
   legacyCases: RepairCaseRecord[];
@@ -103,10 +106,8 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
     if (selectedId && !technicalCaseFromLocation())
       writeTechnicalLocation(selectedId, "overview", undefined, true);
   }, [selectedId]);
-  const open = (id: number) => {
-    const item = cases.find((entry) => entry.id === id);
-    const overview = !item || item.receiptPending || ["assigned", "reception", "awaiting_assignment"].includes(item.status);
-    writeTechnicalLocation(id, overview ? "overview" : "work");
+  const open = (id: number, item = cases.find((entry) => entry.id === id)) => {
+    writeTechnicalLocation(id, technicalStageScreen(item));
     setSelectedId(id);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
@@ -158,7 +159,8 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
       void reload().catch(() => {});
       if (decision === "accept") {
         notify("مسئولیت دستگاه دریافت شد.");
-        open(handover.case_id);
+        const fresh = await loadV2Workflow(handover.case_id).catch(() => undefined);
+        open(handover.case_id, fresh?.cases[0]);
       } else {
         notify("مغایرت برای بررسی مدیر ثبت شد.");
       }
@@ -176,15 +178,18 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
   const incoming = handovers.filter(
     (h) => h.to_user_id === profile.actorId && h.status === "requested",
   );
-  const groups = [
-    { key: "all", label: "همه" },
-    { key: "action_required", label: "در دست اقدام" },
-    { key: "waiting", label: "منتظر" },
-    { key: "completed", label: "پایان‌یافته" },
+  const stats = [
+    { key: "receive", label: "دریافت جدید", count: cases.filter((c) => c.receiptPending).length + incoming.length },
+    { key: "action_required", label: "در حال اقدام", count: cases.filter((c) => !c.receiptPending && c.technicianView.group === "action_required" && c.status !== "qc_rework").length },
+    { key: "waiting", label: "در انتظار", count: cases.filter((c) => !c.receiptPending && c.technicianView.group === "waiting").length },
+    { key: "rework", label: "بازکاری QC", count: cases.filter((c) => c.status === "qc_rework").length },
   ];
-  const visible = cases.filter(
-    (c) => group === "all" || c.technicianView.group === group,
-  ).sort((a, b) => b.technicianView.priority - a.technicianView.priority ||
+  const visible = cases.filter((c) => {
+    if (group === "all") return c.technicianView.group !== "completed";
+    if (group === "receive") return !!c.receiptPending;
+    if (group === "rework") return c.status === "qc_rework";
+    return !c.receiptPending && c.technicianView.group === group && (group !== "action_required" || c.status !== "qc_rework");
+  }).sort((a, b) => b.technicianView.priority - a.technicianView.priority ||
     (a.promisedAt ?? "9999").localeCompare(b.promisedAt ?? "9999"));
   const numbers = new Intl.NumberFormat("fa-IR");
   const day = new Intl.DateTimeFormat("fa-IR-u-ca-persian", { dateStyle: "medium", timeZone: "Asia/Tehran" });
@@ -195,12 +200,13 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
     return elapsed >= 60 ? `${numbers.format(Math.floor(elapsed / 60))} ساعت` : `${numbers.format(elapsed)} دقیقه`;
   };
   return (
-    <div className="technical-desk" dir="rtl">
+    <div className="technical-desk tech-v7" dir="rtl">
       {selectedId ? (
         <>
           <TechnicalCaseWorkspace
             key={`${profile.actorId}:${selectedId}`}
             caseId={selectedId}
+            stageDriven
             initial={cases.find((c) => c.id === selectedId)}
             actorId={profile.actorId}
             notify={notify}
@@ -229,24 +235,23 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
         <>
           <header className="tech-list-heading">
             <div>
-              <h2 ref={heading} tabIndex={-1}>
-                دستگاه‌های من
-              </h2>
-              <p>دستگاه را انتخاب کنید و کار را ادامه دهید.</p>
+              <p className="tech-v7-eyebrow">کارتابل اختصاصی</p>
+              <h2 ref={heading} tabIndex={-1}>میز کار {profile.displayName}</h2>
+              <p>پرونده‌های نیازمند اقدام شما</p>
             </div>
-            <button
-              disabled={loading || busy}
-              onClick={() => void reload().catch(() => {})}
-            >
-              تازه‌سازی
+            <button type="button" disabled={loading || busy} onClick={() => void reload().catch(() => {})}>
+              <RefreshCw size={16} aria-hidden="true" /> تازه‌سازی
             </button>
           </header>
-          {error && (
-            <p role="alert" className="tech-error">
-              {error}
-            </p>
-          )}
-          {!!incoming.length && (
+          {error && <p role="alert" className="tech-error">{error}</p>}
+          <nav aria-label="وضعیت پرونده‌ها" className="tech-v7-stats">
+            {stats.map(({ key, label, count }) => (
+              <button key={key} type="button" aria-pressed={group === key} onClick={() => setGroup(group === key ? "all" : key)}>
+                <span>{label}</span><strong>{numbers.format(count)}</strong>
+              </button>
+            ))}
+          </nav>
+          {!!incoming.length && ["all", "receive"].includes(group) && (
             <section className="tech-incoming">
               <h3>ارجاع‌های منتظر دریافت</h3>
               <ul className="tech-plain-list">
@@ -271,62 +276,54 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
               </ul>
             </section>
           )}
-          <label className="tech-search">
-            جستجوی دستگاه
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="شماره پرونده، مدل یا سریال"
-            />
-          </label>
-          <nav className="tech-list-filters" aria-label="فیلتر دستگاه‌ها">
-            {groups.map((g) => (
-              <button
-                key={g.key}
-                aria-pressed={group === g.key}
-                onClick={() => setGroup(g.key)}
-              >
-                {g.label}{" "}
-                <span>
-                  {(g.key === "all"
-                    ? cases.length
-                    : cases.filter((c) => c.technicianView.group === g.key)
-                        .length
-                  ).toLocaleString("fa-IR")}
-                </span>
-              </button>
-            ))}
-          </nav>
+          <div className="tech-v7-queue-head">
+            <h3>صف پرونده‌ها</h3>
+            <button type="button" className="tech-v7-ghost" onClick={() => { setGroup("all"); setQuery(""); }}>همه</button>
+          </div>
+          <div className="tech-v7-toolbar">
+            <input aria-label="جستجوی دستگاه" value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder="جست‌وجوی دستگاه، مشتری یا پذیرش" />
+            <select aria-label="فیلتر دستگاه‌ها" value={group} onChange={(e) => setGroup(e.target.value)}>
+              <option value="all">همهٔ پرونده‌های فعال</option>
+              {stats.map(({ key, label }) => <option key={key} value={key}>{label}</option>)}
+              <option value="completed">پایان‌یافته</option>
+            </select>
+          </div>
           {loading && !cases.length ? (
             <p role="status">در حال دریافت دستگاه‌ها…</p>
           ) : (
             <ul className="tech-device-list">
               {visible.map((c) => (
-                <li key={c.id}>
+                <li key={c.id} data-rework={c.status === "qc_rework" || undefined}>
                   <button
                     disabled={busy || loading}
                     onClick={() => open(c.id)}
                     aria-label={`بازکردن پرونده ${c.receiptNumber}`}
                   >
-                    <div className="tech-card-badges">
-                      <span>{c.technicianView.flags.includes("qc_rework") ? "بازکاری QC" : c.priority === "critical" ? "بسیار فوری" : c.technicianView.flags.includes("sla_overdue") ? "موعد گذشته" : c.priority === "urgent" ? "فوری" : "عادی"}</span>
-                      <span>{c.technicianView.statusLabel}</span>
-                    </div>
-                    <strong>{c.deviceTitle}</strong>
-                    <div className="tech-card-reference"><bdi>{c.receiptNumber}</bdi><span>{c.customerName}</span></div>
-                    <p>{c.declaredIssue}</p>
-                    <div className="tech-card-timing">
-                      <span>موعد: {c.promisedAt && Number.isFinite(fromServer(c.promisedAt).getTime()) ? day.format(fromServer(c.promisedAt)) : "تعیین نشده"}</span>
-                      {c.waitStartedAt && <span>انتظار: {waitLabel(c.waitStartedAt)}</span>}
-                    </div>
-                    <span className="tech-card-next">{c.technicianView.primaryAction?.label ?? "مشاهده پرونده"} ←</span>
+                    <span className="tech-v7-card-top">
+                      <span className="tech-v7-pill" data-priority={c.status === "qc_rework" ? "rework" : c.priority}>{c.status === "qc_rework" ? "بازکاری QC" : c.priority === "critical" ? "بسیار فوری" : c.priority === "urgent" ? "فوری" : "عادی"}</span>
+                      <bdi>{c.receiptNumber}</bdi>
+                    </span>
+                    <span className="tech-v7-device">
+                      <span className="tech-v7-glyph"><Smartphone size={22} aria-hidden="true" /></span>
+                      <span><strong dir="auto">{c.deviceTitle}</strong><span>{c.customerName}</span></span>
+                    </span>
+                    <span className="tech-v7-card-issue">{c.declaredIssue}</span>
+                    <span className="tech-v7-card-meta">
+                      <span>{c.technicianName || "بدون مسئول"}{c.waitStartedAt ? ` · ${waitLabel(c.waitStartedAt)}` : ""}</span>
+                      <span>{c.promisedAt && Number.isFinite(fromServer(c.promisedAt).getTime()) ? day.format(fromServer(c.promisedAt)) : "موعد تعیین نشده"}</span>
+                    </span>
+                    <span className="tech-v7-card-foot">
+                      <span className="tech-v7-pill tech-v7-stage-pill">{c.technicianView.statusLabel}</span>
+                      <span className="tech-v7-card-open">باز کردن <ArrowLeft size={15} aria-hidden="true" /></span>
+                    </span>
                   </button>
                 </li>
               ))}
             </ul>
           )}
           {!loading && !visible.length && (
-            <p className="tech-hint">دستگاهی در این فهرست نیست.</p>
+            <p className="tech-v7-empty">دستگاهی در این فهرست نیست.</p>
           )}
         </>
       )}
@@ -338,23 +335,32 @@ export function TechnicianWorkbench({ profile, notify, onNavigate }: Props) {
         onClose={() => setReview(null)}
       >
         {review && <>
-          <h2 id="tech-handover-title" tabIndex={-1}>رسید ارجاع دستگاه</h2>
-          <HandoverSummary details={review.details} itemCheck={itemCheck} />
-          {reviewError && <p className="tech-error" role="alert">{reviewError}</p>}
-          {review.details.discrepancy && <p role="status">
-            {review.details.discrepancy.resolvedAt ? `نتیجهٔ بررسی مدیر: ${review.details.discrepancy.resolution}` : `مغایرت در انتظار بررسی مدیر: ${review.details.discrepancy.reason}`}
-          </p>}
-          {confirming && (
-            reporting ? <form onSubmit={(event) => { event.preventDefault(); void decide("report_discrepancy"); }}>
-              <label>شرح مغایرت<textarea required maxLength={1000} value={discrepancyReason}
-                onChange={(event) => setDiscrepancyReason(event.target.value)} /></label>
-              <button type="submit" disabled={busy || !discrepancyReason.trim()}>ثبت مغایرت</button>
-            </form> : <div className="tech-handover-actions">
-              <button type="button" disabled={busy || checked.length !== checklist.length} onClick={() => void decide("accept")}>تأیید دریافت و انتقال مسئولیت</button>
-              <button type="button" disabled={busy} onClick={() => setReporting(true)}>گزارش مغایرت</button>
-            </div>
-          )}
-          <button type="button" disabled={busy} onClick={() => dialog.current?.close()}>بستن رسید</button>
+          <header className="tech-v7-dialog-header">
+            <h2 id="tech-handover-title" tabIndex={-1}>رسید ارجاع دستگاه</h2>
+            <button type="button" className="tech-v7-ghost" aria-label="بستن رسید" disabled={busy} onClick={() => dialog.current?.close()}><X size={20} aria-hidden="true" /></button>
+          </header>
+          <div className="tech-v7-receipt-panel">
+            <h3>رسید دریافت دستگاه ارجاعی</h3>
+            <p className="tech-v7-description">تمام اقلام و تعهدات را با تحویل فیزیکی تطبیق دهید.</p>
+            <HandoverSummary details={review.details} itemCheck={itemCheck} />
+            {reviewError && <p className="tech-error" role="alert">{reviewError}</p>}
+            {review.details.discrepancy && <p role="status">
+              {review.details.discrepancy.resolvedAt ? `نتیجهٔ بررسی مدیر: ${review.details.discrepancy.resolution}` : `مغایرت در انتظار بررسی مدیر: ${review.details.discrepancy.reason}`}
+            </p>}
+            {confirming && (
+              reporting ? <form onSubmit={(event) => { event.preventDefault(); void decide("report_discrepancy"); }}>
+                <label>شرح مغایرت<textarea required maxLength={1000} value={discrepancyReason}
+                  onChange={(event) => setDiscrepancyReason(event.target.value)} /></label>
+                <div className="tech-v7-action-bar">
+                  <button type="button" disabled={busy} onClick={() => setReporting(false)}>بازگشت</button>
+                  <button className="tech-primary" type="submit" disabled={busy || !discrepancyReason.trim()}>ثبت مغایرت</button>
+                </div>
+              </form> : <div className="tech-v7-action-bar">
+                <button className="tech-v7-danger" type="button" disabled={busy} onClick={() => setReporting(true)}>گزارش مغایرت</button>
+                <button className="tech-primary" type="button" disabled={busy || checked.length !== checklist.length} onClick={() => void decide("accept")}>تأیید دریافت و انتقال مسئولیت</button>
+              </div>
+            )}
+          </div>
         </>}
       </dialog>
     </div>
@@ -371,11 +377,18 @@ function HandoverSummary({ details, itemCheck }: { details: V2HandoverReceipt; i
     settle_before_handover: "تعیین تکلیف پیش از انتقال",
   };
   return <>
-    <p>{receipt.deviceTitle} · <bdi>{receipt.receiptNumber}</bdi>{receipt.identifier && <> · <bdi>{receipt.identifier}</bdi></>}</p>
-    <p>{receipt.fromName} ← {receipt.toName}</p>
-    <p>{receipt.reason}</p>
-    <p><strong>لوازم همراه</strong> {receipt.accessories.length ? receipt.accessories.join("، ") : "موردی ثبت نشده"}</p>
-    {itemCheck("device", "دستگاه و لوازم همراه را تحویل گرفتم")}
+    <div className="tech-v7-callout">
+      <strong>{receipt.deviceTitle}</strong> · <bdi>{receipt.receiptNumber}</bdi>
+      <p>از {receipt.fromName} · {receipt.reason}</p>
+    </div>
+    <h4>عملیات انجام‌شده</h4>
+    {receipt.activities?.length ? <ul className="tech-v7-receipt-lines">{receipt.activities.map((entry) => <li key={entry.id}>{entry.text}</li>)}</ul>
+      : <p className="tech-v7-description">عملیاتی ثبت نشده است.</p>}
+    <h4>اقلام تحویلی</h4>
+    <div className="tech-v7-receipt-line">
+      {itemCheck("device", "دستگاه و لوازم همراه را تحویل گرفتم")}
+      <small>لوازم همراه · {receipt.accessories.length ? receipt.accessories.join("، ") : "موردی ثبت نشده"}</small>
+    </div>
     <HandoverItems title="قطعات باز" policy={dispositions[receipt.partsDisposition]} rows={receipt.partIssues} itemCheck={itemCheck} />
     <HandoverItems title="قطعات مصرف‌شده" rows={receipt.installedParts} itemCheck={itemCheck} />
     <HandoverItems title="داغی‌های باز" policy={dispositions[receipt.hotReturnsDisposition]} rows={receipt.hotReturns} itemCheck={itemCheck} />
@@ -392,9 +405,10 @@ function HandoverItems({ title, policy, rows, itemCheck }: { title: string; poli
     waiting_review: "در انتظار بررسی",
     rejected: "رد شده و نیازمند پیگیری",
   };
+  if (!rows.length) return null;
   return <section>
-    <h3>{title}</h3>
-    {rows.length ? <>{policy && <p>{policy}</p>}<ul>{rows.map((item) => <li key={item.publicId}>
+    <h4>{title}</h4>
+    {rows.length ? <>{policy && <p>{policy}</p>}<ul className="tech-v7-receipt-lines">{rows.map((item) => <li key={item.publicId}>
       {item.title} · {item.quantity.toLocaleString("fa-IR")} عدد · {statuses[item.status] ?? "در حال پیگیری"}
       {itemCheck(item.publicId, `تطبیق ${item.title}`)}
     </li>)}</ul></> : <p>موردی ندارد.</p>}

@@ -324,6 +324,9 @@ function workflow_v2_handover_snapshot(PDO $pdo, array $scope, array $handover, 
         technician_billable_parts($pdo, (int)$case['case_id'])
     );
     $accessories = json_decode((string)$case['accessories_json'], true);
+    $activity = $pdo->prepare("SELECT id,description AS text FROM repair_case_events
+        WHERE case_id=:case AND event_type='technical_activity' ORDER BY id DESC LIMIT 8");
+    $activity->execute(['case'=>$case['case_id']]);
     return [
         'publicId'=>$handover['public_id'],
         'receiptNumber'=>$handover['receipt_number'],
@@ -334,6 +337,7 @@ function workflow_v2_handover_snapshot(PDO $pdo, array $scope, array $handover, 
         'reason'=>$handover['reason'],
         'accessories'=>is_array($accessories)?array_values($accessories):[],
         'partIssues'=>$rows($outstanding),
+        'activities'=>$activity->fetchAll(),
         'installedParts'=>$installed,
         'hotReturns'=>$rows($hot->fetchAll(PDO::FETCH_NUM)),
         'partsDisposition'=>$assets['partsDisposition'] ?? '',
