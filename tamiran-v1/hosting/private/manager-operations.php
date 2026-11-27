@@ -328,7 +328,8 @@ function manager_report_sources():array
         JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id
         WHERE $scope AND e.event_type='technical_finish' AND e.created_at>=:from AND e.created_at<:to
         AND NOT EXISTS(SELECT 1 FROM repair_case_events later WHERE later.case_id=e.case_id AND later.event_type='technical_finish' AND later.id>e.id)";
-    $initialDue="(SELECT CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(initial.metadata_json,'$.promisedAt')),'null') AS DATETIME)
+    // Keep NULLIF's result textual before MySQL converts the stored UTC deadline.
+    $initialDue="(SELECT CAST(CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(initial.metadata_json,'$.promisedAt')),'null') AS CHAR) AS DATETIME)
         FROM repair_case_stage_events initial WHERE initial.workflow_id=w.id AND initial.from_status IS NULL ORDER BY initial.id LIMIT 1)";
     return [
         'active'=>["SELECT w.case_id,w.primary_technician_user_id AS user_id FROM repair_case_workflows w

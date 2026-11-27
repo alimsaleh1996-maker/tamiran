@@ -778,7 +778,7 @@ def check_operations_browser(log,url,manager,tech,case,diagnostic,completion,fol
         log.check('manager browser loads verified metrics',lambda:browser_expect(page.locator('meter').first).to_be_visible())
         page.get_by_role('button',name=re.compile('ارجاع اولیه در بازه')).first.click()
         log.check('manager can expand the metric case list',lambda:browser_expect(
-            page.get_by_role('region',name='ریز پرونده‌های ارجاع اولیه در بازه',exact=True)).to_be_visible())
+            page.get_by_role('region',name='ریز شاخص ارجاع اولیه در بازه',exact=True)).to_be_visible())
         page.screenshot(path=str(output/'performance-desktop.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':900})
         page.wait_for_function('document.documentElement.scrollWidth <= innerWidth + 1')
