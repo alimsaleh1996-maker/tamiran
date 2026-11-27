@@ -1,3 +1,7 @@
+## ارتقای 1.0.0-rc.15 به 1.0.0-rc.16
+
+پس از تهیهٔ پشتیبان قابل بازیابی و توقف نوشتن برنامه، هش Migration را با Manifest تطبیق دهید و `private/database/migrations/2.0.0-beta.8-device-identifiers.sql` را روی دیتابیس مقصد اجرا کنید. اجرای دوبارهٔ Migration مجاز است. `private/database/schema.sql` برای نصب تازه است. پس از جایگزینی فایل‌ها و بازبارگذاری PHP، `build_verified` و `schema_compatible` را در `/api/health.php` بررسی کنید.
+
 ## ارتقای 1.0.0-rc.14 به 1.0.0-rc.15
 
 پس از تهیه و تأیید پشتیبان، هش‌های بسته را بررسی کنید و `tamiran-1.0.0-rc.15-update-from-rc.14.zip` را در پوشهٔ والد `public_html/` و `private/` اعمال کنید. این ارتقا Migration ندارد. پس از بازبارگذاری PHP/OPcache، نسخهٔ دو مؤلفه، وضعیت `build_verified` و `schema_compatible` و هش Manifest را در `/api/health.php` با فایل همراه بسته تطبیق دهید.

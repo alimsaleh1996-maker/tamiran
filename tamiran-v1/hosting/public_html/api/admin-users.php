@@ -123,7 +123,7 @@ function shop_user_permission_catalog(): array
         'delivery.view'=>'مشاهده تحویل', 'delivery.complete'=>'ثبت تحویل',
         'part.request'=>'درخواست قطعه', 'inventory.issue'=>'تحویل قطعه',
         'inventory.request.decide'=>'تأیید درخواست قطعه', 'inventory.reserve'=>'رزرو قطعه',
-        'inventory.control.view'=>'مشاهده کنترل انبار', 'inventory.adjustment.create'=>'اصلاح موجودی',
+        'inventory.catalog.create'=>'تعریف قطعه از داخل پرونده', 'inventory.control.view'=>'مشاهده کنترل انبار', 'inventory.adjustment.create'=>'اصلاح موجودی',
         'inventory.stocktake.create'=>'ایجاد انبارگردانی', 'inventory.stocktake.count'=>'شمارش انبار',
         'procurement.view'=>'مشاهده خرید', 'procurement.create'=>'ایجاد خرید',
         'procurement.receive'=>'دریافت خرید', 'procurement.supplier.manage'=>'مدیریت تأمین‌کنندگان',
@@ -241,6 +241,9 @@ function shop_user_request(PDO $pdo, array $actor): array
             foreach ($permissions as $permission) if (!is_string($permission) || !array_key_exists($permission, shop_user_permission_catalog()))
                 throw new TamiranApiException('دسترسی انتخاب‌شده قابل واگذاری نیست.', 403);
             $permissions = array_values(array_unique($permissions));
+            if ($role!=='technician' && in_array('inventory.catalog.create',$permissions,true)) {
+                throw new TamiranApiException('این مجوز فقط به تکنسین تفویض می‌شود.',422);
+            }
         }
         if ($current !== null && $role !== $current['role_code'] && $permissions === null) $permissions = [];
         $name = admin_user_display_name($input['displayName'] ?? $current['display_name'] ?? '');

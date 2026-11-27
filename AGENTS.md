@@ -59,3 +59,10 @@ Latest ECC review: `docs/reports/worker/2026-10-21-ecc-review.md`.
 - The default `tooling` profile does not authorize application-code edits. Select `frontend-static` or `backend-local` for the appropriate scope and report unexecuted browser/HTTP/hosted checks honestly. A blocked review or failed check is not completion.
 - The `organization` profile covers documentation relocation and the scoped graph viewer; it includes checksums and offline browser checks. The existing checkout's Ruflo policy ledger reported `policy-anchor-log-missing` / `policy-ledger-truncated` during organization. Restore original ledger files from a trustworthy backup before claiming its task coordination works; do not reset trust state or fabricate completion.
 - Generated `.ruflo/` and `.claude-flow/` state stays ignored. The runner inherits model and permission settings, preserves the frozen reference, stops on failures, and does not commit, push, deploy or enable scheduled jobs. The parent session retains the user's standing GitHub publishing authorization after verification.
+
+## Scoped stabilization tasks
+
+- Start with targeted Graphify queries and read only the relevant source. Reuse existing analysis and update the graph incrementally.
+- Apply skills selectively. Reopen confirmed fixes only for a documented regression.
+- Run focused tests and necessary regression checks for sensitive paths. Leave the full suite and installation packages to the release gate.
+- Keep reports short, record verifiable evidence in a file, and stop when the scoped acceptance criteria are met.

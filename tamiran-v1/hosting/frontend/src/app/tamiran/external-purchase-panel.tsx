@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { MoneyInput, formatToman } from "./money-input";
 import { changeExternalPurchase, loadExternalPurchases, searchExternalCatalog, workflowV2Action, type ExternalPurchase, type ExternalPurchasePayload } from "./v2-api";
 
@@ -30,6 +30,7 @@ export function ExternalPurchasePanel({ caseId, actorId, canWrite = true, onChan
   const [disposal, setDisposal] = useState<Record<string, string>>({});
   const [newItem, setNewItem] = useState({ code: "", title: "", category: "", salePrice: "" });
   const [newItemOpen, setNewItemOpen] = useState(false);
+  const categoryLabel = useId();
   const [message, setMessage] = useState("");
   const [note, setNote] = useState<Record<string, string>>({});
   const request = useRef({ key: "", signature: "" });
@@ -75,11 +76,11 @@ export function ExternalPurchasePanel({ caseId, actorId, canWrite = true, onChan
     setError("");
     setMessage("");
     try {
-      const result = await workflowV2Action({ action: "external_catalog_add", ...newItem, salePrice: Number(newItem.salePrice || 0) });
+      const result = await workflowV2Action({ action: "external_catalog_add", caseId, ...newItem, salePrice: Number(newItem.salePrice || 0) });
       setNewItem({ code: "", title: "", category: "", salePrice: "" });
       setNewItemOpen(false);
       setGeneration((value) => value + 1);
-      if (caseId) { setSearch(""); setSelection({ id: Number(result.id), title: newItem.title, code: newItem.code, salePrice: Number(newItem.salePrice || 0) }); }
+      if (caseId) { setSearch(""); setSelection({ id: Number(result.id), title: newItem.title, code: newItem.code, salePrice: Number(result.salePrice ?? 0) }); }
       setMessage(result.created ? "کالا به بانک قطعات اضافه شد." : "کالا از قبل در بانک قطعات ثبت شده است.");
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "تعریف کالا انجام نشد.");
@@ -108,8 +109,14 @@ export function ExternalPurchasePanel({ caseId, actorId, canWrite = true, onChan
       {newItemOpen && <form onSubmit={(event) => { event.preventDefault(); void addCatalog(); }} className="tech-form-grid">
         <label>کد کالا<input required maxLength={80} value={newItem.code} onChange={(event) => setNewItem({ ...newItem, code: event.target.value })} /></label>
         <label>نام کالا<input required maxLength={180} value={newItem.title} onChange={(event) => setNewItem({ ...newItem, title: event.target.value })} /></label>
-        <label>دسته‌بندی<input maxLength={120} value={newItem.category} onChange={(event) => setNewItem({ ...newItem, category: event.target.value })} /></label>
-        <label>قیمت فروش واحد<MoneyInput value={newItem.salePrice} onChange={(salePrice) => setNewItem({ ...newItem, salePrice })} /></label>
+        <label><span id={categoryLabel}>دسته‌بندی</span>
+          {data.canPriceCatalog ? <input aria-labelledby={categoryLabel} maxLength={120} value={newItem.category} onChange={(event) => setNewItem({ ...newItem, category: event.target.value })} />
+            : <select aria-labelledby={categoryLabel} value={newItem.category} onChange={(event) => setNewItem({ ...newItem, category: event.target.value })}>
+              <option value="">بدون دسته‌بندی</option>
+              {data.catalogCategories.map(category => <option key={category} value={category}>{category}</option>)}
+            </select>}
+        </label>
+        {data.canPriceCatalog && <label>قیمت فروش واحد<MoneyInput value={newItem.salePrice} onChange={(salePrice) => setNewItem({ ...newItem, salePrice })} /></label>}
         <button type="submit" disabled={busy}>ثبت کالا در بانک قطعات</button>
       </form>}
     </>}

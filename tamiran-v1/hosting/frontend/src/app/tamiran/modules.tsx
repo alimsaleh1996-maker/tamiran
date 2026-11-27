@@ -61,6 +61,7 @@ import "./iteration-six.css";
 import { CustomerAddress } from "./customer-address";
 import { CatalogImport } from "./catalog-import";
 import "./reception-identity.css";
+import { normalizeImei, imeiError } from "./device-identity";
 import { ShopUserManagement } from "./shop-users";
 import type { WorkspaceProfile } from "./access";
 import { displayDeviceType, type DeviceCatalogItem } from "./catalog";
@@ -830,6 +831,9 @@ function ReceptionPage({
     })));
   const [receptionNotes, setReceptionNotes] = useState("");
   const [identifier, setIdentifier] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
+  const [imei, setImei] = useState("");
+  const [imeiTouched, setImeiTouched] = useState(false);
   const [identifierUnavailable, setIdentifierUnavailable] = useState(false);
   const [identifierUnavailableReason, setIdentifierUnavailableReason] = useState("");
   const [identifierUnavailableNote, setIdentifierUnavailableNote] = useState("");
@@ -894,6 +898,12 @@ function ReceptionPage({
     );
   if (!configuredFields.some((field) => field.label === "IMEI" || field.label.includes("سریال") || ["پلاک", "شناسه"].includes(field.label))) configuredFields.unshift({label: "شناسه", placeholder: "سریال / IMEI دستگاه", required: true});
   const identifierField = configuredFields.find((field) => field.label === "IMEI" || field.label.includes("سریال") || ["پلاک", "شناسه"].includes(field.label));
+  const needsImei = /(موبایل|تبلت|تلفن همراه|mobile|tablet|phone)/iu.test(selectedDeviceType);
+  const hasSerialField = needsImei || Boolean(identifierField?.label.includes("سریال"));
+  const primaryIdentity = needsImei ? imei : hasSerialField ? serialNumber : identifier;
+  const historicalIdentity = hasSerialField && !primaryIdentity.trim() ? identifier : "";
+  const enteredImei = needsImei && identifierUnavailable ? "" : imei.trim() || (needsImei ? historicalIdentity.trim() : "");
+  const imeiValidation = enteredImei ? imeiError(normalizeImei(enteredImei)) : "";
   const activeTechnicians = operations.users.filter(
     (user) => user.isActive && user.role === "technician",
   );
@@ -956,6 +966,8 @@ function ReceptionPage({
             brand: item.brand,
             model: item.model,
             identifier: item.identifier,
+            serialNumber: item.serialNumber,
+            imei: item.imei,
             color: item.color,
             lastReceipt: item.receiptNumber,
             lastVisit: item.updatedAt,
@@ -999,6 +1011,9 @@ function ReceptionPage({
     setCustomerAddress(String(draft.customerAddress ?? ""));
     setCustomerPostalCode(String(draft.customerPostalCode ?? ""));
     setIdentifier(String(draft.identifier ?? ""));
+    setSerialNumber(String(draft.serialNumber ?? ""));
+    setImei(String(draft.imei ?? ""));
+    setImeiTouched(false);
     setIdentifierUnavailable(draft.identifierUnavailable === true);
     setIdentifierUnavailableReason(String(draft.identifierUnavailableReason ?? ""));
     setIdentifierUnavailableNote(String(draft.identifierUnavailableNote ?? ""));
@@ -1044,7 +1059,7 @@ function ReceptionPage({
         previousDeviceId: selectedPreviousDevice?.id ?? restoredPreviousDeviceIdRef.current,
         customerChoice,
         assignedToUserId,
-        identifier, identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
+        identifier, serialNumber, imei, identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
         color: deviceColor,
         accessories,
         appearanceStates,
@@ -1105,7 +1120,7 @@ function ReceptionPage({
     customerChoice,
     assignedToUserId,
     savingReceipt,
-    identifier, identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
+    identifier, serialNumber, imei, identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
     deviceColor,
     accessories,
     appearanceStates,
@@ -1243,6 +1258,9 @@ function ReceptionPage({
     setSelectedCatalogItem(null);
     setSelectedDeviceType("");
     setIdentifier("");
+    setSerialNumber("");
+    setImei("");
+    setImeiTouched(false);
     setDeclaredIssue("");
     setReceiptIssueDetails([]);
     setReceptionNotes("");
@@ -1275,7 +1293,10 @@ function ReceptionPage({
     setDeclaredIssue("");
     setReceiptIssueDetails([]);
     setReceptionNotes("");
-    setIdentifier(device.identifier);
+    setIdentifier(device.identifier === device.imei || device.identifier === device.serialNumber ? "" : device.identifier);
+    setSerialNumber(device.serialNumber ?? "");
+    setImei(device.imei ?? "");
+    setImeiTouched(false);
     setIdentifierUnavailable(false); setIdentifierUnavailableReason(""); setIdentifierUnavailableNote("");
     setDeviceColor(device.color || "");
     setSelectedCatalogItem(
@@ -1389,12 +1410,13 @@ function ReceptionPage({
       );
       return;
     }
-    if (!identifierUnavailable && !identifier.trim()) {
+    if (!identifierUnavailable && !primaryIdentity.trim() && !historicalIdentity.trim()) {
       showFormError(
         `${terminology?.identifierLabel || identifierField?.label || "شناسه محصول"} را کامل کنید.`,
       );
       return;
     }
+    if (imeiValidation) { setImeiTouched(true); showFormError(imeiValidation); return; }
     if (identifierUnavailable && (!identifierUnavailableReason || (identifierUnavailableReason === "other" && !identifierUnavailableNote.trim()))) { showFormError("علت در دسترس نبودن سریال را مشخص کنید."); return; }
     const colorFieldVisible = configuredFields.some((field) => field.label.includes("رنگ"));
     if (colorFieldVisible && !deviceColor) {
@@ -1484,7 +1506,10 @@ function ReceptionPage({
         customerCity: customerCity || undefined,
         customerPostalCode: customerPostalCode || undefined,
         deviceModelId: selectedCatalogItem.id,
-        identifier: identifierUnavailable ? undefined : identifier.trim(), identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
+        identifier: identifierUnavailable || (hasSerialField && primaryIdentity.trim()) ? undefined : identifier.trim(),
+        serialNumber: hasSerialField && (needsImei || !identifierUnavailable) ? serialNumber.trim() : undefined,
+        imei: !needsImei || !identifierUnavailable ? imei.trim() : undefined,
+        identifierUnavailable, identifierUnavailableReason, identifierUnavailableNote,
         color: deviceColor,
         declaredIssue: declaredIssue.trim(),
         declaredIssues: receiptIssues,
@@ -1914,29 +1939,45 @@ function ReceptionPage({
                       field.label === "پلاک" ||
                       field.label === "شناسه" ? (
                       <div className="field-block reception-identity-field" key={field.label}>
+                        {historicalIdentity && !identifierUnavailable && <p className="field-helper">
+                          شناسهٔ ثبت‌شده در سابقه <bdi>{historicalIdentity}</bdi>
+                        </p>}
                         <label htmlFor="reception-device-identifier">
-                          <span>{terminology?.identifierLabel || field.label}</span>
-                          {!identifierUnavailable && <b aria-hidden="true">*</b>}
+                          <span>{needsImei ? "IMEI" : terminology?.identifierLabel || field.label}</span>
+                          {!identifierUnavailable && !historicalIdentity && <b aria-hidden="true">*</b>}
                         </label>
                         <div className="input-with-icon">
                           <Fingerprint size={17} />
                           <input
-                            id="reception-device-identifier" disabled={identifierUnavailable} aria-required={!identifierUnavailable}
-                            value={identifierUnavailable ? "" : identifier}
-                            onChange={(event) =>
-                              setIdentifier(event.target.value)
-                            }
+                            id="reception-device-identifier" disabled={identifierUnavailable} aria-required={!identifierUnavailable && !historicalIdentity}
+                            value={identifierUnavailable ? "" : primaryIdentity} dir="ltr"
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              if (needsImei) setImei(value);
+                              else if (hasSerialField) setSerialNumber(value);
+                              else setIdentifier(value);
+                            }}
+                            onBlur={needsImei ? () => setImeiTouched(true) : undefined}
+                            aria-invalid={needsImei && imeiTouched && Boolean(imeiValidation)}
+                            aria-describedby={needsImei && imeiTouched && imeiValidation ? "reception-imei-error" : undefined}
                             placeholder={field.placeholder}
-                            inputMode={field.inputMode}
-                            maxLength={field.maxLength}
+                            inputMode={needsImei ? "numeric" : field.inputMode}
+                            maxLength={needsImei ? 24 : field.maxLength ?? 180}
                           />
                         </div>
-                        {field.helper && (
-                          <small className="field-helper">{field.helper}</small>
-                        )}
+                        {field.helper && <small className="field-helper">{field.helper}</small>}
+                        {needsImei && <label><span>شماره سریال</span>
+                          <input dir="ltr" maxLength={180} value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} />
+                        </label>}
+                        {!needsImei && hasSerialField && <label><span>IMEI (در صورت وجود)</span>
+                          <input dir="ltr" inputMode="numeric" maxLength={24} value={imei} onChange={(event) => setImei(event.target.value)}
+                            onBlur={() => setImeiTouched(true)} aria-invalid={imeiTouched && Boolean(imeiValidation)}
+                            aria-describedby={imeiTouched && imeiValidation ? "reception-imei-error" : undefined} />
+                        </label>}
+                        {imeiTouched && imeiValidation && <small id="reception-imei-error" className="identity-error" role="alert">{imeiValidation}</small>}
                         <div className="identity-availability-row">
-                          <label className="identity-missing-choice"><input type="checkbox" checked={identifierUnavailable} onChange={(e) => {setIdentifierUnavailable(e.target.checked); if(e.target.checked) setIdentifier("");}}/><span>شناسه در دسترس نیست</span></label>
-                          {identifierUnavailable && <label className="identity-reason"><span>علت در دسترس نبودن سریال *</span><select value={identifierUnavailableReason} onChange={(e) => setIdentifierUnavailableReason(e.target.value)}><option value="">انتخاب علت</option><option value="unreadable">سریال ناخوانا است</option><option value="missing_label">برچسب سریال مفقود است</option><option value="powered_off">دستگاه خاموش است</option><option value="other">سایر موارد</option></select></label>}
+                          <label className="identity-missing-choice"><input type="checkbox" checked={identifierUnavailable} onChange={(e) => setIdentifierUnavailable(e.target.checked)}/><span>شناسه در دسترس نیست</span></label>
+                          {identifierUnavailable && <label className="identity-reason"><span>علت در دسترس نبودن شناسه *</span><select value={identifierUnavailableReason} onChange={(e) => setIdentifierUnavailableReason(e.target.value)}><option value="">انتخاب علت</option><option value="unreadable">شناسه ناخوانا است</option><option value="missing_label">برچسب شناسه مفقود است</option><option value="powered_off">دستگاه خاموش است</option><option value="other">سایر موارد</option></select></label>}
                         </div>
                         <small>اگر شناسه اکنون قابل خواندن نیست، علت را ثبت کنید. دستگاه تعمیرشده پیش از تحویل باید شناسه داشته باشد.</small>
                         {identifierUnavailable && identifierUnavailableReason === "other" && <label><span>توضیح علت *</span><input value={identifierUnavailableNote} maxLength={500} onChange={(e) => setIdentifierUnavailableNote(e.target.value)}/></label>}
@@ -2410,6 +2451,8 @@ function ReceptionPage({
               dataHandling={createdCase.dataHandling}
               previousReceipt={selectedPreviousDevice?.lastReceipt}
               identifier={createdCase.identifier}
+              serialNumber={createdCase.serialNumber}
+              imei={createdCase.imei}
               color={createdCase.color}
               printSize={receiptTemplate.printSize}
               title={receiptTemplate.title}
@@ -3003,6 +3046,8 @@ function ReceiptsPage({
               declaredIssue={selected.declaredIssue}
               dataHandling={selected.dataHandling}
               identifier={selected.identifier}
+              serialNumber={selected.serialNumber}
+              imei={selected.imei}
               color={selected.color}
               printSize={receiptTemplate.printSize}
               title={receiptTemplate.title}
@@ -4194,6 +4239,8 @@ function DeliveryPage({
               declaredIssue={delivering.declaredIssue}
               dataHandling={delivering.dataHandling}
               identifier={delivering.identifier}
+              serialNumber={delivering.serialNumber}
+              imei={delivering.imei}
               color={delivering.color}
               printSize={receiptTemplate.printSize}
               title={receiptTemplate.title}

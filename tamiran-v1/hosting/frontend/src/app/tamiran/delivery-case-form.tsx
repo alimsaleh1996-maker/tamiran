@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
+import { normalizeImei, imeiError } from "./device-identity";
 import { moneyDigits } from "./money";
 import { deliveryV2Action, smsV2Action, type V2DeliveryCase } from "./v2-api";
 import "./delivery-case-form.css";
@@ -12,21 +13,6 @@ const evidenceMethods = [
   ["identity_document", "مدرک هویتی"],
   ["sms_otp", "کد پیامکی"],
 ] as const;
-
-// Match the mobile-device rules in v2_identity_value() before submitting.
-function normalizeDeliveryImei(value: string) {
-  return value.replace(/[۰-۹٠-٩]/g, digit => String(digit.charCodeAt(0) - (digit >= "۰" ? 0x6f0 : 0x660))).replace(/[\s-]+/gu, "");
-}
-
-function deliveryImeiError(value: string) {
-  if (!value) return "IMEI دستگاه را وارد کنید.";
-  if (!/^[0-9]{15}$/.test(value) || /^(.)\1+$/.test(value)) return "IMEI باید ۱۵ رقم معتبر باشد.";
-  const sum = [...value].reduce((total, char, index) => {
-    const digit = Number(char) * (index % 2 === 1 ? 2 : 1);
-    return total + (digit > 9 ? digit - 9 : digit);
-  }, 0);
-  return sum % 10 === 0 ? "" : "رقم کنترل IMEI صحیح نیست. شماره را از روی دستگاه دوباره بررسی کنید.";
-}
 
 function accessoryLabels(raw: string) {
   try {
@@ -77,15 +63,15 @@ export function DeliveryCaseForm({ item, verificationSettings, manager, busy, ru
   const representative = form.recipientType === "representative";
   const requiresOtp = representative || form.method === "sms_otp";
   const needsImei = /(موبایل|تبلت|تلفن همراه|mobile|tablet|phone)/iu.test(item.device_type_snapshot);
-  const imei = needsImei ? normalizeDeliveryImei(form.identifier) : "";
-  const imeiError = needsImei ? deliveryImeiError(imei) : "";
-  const identifierError = identifierEdited || form.identifier.trim() ? imeiError : "";
-  const identityChanged = Boolean(item.identifier_snapshot && !imeiError && (needsImei
-    ? imei !== normalizeDeliveryImei(item.identifier_snapshot)
+  const imei = needsImei ? normalizeImei(form.identifier) : "";
+  const verificationError = needsImei ? imeiError(imei) : "";
+  const identifierError = identifierEdited || form.identifier.trim() ? verificationError : "";
+  const identityChanged = Boolean(item.identifier_snapshot && !verificationError && (needsImei
+    ? imei !== normalizeImei(item.identifier_snapshot)
     : form.identifier.trim() !== item.identifier_snapshot));
   const blockers = [...item.blockers.parts, ...item.blockers.qc, ...item.blockers.finance];
   const invalid = blockers.length > 0 || missing.length > 0
-    || (!unrepaired && (!form.identifier.trim() || !!imeiError || !form.identityConfirmed || (identityChanged && !form.identityChangeReason.trim())))
+    || (!unrepaired && (!form.identifier.trim() || !!verificationError || !form.identityConfirmed || (identityChanged && !form.identityChangeReason.trim())))
     || !form.name.trim() || !form.mobile.trim() || (representative && !form.nationalCode.trim())
     || !form.method || !form.evidence.trim() || (requiresOtp && (!form.otpRequestId || form.otpCode.length !== 6));
 
@@ -179,7 +165,7 @@ export function DeliveryCaseForm({ item, verificationSettings, manager, busy, ru
             <span>علت تغییر شناسه</span><input required value={form.identityChangeReason} maxLength={1000}
               onChange={event => patch({ identityChangeReason: event.target.value })} />
           </label>}
-          <label className="delivery-check"><input type="checkbox" checked={form.identityConfirmed} disabled={Boolean(imeiError)}
+          <label className="delivery-check"><input type="checkbox" checked={form.identityConfirmed} disabled={Boolean(verificationError)}
             onChange={event => patch({ identityConfirmed: event.target.checked })} />
             <span>شناسه را با همین دستگاه تطبیق دادم.</span>
           </label>

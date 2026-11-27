@@ -29,6 +29,16 @@ class UpgradePackageTests(unittest.TestCase):
             self.assertFalse(name.startswith('public_html/install/'), name)
             self.assertNotIn(name, ('private/install.key', 'private/config.php', 'private/installed.lock'))
 
+    def test_schema_update_carries_only_the_matching_migration_and_manifest_hash(self):
+        runtime = package.runtime_files()
+        version = '1.0.0-rc.16'
+        migration = package.UPDATE_MIGRATIONS[version]
+        update = package.update_files(runtime, version)
+        manifest = json.loads(package.release_manifest(runtime, version, package.RELEASE_BRANCH, 'a' * 40))
+        self.assertEqual([name for name in update if name.endswith('.sql')], [migration])
+        self.assertTrue(manifest['update']['database_migration'])
+        self.assertEqual(manifest['update']['migration'], {'path': migration, 'sha256': package.digest(update[migration])})
+
     def test_manifest_identifies_commit_and_runtime_without_private_state(self):
         runtime = package.runtime_files()
         version = package.release_version(root)

@@ -53,7 +53,7 @@ tamiran_api(static function (): array {
     $backendVerified = $releaseKnown && ($manifest['backend_version'] ?? null) === TAMIRAN_VERSION
         && tamiran_health_files($root, $manifest['files']['backend'] ?? null, 'public_html/api/bootstrap.php',
             '~\A(?:VERSION|public_html/api/[A-Za-z0-9_-]+\.php|private/[A-Za-z0-9_-]+\.php)\z~');
-    $schemaCompatible = $schemaVersion === '2.0.0-beta.7';
+    $schemaCompatible = $schemaVersion === '2.0.0-beta.8';
     $buildVerified = $frontendVerified && $backendVerified;
     return [
         'status' => $schemaCompatible && $buildVerified ? 'ok' : 'degraded',

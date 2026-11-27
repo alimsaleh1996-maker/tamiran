@@ -335,3 +335,30 @@
 
 .service-readiness { display: flex; flex-wrap: wrap; gap: 7px 13px; margin-block: 6px 12px; }
 .service-readiness > span { display: inline-flex; align-items: center; gap: 6px; }
+
+.v2-hot-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.v2-hot-review-actions button {
+  min-height: 44px;
+}
+
+.v2-hot-review-form,
+.v2-hot-review-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.v2-hot-review-form {
+  width: min(100%, 18rem);
+}
+
+.v2-hot-review-form textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  font: inherit;
+}

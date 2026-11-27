@@ -63,6 +63,8 @@ export type RepairCaseRecord = {
   brand: string;
   model: string;
   identifier: string;
+  serialNumber?: string;
+  imei?: string;
   color: string;
   declaredIssue: string;
   accessories: string[];
@@ -182,6 +184,8 @@ export type CreateRepairCaseInput = {
   secondaryMobile?: string;
   deviceModelId: number;
   identifier?: string;
+  serialNumber?: string;
+  imei?: string;
   identifierUnavailable?: boolean;
   identifierUnavailableReason?: string;
   identifierUnavailableNote?: string;
@@ -219,6 +223,8 @@ export type PreviousCustomerDevice = {
   brand: string;
   model: string;
   identifier: string;
+  serialNumber?: string;
+  imei?: string;
   color: string;
   lastReceipt: string;
   lastVisit: string;

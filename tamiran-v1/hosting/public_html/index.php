@@ -29,8 +29,8 @@ header('Content-Type: text/html; charset=utf-8');
     <link rel="stylesheet" href="/assets/beta7-ui.css" />
     <link rel="stylesheet" href="/assets/index-B_SWlkkz.css" />
     <link rel="stylesheet" href="/assets/accessibility.css" />
-    <script type="module" crossorigin src="/assets/index-DU2FEtnU.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BKsoh0DB.css">
+    <script type="module" crossorigin src="/assets/index-DNo11IWW.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CMt68Bf8.css">
   </head>
   <body>
     <div id="root"></div>

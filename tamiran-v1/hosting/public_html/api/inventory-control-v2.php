@@ -9,8 +9,12 @@ function inventory_control_payload(PDO $pdo,array $scope):array
     v2_require_permission($scope,'inventory.control.view',['warehouse_keeper','technician'],'مشاهده کنترل‌های انبار مجاز نیست.');
     $hotWhere='h.shop_id=:shop AND h.branch_id=:branch';$hotParams=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];if($scope['role']==='technician'){$hotWhere.=' AND h.technician_user_id=:actor';$hotParams['actor']=$scope['actor']['id'];}
     $hotHours=(int)operations_policy($pdo,(int)$scope['shop_id'])['hotReturnHours'];
-    $hot=$pdo->prepare("SELECT h.*,DATE_ADD(h.created_at, INTERVAL {$hotHours} HOUR) AS due_at,
-        (h.status<>'settled' AND DATE_ADD(h.created_at,INTERVAL {$hotHours} HOUR)<UTC_TIMESTAMP()) AS overdue,i.item_code,i.title AS item_title,c.receipt_number,CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title,u.display_name AS technician_name FROM repair_hot_returns h INNER JOIN repair_inventory_items i ON i.id=h.item_id INNER JOIN repair_cases c ON c.id=h.case_id INNER JOIN tamiran_users u ON u.id=h.technician_user_id WHERE {$hotWhere} ORDER BY overdue DESC,h.updated_at DESC LIMIT 500");$hot->execute($hotParams);
+    $hot=$pdo->prepare("SELECT h.*,
+        evidence.id AS evidence_id,evidence.rejection_reason,
+        DATE_ADD(h.created_at, INTERVAL {$hotHours} HOUR) AS due_at,
+        (h.status<>'settled' AND DATE_ADD(h.created_at,INTERVAL {$hotHours} HOUR)<UTC_TIMESTAMP()) AS overdue,i.item_code,i.title AS item_title,c.receipt_number,CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title,u.display_name AS technician_name FROM repair_hot_returns h INNER JOIN repair_inventory_items i ON i.id=h.item_id INNER JOIN repair_cases c ON c.id=h.case_id INNER JOIN tamiran_users u ON u.id=h.technician_user_id LEFT JOIN repair_hot_return_evidence evidence ON evidence.id=(
+          SELECT e.id FROM repair_hot_return_evidence e WHERE e.hot_return_id=h.id ORDER BY e.id DESC LIMIT 1)
+        WHERE {$hotWhere} ORDER BY overdue DESC,h.updated_at DESC LIMIT 500");$hot->execute($hotParams);
     if($scope['role']==='technician')return['hotReturns'=>$hot->fetchAll(),'adjustments'=>[],'stocktakes'=>[],'stocktakeItems'=>[],'transfers'=>[]];
     $adjustments=$pdo->prepare('SELECT a.*,i.item_code,i.title AS item_title FROM repair_inventory_adjustments a INNER JOIN repair_inventory_items i ON i.id=a.item_id WHERE a.shop_id=:shop AND a.branch_id=:branch ORDER BY a.created_at DESC LIMIT 500');$adjustments->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
     $stocktakes=$pdo->prepare('SELECT s.*,w.title AS warehouse_title,u.display_name AS creator_name FROM repair_stocktakes s INNER JOIN repair_warehouses w ON w.id=s.warehouse_id INNER JOIN tamiran_users u ON u.id=s.created_by_user_id WHERE s.shop_id=:shop AND s.branch_id=:branch ORDER BY s.created_at DESC LIMIT 100');$stocktakes->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);$stocktakeRows=$stocktakes->fetchAll();
@@ -29,16 +33,24 @@ function inventory_hot_review(PDO $pdo,array $scope,array $input):array
     $public=v2_text($input['hotReturnPublicId']??'','تعهد داغی',80);
     $decision=(string)($input['decision']??'');
     if(!in_array($decision,['accept','reject'],true))throw new TamiranApiException('تصمیم معتبر نیست.');
+    if (isset($input['reason']) && !is_string($input['reason'])) throw new TamiranApiException('دلیل رد معتبر نیست.',422);
     $reason=v2_text($input['reason']??'','علت',1000,$decision==='reject');
+    $expectedEvidence=v2_queue_id($input,'evidenceId');
     $pdo->beginTransaction();
     try{
         $statement=$pdo->prepare("SELECT * FROM repair_hot_returns WHERE public_id=:public AND shop_id=:shop AND branch_id=:branch AND status='waiting_review' FOR UPDATE");
         $statement->execute(['public'=>$public,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
         $hot=$statement->fetch();
         if(!is_array($hot))throw new TamiranApiException('داغی قابل بررسی نیست.',409);
+        $evidence=$pdo->prepare('SELECT id FROM repair_hot_return_evidence WHERE hot_return_id=:hot ORDER BY id DESC LIMIT 1 FOR UPDATE');
+        $evidence->execute(['hot'=>$hot['id']]);
+        $evidenceId=(int)$evidence->fetchColumn();
+        if (!$evidenceId || ($expectedEvidence!==null && $evidenceId!==$expectedEvidence)) {
+            throw new TamiranApiException('مدرک دریافت داغی تغییر کرده است. صف را تازه کنید.',409);
+        }
         $status=$decision==='accept'?'settled':'rejected';
         $pdo->prepare('UPDATE repair_hot_returns SET status=:status,notes=CONCAT(COALESCE(notes,\'\'),:notes),updated_at=NOW() WHERE id=:id')->execute(['status'=>$status,'notes'=>$reason===null?'':"\n".$reason,'id'=>$hot['id']]);
-        $pdo->prepare('UPDATE repair_hot_return_evidence SET reviewed_by_user_id=:actor,rejection_reason=:reason WHERE hot_return_id=:hot ORDER BY id DESC LIMIT 1')->execute(['actor'=>$scope['actor']['id'],'reason'=>$decision==='reject'?$reason:null,'hot'=>$hot['id']]);
+        $pdo->prepare('UPDATE repair_hot_return_evidence SET reviewed_by_user_id=:actor,rejection_reason=:reason WHERE id=:id')->execute(['actor'=>$scope['actor']['id'],'reason'=>$decision==='reject'?$reason:null,'id'=>$evidenceId]);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'hot_return.review','repair_hot_return',$public,['status'=>$hot['status']],['status'=>$status],$reason);
         if($decision==='reject')v2_notify($pdo,$scope,(int)$hot['technician_user_id'],'hot_return_rejected','داغی تحویلی رد شد',$reason??'نیازمند تحویل مجدد','repair_hot_return',$public);
         $pdo->commit();

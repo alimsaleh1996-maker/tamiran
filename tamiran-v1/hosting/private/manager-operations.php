@@ -110,6 +110,7 @@ function manager_case_queue(PDO $pdo,array $scope,array $input):array
     if ($term!==null) {
         $where.=" AND (c.receipt_number LIKE :q ESCAPE '!' OR cu.full_name LIKE :q ESCAPE '!'
             OR cu.mobile LIKE :q ESCAPE '!' OR c.identifier_snapshot LIKE :q ESCAPE '!'
+            OR c.serial_number_snapshot LIKE :q ESCAPE '!' OR c.imei_snapshot LIKE :q ESCAPE '!'
             OR CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) LIKE :q ESCAPE '!')";
         $params['q']=$term;
     }

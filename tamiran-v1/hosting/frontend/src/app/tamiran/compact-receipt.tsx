@@ -22,6 +22,8 @@ export type CompactReceiptProps = {
   dataHandling?: string;
   previousReceipt?: string;
   identifier?: string;
+  serialNumber?: string;
+  imei?: string;
   color?: string;
   printSize?: string;
   title?: string;
@@ -161,16 +163,10 @@ export function CompactReceipt(p: CompactReceiptProps) {
               <dt>رنگ</dt>
               <dd>{p.color || "—"}</dd>
             </div>
-            <div>
-              <dt>شناسه</dt>
-              <dd>
-                {p.identifier ? (
-                  <bdi>{p.identifier}</bdi>
-                ) : (
-                  "بدون شناسه در پذیرش"
-                )}
-              </dd>
-            </div>
+            {p.serialNumber && <div><dt>شماره سریال</dt><dd><bdi>{p.serialNumber}</bdi></dd></div>}
+            {p.imei && <div><dt>IMEI</dt><dd><bdi>{p.imei}</bdi></dd></div>}
+            {(!p.serialNumber && !p.imei || !!p.identifier && p.identifier !== p.serialNumber && p.identifier !== p.imei) &&
+              <div><dt>شناسه</dt><dd>{p.identifier ? <bdi>{p.identifier}</bdi> : "بدون شناسه در پذیرش"}</dd></div>}
             <div className="cr-wide">
               <dt>لوازم همراه</dt>
               <dd>{p.accessories.join("، ") || "بدون لوازم"}</dd>

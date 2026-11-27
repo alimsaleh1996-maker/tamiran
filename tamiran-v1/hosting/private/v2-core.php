@@ -230,7 +230,7 @@ function v2_case(PDO $pdo, array $scope, int $caseId, bool $lock = false): array
 {
     $sql = 'SELECT w.*,'.v2_receipt_pending_sql().' AS physical_receipt_pending,c.public_id AS case_public_id,c.receipt_number,c.customer_id,c.device_id,c.declared_issue,c.accessories_json,
                    c.operation_report,c.result,c.reception_notes,c.created_at AS accepted_at,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
-                   cu.secondary_mobile,cu.address AS customer_address,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.identifier_snapshot,c.delivered_at,
+                   cu.secondary_mobile,cu.address AS customer_address,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,c.identifier_snapshot,c.serial_number_snapshot,c.imei_snapshot,c.delivered_at,
                    c.product_profile_snapshot,c.inventory_mode_snapshot,c.qc_mode_snapshot,c.feature_flags_snapshot_json,
                    u.display_name AS technician_name
             FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id
@@ -516,13 +516,19 @@ function v2_stock_mutate(PDO $pdo, array $scope, int $warehouseId, int $itemId, 
 }
 
 
+function v2_device_has_imei(string $deviceType): bool
+{
+    return preg_match('/(موبایل|تبلت|تلفن همراه|mobile|tablet|phone)/iu',$deviceType)===1;
+}
+
 /** Device identity is scoped to one case; the initial reception event is immutable history. */
 function v2_identity_value(string $value, string $deviceType, bool $required = true): ?string
 {
     $value=trim(strtr($value,array_combine(preg_split('//u','۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩',-1,PREG_SPLIT_NO_EMPTY),str_split('01234567890123456789'))));
     if($value===''){if($required)throw new TamiranApiException('ثبت سریال یا IMEI معتبر دستگاه پیش از تحویل الزامی است.',422);return null;}
     if(mb_strlen($value)>180 || preg_match('/^(?:[-?]+|0+|ندارد|نامشخص|بدون سریال|unknown|n\/a)$/iu',$value))throw new TamiranApiException('شناسه دستگاه معتبر نیست؛ سریال واقعی یا IMEI را وارد کنید.',422);
-    if(preg_match('/(موبایل|تبلت|تلفن همراه|mobile|tablet|phone)/iu',$deviceType)){
+    if(!preg_match('/[\p{L}\p{N}]/u',$value))throw new TamiranApiException('شناسه باید شامل حرف یا عدد باشد.',422);
+    if(v2_device_has_imei($deviceType)){
         $value=preg_replace('/[\s-]+/u','',$value);
         if(!preg_match('/^[0-9]{15}$/',$value)||preg_match('/^(.)\1+$/',$value))throw new TamiranApiException('IMEI باید ۱۵ رقم معتبر باشد.',422);
         $sum=0;for($i=0;$i<15;$i++){$digit=(int)$value[$i];if($i%2===1){$digit*=2;if($digit>9)$digit-=9;}$sum+=$digit;}
@@ -534,6 +540,17 @@ function v2_identity_normalized(string $value): string
 {
     return mb_strtoupper(preg_replace('/[^\p{L}\p{N}]/u','',$value)??'');
 }
+function v2_require_unique_device_identity(PDO $pdo,array $scope,?int $deviceId,?string $identifier,?string $serial,?string $imei):void
+{
+    if ($identifier===null && $serial===null && $imei===null) return;
+    $statement=$pdo->prepare('SELECT id FROM repair_customer_devices WHERE shop_id=:shop AND id<>:device
+        AND (normalized_identifier IN (:identifier,:compat_imei) OR serial_number=:serial OR imei=:imei) LIMIT 1 FOR UPDATE');
+    $statement->execute(['shop'=>$scope['shop_id'],'device'=>$deviceId??0,'identifier'=>$identifier,'compat_imei'=>$imei,'serial'=>$serial,'imei'=>$imei]);
+    if ($statement->fetchColumn()!==false) {
+        throw new TamiranApiException('این IMEI یا سریال قبلاً برای دستگاه دیگری ثبت شده است؛ سابقهٔ دستگاه را بررسی کنید.',409);
+    }
+}
+
 function v2_delivery_identity(PDO $pdo,array $scope,array $case,array $input): array
 {
     $value=v2_identity_value((string)($input['deviceIdentifier']??''),(string)$case['device_type_snapshot']);
@@ -548,11 +565,18 @@ function v2_delivery_identity(PDO $pdo,array $scope,array $case,array $input): a
     $deviceIdentifier=trim((string)($currentDevice['identifier_value']??''));
     if($deviceIdentifier!==''&&v2_identity_normalized($deviceIdentifier)!==v2_identity_normalized($value)&&($scope['role']!=='repair_manager'||$reason===''||mb_strlen($reason)>1000))throw new TamiranApiException('شناسه فعلی این دستگاه متفاوت است؛ اصلاح فقط توسط مدیر و با ثبت علت مجاز است.',403);
     $normalized=v2_identity_normalized($value);
-    $duplicate=$pdo->prepare('SELECT id FROM repair_customer_devices WHERE shop_id=:shop AND normalized_identifier=:identifier AND id<>:device LIMIT 1 FOR UPDATE');
-    $duplicate->execute(['shop'=>$scope['shop_id'],'identifier'=>$normalized,'device'=>$case['device_id']]);if($duplicate->fetchColumn()!==false)throw new TamiranApiException('این شناسه متعلق به دستگاه دیگری است؛ مالکیت و سابقه را بررسی کنید.',409);
+    $typed=($case['serial_number_snapshot']??null)!==null || ($case['imei_snapshot']??null)!==null;
+    $isImei=v2_device_has_imei((string)$case['device_type_snapshot']);
+    $serial=$typed && !$isImei ? $value : null;
+    $imei=$typed && $isImei ? $value : null;
+    v2_require_unique_device_identity($pdo,$scope,(int)$case['device_id'],$normalized,$serial,$imei);
     if($old!==$value){
-        $pdo->prepare('UPDATE repair_cases SET identifier_snapshot=:value WHERE id=:id')->execute(['value'=>$value,'id'=>$case['case_id']]);
-        $pdo->prepare('UPDATE repair_customer_devices SET identifier_value=:value,normalized_identifier=:normalized,row_version=row_version+1 WHERE id=:id')->execute(['value'=>$value,'normalized'=>$normalized,'id'=>$case['device_id']]);
+        $pdo->prepare('UPDATE repair_cases SET identifier_snapshot=:value,
+            serial_number_snapshot=COALESCE(:serial,serial_number_snapshot),imei_snapshot=COALESCE(:imei,imei_snapshot) WHERE id=:id')
+            ->execute(['value'=>$value,'serial'=>$serial,'imei'=>$imei,'id'=>$case['case_id']]);
+        $pdo->prepare('UPDATE repair_customer_devices SET identifier_value=:value,normalized_identifier=:normalized,
+            serial_number=COALESCE(:serial,serial_number),imei=COALESCE(:imei,imei),row_version=row_version+1 WHERE id=:id')
+            ->execute(['value'=>$value,'normalized'=>$normalized,'serial'=>$serial,'imei'=>$imei,'id'=>$case['device_id']]);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'device.identity.record','repair_case',$case['case_public_id'],['identifier'=>$old],['identifier'=>$value,'reason'=>$reason]);
     }
     return ['identifier'=>$value,'previousIdentifier'=>$old,'changeReason'=>$reason,'confirmed'=>true];
@@ -567,6 +591,17 @@ function v2_require_case_access(PDO $pdo,array $scope,array $case): void
     $statement=$pdo->prepare('SELECT COUNT(*) FROM repair_case_assignments WHERE workflow_id=:workflow AND technician_user_id=:user AND ended_at IS NULL');
     $statement->execute(['workflow'=>$case['id'],'user'=>$scope['actor']['id']]);
     if((int)$statement->fetchColumn()<1)throw new TamiranApiException('این پرونده به شما تخصیص ندارد.',403);
+}
+
+/** Both catalog entry points serialize duplicate checks for the same workshop. */
+function v2_catalog_collisions(PDO $pdo,array $scope,string $code,string $title):array
+{
+    $lock=$pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE');
+    $lock->execute(['shop'=>$scope['shop_id']]);
+    $existing=$pdo->prepare('SELECT id,title,item_code,sale_price,is_active FROM repair_inventory_items
+        WHERE shop_id=:shop AND (title=:title OR item_code=:code) LIMIT 2 FOR UPDATE');
+    $existing->execute(['shop'=>$scope['shop_id'],'title'=>$title,'code'=>$code]);
+    return $existing->fetchAll();
 }
 
 function v2_queue_offset(array $input): int

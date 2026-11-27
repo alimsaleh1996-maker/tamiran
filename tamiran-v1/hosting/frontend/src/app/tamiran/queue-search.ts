@@ -9,11 +9,11 @@ export function normalizeQueueSearch(value: string): string {
     .toLocaleLowerCase("fa");
 }
 
-export function matchesQueueSearch(query: string, values: string[]): boolean {
+export function matchesQueueSearch(query: string, values: (string | undefined | null)[]): boolean {
   const normalized = normalizeQueueSearch(query);
   return (
     !normalized ||
-    values.some((value) => normalizeQueueSearch(value).includes(normalized))
+    values.some((value) => normalizeQueueSearch(value ?? "").includes(normalized))
   );
 }
 

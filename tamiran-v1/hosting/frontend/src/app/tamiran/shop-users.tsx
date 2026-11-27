@@ -278,7 +278,7 @@ export function ShopUserManagement({ onChanged }: { onChanged?: () => void }) {
         isActive: form.isActive,
         branchIds: form.branchIds,
         ...(!form.id || permissionsChanged
-          ? { permissions: form.permissions }
+          ? { permissions: form.permissions.filter(code => code !== "inventory.catalog.create" || form.role === "technician") }
           : {}),
         ...(form.id
           ? { id: form.id, newPassword: form.password }
@@ -736,7 +736,7 @@ export function ShopUserManagement({ onChanged }: { onChanged?: () => void }) {
                     </p>
                     {permissionGroups.map((group) => {
                       const entries = catalog.filter(([code]) =>
-                        group.match(code),
+                        group.match(code) && (code !== "inventory.catalog.create" || form.role === "technician"),
                       );
                       if (!entries.length) return null;
                       const count = entries.filter(([code]) =>

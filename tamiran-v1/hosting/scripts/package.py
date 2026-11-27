@@ -17,12 +17,13 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_BRANCH = "tamiran-v1/foundation"
-UPDATE_FROM = {"1.0.0-rc.14": "1.0.0-rc.13", "1.0.0-rc.15": "1.0.0-rc.14"}
+UPDATE_FROM = {"1.0.0-rc.14": "1.0.0-rc.13", "1.0.0-rc.15": "1.0.0-rc.14", "1.0.0-rc.16": "1.0.0-rc.15"}
+UPDATE_MIGRATIONS = {"1.0.0-rc.16": "private/database/migrations/2.0.0-beta.8-device-identifiers.sql"}
 MANIFEST = "private/build/manifest.json"
 PRIVATE = (
     ".htaccess", "install.php", "config.example.php", "v2-core.php", "technician-service.php", "operations-policy.php", "external-purchase.php", "case-invoice.php", "manager-operations.php",
     "product-service.php", "capability-service.php", "catalog-similarity.php", "backup-engine.php",
-    "sms-service.php", "database/schema.sql",
+    "sms-service.php", "database/schema.sql", "database/migrations/2.0.0-beta.8-device-identifiers.sql",
     "captcha-audio.php", "captcha-audio/CREDITS.json",
     *(f"captcha-audio/{digit}.wav" for digit in range(2, 10)),
 )
@@ -89,8 +90,8 @@ def source_files(base: dict[str, bytes], root: Path = ROOT) -> dict[str, bytes]:
     return files
 
 
-def update_files(base: dict[str, bytes]) -> dict[str, bytes]:
-    """Application-only update: no config, SQL, installer or install token."""
+def update_files(base: dict[str, bytes], version: str | None = None) -> dict[str, bytes]:
+    """Include only the migration explicitly associated with this update."""
     selected = {
         name: data for name, data in base.items()
         if name in {"VERSION", "UPGRADE-FA.md", "UI-FIXES-FA.md", "THIRD-PARTY-NOTICES.txt", "VERIFICATION-FA.md",
@@ -100,6 +101,8 @@ def update_files(base: dict[str, bytes]) -> dict[str, bytes]:
         or name.startswith(("public_html/assets/", "public_html/api/", "private/captcha-audio/"))
     }
     assert not any(name.startswith("public_html/install/") or name.endswith(".sql") or name == "private/install.key" for name in selected)
+    if migration := UPDATE_MIGRATIONS.get(version):
+        selected[migration] = base[migration]
     return selected
 
 
@@ -179,6 +182,7 @@ def release_manifest(files: dict[str, bytes], version: str, branch: str, commit:
         )
     }
     previous = UPDATE_FROM.get(version)
+    migration = UPDATE_MIGRATIONS.get(version)
     metadata = {
         "format": 1,
         "version": version,
@@ -192,12 +196,14 @@ def release_manifest(files: dict[str, bytes], version: str, branch: str, commit:
         },
         "paths": {"document_root": "public_html/", "private": "private/", "install": "INSTALL-FA.md", "update": "UPGRADE-FA.md"},
         "install_mode": "empty-database-only",
-        "update": {"from_version": previous, "database_migration": False} if previous else None,
+        "update": {"from_version": previous, "database_migration": migration is not None} if previous else None,
         "schema_version": schema[1].decode(),
         "schema_sha256": digest(files["private/database/schema.sql"]),
         "files": {"frontend": frontend, "backend": backend},
         "frontend_entry_sha256": frontend["public_html/index.php"],
     }
+    if migration:
+        metadata["update"]["migration"] = {"path": migration, "sha256": digest(files[migration])}
     metadata["build_id"] = digest(json.dumps(metadata, sort_keys=True).encode())[:16]
     return (json.dumps(metadata, ensure_ascii=False, indent=2) + "\n").encode()
 
@@ -231,7 +237,7 @@ def main() -> None:
             write_zip(output / f"tamiran-{version}-source.zip", source, stamp),
         ]
         if previous := UPDATE_FROM.get(version):
-            results.append(write_zip(output / f"tamiran-{version}-update-from-{previous.removeprefix('1.0.0-')}.zip", update_files(runtime), stamp))
+            results.append(write_zip(output / f"tamiran-{version}-update-from-{previous.removeprefix('1.0.0-')}.zip", update_files(runtime, version), stamp))
     release = json.loads(manifest)
     for result in results:
         result.update({"version": version, "git": release["git"], "build_id": release["build_id"],

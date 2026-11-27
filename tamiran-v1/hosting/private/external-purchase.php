@@ -22,6 +22,12 @@ function external_purchase_rows(PDO $pdo, array $scope, ?int $caseId): array
     return $rows;
 }
 
+function external_purchase_can_add_catalog(array $scope):bool
+{
+    return $scope['role']==='repair_manager'
+        || ($scope['role']==='technician' && in_array('inventory.catalog.create',$scope['permissions'],true));
+}
+
 function external_purchase_view(PDO $pdo, array $scope, ?int $caseId, bool $summary=false): array
 {
     $manager=$scope['role']==='repair_manager';
@@ -47,9 +53,17 @@ function external_purchase_view(PDO $pdo, array $scope, ?int $caseId, bool $summ
             $items[]=['id'=>(int)$item['id'],'code'=>$item['code'],'title'=>$item['title'],'salePrice'=>(int)$item['salePrice']];
         }
     }
+    $canManageCatalog=$caseId!==null && external_purchase_can_add_catalog($scope);
+    $categories=[];
+    if ($canManageCatalog) {
+        $query=$pdo->prepare("SELECT DISTINCT category FROM repair_inventory_items
+            WHERE shop_id=:shop AND is_active=1 AND category IS NOT NULL AND category<>'' ORDER BY category");
+        $query->execute(['shop'=>$scope['shop_id']]);
+        $categories=$query->fetchAll(PDO::FETCH_COLUMN);
+    }
     $rules=operations_policy($pdo,(int)$scope['shop_id']);
     return ['rows'=>array_values($records),'catalog'=>$items,'policy'=>$manager?'free':$rules['purchase'],
-        'canManageCatalog'=>$manager,'ownCommitted'=>$ownCommitted,'ownLimit'=>(int)($rules['purchaseLimits'][(int)$scope['actor']['id']]??0)];
+        'canManageCatalog'=>$canManageCatalog,'canPriceCatalog'=>$canManageCatalog&&$manager,'catalogCategories'=>$categories,'ownCommitted'=>$ownCommitted,'ownLimit'=>(int)($rules['purchaseLimits'][(int)$scope['actor']['id']]??0)];
 }
 
 function external_purchase_catalog(PDO $pdo,array $scope,int $caseId,mixed $search):array
@@ -249,22 +263,37 @@ function external_purchase_receive_into_stock(PDO $pdo,array $scope,array $case,
 
 function external_purchase_add_catalog(PDO $pdo,array $scope,array $input):array
 {
-    if ($scope['role']!=='repair_manager') throw new TamiranApiException('تعریف کالا فقط برای مدیر تعمیرگاه مجاز است.',403);
+    if (!external_purchase_can_add_catalog($scope)) throw new TamiranApiException('مجوز تعریف قطعه برای این کاربر فعال نیست.',403);
+    $manager=$scope['role']==='repair_manager';
+    $caseId=v2_queue_id($input,'caseId');
+    if (!$manager && $caseId===null) throw new TamiranApiException('تعریف قطعه توسط تکنسین باید از داخل پرونده انجام شود.',403);
     $code=v2_text($input['code']??'','کد کالا',80);
     $title=v2_text($input['title']??'','نام کالا',180);
     $category=v2_text($input['category']??'','دسته‌بندی',120,false);
     $price=technician_money($input['salePrice']??0);
+    if (!$manager && $price!==0) throw new TamiranApiException('تعیین قیمت فروش کالا به مجوز مدیر نیاز دارد.',403);
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE')->execute(['shop'=>$scope['shop_id']]);
-        $existing=$pdo->prepare('SELECT id,title,item_code FROM repair_inventory_items WHERE shop_id=:shop AND (title=:title OR item_code=:code) LIMIT 1');
-        $existing->execute(['shop'=>$scope['shop_id'],'title'=>$title,'code'=>$code]);
-        if ($match=$existing->fetch()) {
-            if ($match['title']===$title&&$match['item_code']===$code) {
+        if ($caseId!==null) {
+            $case=v2_case($pdo,$scope,$caseId,true);
+            v2_require_case_access($pdo,$scope,$case);
+            technician_editable($case);
+        }
+        $matches=v2_catalog_collisions($pdo,$scope,$code,$title);
+        if ($matches!==[]) {
+            $match=$matches[0];
+            if (count($matches)===1 && $match['title']===$title && $match['item_code']===$code && $match['is_active']) {
                 $pdo->commit();
-                return ['id'=>(int)$match['id'],'created'=>false];
+                return ['id'=>(int)$match['id'],'created'=>false,'salePrice'=>(int)$match['sale_price']];
             }
             throw new TamiranApiException('نام یا کد کالا تکراری است.',409);
+        }
+        if (!$manager && $category!==null) {
+            $existingCategory=$pdo->prepare('SELECT category FROM repair_inventory_items
+                WHERE shop_id=:shop AND category=:category AND is_active=1 LIMIT 1');
+            $existingCategory->execute(['shop'=>$scope['shop_id'],'category'=>$category]);
+            $category=$existingCategory->fetchColumn();
+            if ($category===false) throw new TamiranApiException('یک دسته‌بندی موجود در بانک قطعات انتخاب کنید.',422);
         }
         $public=tamiran_id();
         $pdo->prepare('INSERT INTO repair_inventory_items(public_id,shop_id,item_code,title,category,sale_price,hot_evidence_rules_json)
@@ -273,9 +302,9 @@ function external_purchase_add_catalog(PDO $pdo,array $scope,array $input):array
                 'price'=>$price,'rules'=>v2_json(['serial'=>false,'image'=>false,'condition'=>true])]);
         $id=(int)$pdo->lastInsertId();
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'inventory.catalog.create','repair_inventory_item',
-            $public,null,['code'=>$code,'title'=>$title,'category'=>$category,'salePrice'=>$price]);
+            $public,null,['code'=>$code,'title'=>$title,'category'=>$category,'salePrice'=>$price,'caseId'=>$caseId]);
         $pdo->commit();
-        return ['id'=>$id,'created'=>true];
+        return ['id'=>$id,'created'=>true,'salePrice'=>$price];
     } catch(Throwable $error) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $error;

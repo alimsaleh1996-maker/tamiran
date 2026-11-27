@@ -30,6 +30,8 @@ export type V2Case = {
   customerMobile: string;
   deviceTitle: string;
   identifier: string;
+  serialNumber?: string;
+  imei?: string;
   initialIdentityReason?: string;
   declaredIssue: string;
   declaredIssues?: string[];
@@ -380,6 +382,8 @@ type V2FinanceDevice = {
   process_status: string;
   customer_mobile?: string;
   identifier_snapshot?: string | null;
+  serial_number_snapshot?: string | null;
+  imei_snapshot?: string | null;
   device_title?: string;
 };
 export type V2Invoice = V2FinanceDevice & {
@@ -430,7 +434,7 @@ export type V2FinanceWorkspace =
   | { available: true; invoices: V2Invoice[]; drafts: V2InvoiceDraft[]; paymentMethods: RepairPaymentMethod[]; permissions: V2FinancePermissions }
   | { available: false; pending: Array<{
       receiptNumber: string; customerName: string; customerMobile: string;
-      identifier: string | null; deviceTitle: string;
+      identifier: string | null; serialNumber?: string | null; imei?: string | null; deviceTitle: string;
     }> };
 export const loadV2FinanceWorkspace = () =>
   directAdminRequest<V2FinanceWorkspace>("/api/finance-v2.php?workspace=1");
@@ -444,6 +448,8 @@ export type V2DeliveryCase = {
   model_snapshot: string;
   delivered_to_name: string | null;
   identifier_snapshot: string | null;
+  serial_number_snapshot?: string | null;
+  imei_snapshot?: string | null;
   device_type_snapshot: string;
   delivered_at: string | null;
   case_id: number;
@@ -566,6 +572,8 @@ export type ExternalPurchasePayload = {
   ownLimit: number;
   ownCommitted: number;
   canManageCatalog: boolean;
+  canPriceCatalog: boolean;
+  catalogCategories: string[];
 };
 export const loadExternalPurchases = (caseId?: number) =>
   directAdminRequest<ExternalPurchasePayload>(

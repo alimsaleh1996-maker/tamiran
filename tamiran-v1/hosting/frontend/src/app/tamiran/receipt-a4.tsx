@@ -64,7 +64,10 @@ export function ReceiptA4({ receipt, tracking, handling, conditions }: {
         <div><dt>کد ملی</dt><dd><bdi dir="ltr">{mask(receipt.nationalCode, 0)}</bdi></dd></div>
         <div><dt>برند و مدل</dt><dd><bdi>{device}</bdi></dd></div>
         <div><dt>رنگ دستگاه</dt><dd>{receipt.color || "—"}</dd></div>
-        <div><dt>سریال / IMEI</dt><dd><bdi dir="ltr">{mask(receipt.identifier, 2, 2)}</bdi></dd></div>
+        {receipt.serialNumber && <div><dt>شماره سریال</dt><dd><bdi dir="ltr">{mask(receipt.serialNumber, 2, 2)}</bdi></dd></div>}
+        {receipt.imei && <div><dt>IMEI</dt><dd><bdi dir="ltr">{mask(receipt.imei, 2, 2)}</bdi></dd></div>}
+        {(!receipt.serialNumber && !receipt.imei || !!receipt.identifier && receipt.identifier !== receipt.serialNumber && receipt.identifier !== receipt.imei) &&
+          <div><dt>شناسه دستگاه</dt><dd><bdi dir="ltr">{mask(receipt.identifier, 2, 2)}</bdi></dd></div>}
       </dl>
     </section>
     <section aria-label="اطلاعات مالی پذیرش">

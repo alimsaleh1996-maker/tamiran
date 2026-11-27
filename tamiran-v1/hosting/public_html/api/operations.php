@@ -199,6 +199,8 @@ function operations_case_to_api(array $row, string $role, array $events = []): a
         'model' => $row['model_title'],
         'preapprovedAmount' => (int)($row['preapproved_amount']??0),
         'identifier' => $row['identifier_value'] ?? '',
+        'serialNumber' => $row['serial_number_snapshot'] ?? '',
+        'imei' => $row['imei_snapshot'] ?? '',
         'identifierUnavailableReason' => (json_decode((string)($row['reception_identity_event']??'{}'),true)['identity']['unavailableReason']??''),
         'color' => $row['color_snapshot'] ?? '',
         'declaredIssue' => $row['declared_issue'],
@@ -244,7 +246,7 @@ function operations_customer_lookup(PDO $pdo, array $scope, string $mobile): arr
     $customer = $customerStatement->fetch();
     if (!is_array($customer)) return ['customer'=>null];
     $devicesStatement = $pdo->prepare(
-        "SELECT d.id,d.row_version,d.device_model_id,d.device_type_title,d.brand_title,d.model_title,d.identifier_value,d.color_title,d.last_accepted_at,
+        "SELECT d.id,d.row_version,d.device_model_id,d.device_type_title,d.brand_title,d.model_title,d.identifier_value,d.serial_number,d.imei,d.color_title,d.last_accepted_at,
                 latest.receipt_number,latest.declared_issue,latest.status,latest.updated_at,latest.branch_id,latest.delivered_at,w.process_status
          FROM repair_customer_devices d
          LEFT JOIN repair_cases latest ON latest.id=(SELECT c.id FROM repair_cases c WHERE c.device_id=d.id AND c.shop_id=:case_shop ORDER BY c.created_at DESC,c.id DESC LIMIT 1)
@@ -257,7 +259,9 @@ function operations_customer_lookup(PDO $pdo, array $scope, string $mobile): arr
         return [
         'id'=>(int)$row['id'], 'expectedDeviceVersion'=>(int)$row['row_version'], 'deviceModelId'=>$row['device_model_id']===null?null:(int)$row['device_model_id'],
         'deviceType'=>(string)$row['device_type_title'], 'brand'=>(string)$row['brand_title'], 'model'=>(string)$row['model_title'],
-        'identifier'=>(string)($row['identifier_value']??''), 'color'=>(string)($row['color_title']??''), 'lastReceipt'=>$sameBranch ? (string)($row['receipt_number']??'') : '',
+        'identifier'=>(string)($row['identifier_value']??''),
+        'serialNumber'=>$sameBranch?(string)($row['serial_number']??''):'',
+        'imei'=>$sameBranch?(string)($row['imei']??''):'', 'color'=>(string)($row['color_title']??''), 'lastReceipt'=>$sameBranch ? (string)($row['receipt_number']??'') : '',
         'lastVisit'=>$sameBranch ? (string)($row['updated_at']??$row['last_accepted_at']??'') : '',
         'lastIssue'=>$sameBranch ? (string)($row['declared_issue']??'') : '',
         'lastStatus'=>$sameBranch ? ($row['status']??null) : null,
@@ -648,10 +652,23 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
     }
     $unavailable=($input['identifierUnavailable']??false)===true;
     $unavailableReason=trim((string)($input['identifierUnavailableReason']??''));
-    if($unavailable && (trim((string)($input['identifier']??''))!=='' || !in_array($unavailableReason,['unreadable','missing_label','powered_off','other'],true)))throw new TamiranApiException('برای سریال ندارد، شناسه را خالی و علت را مشخص کنید.',422);
+    foreach (['identifier','serialNumber','imei'] as $key) {
+        if (isset($input[$key]) && !is_string($input[$key])) throw new TamiranApiException('شناسه دستگاه معتبر نیست.',422);
+    }
+    $needsImei=v2_device_has_imei((string)$model['type']);
+    $serial=v2_identity_value($input['serialNumber']??'','serial',false);
+    $imei=v2_identity_value($input['imei']??'','mobile',false);
+    $primary=$needsImei?$imei:$serial;
+    $legacy=trim($input['identifier']??'');
+    if ($legacy!=='' && $primary!==null) {
+        throw new TamiranApiException('شناسهٔ اصلی را در یک فیلد وارد کنید.',422);
+    }
+    if ($unavailable && ($primary!==null || $legacy!=='' || !in_array($unavailableReason,['unreadable','missing_label','powered_off','other'],true))) {
+        throw new TamiranApiException('شناسهٔ اصلی را خالی بگذارید و علت در دسترس نبودن آن را مشخص کنید.',422);
+    }
     $unavailableNote=operations_optional($input['identifierUnavailableNote']??'',500);
     if($unavailable&&$unavailableReason==='other'&&$unavailableNote===null)throw new TamiranApiException('علت در دسترس نبودن سریال را توضیح دهید.',422);
-    $identifier = $unavailable ? null : v2_identity_value((string)($input['identifier']??''),(string)$model['type']);
+    $identifier = $unavailable ? null : ($primary ?? v2_identity_value($legacy,(string)$model['type']));
     $color = operations_optional($input['color'] ?? '', 80);
     $colorSetting=$pdo->prepare("SELECT value_json FROM repair_shop_settings WHERE shop_id=:shop AND setting_key='device_colors' LIMIT 1");
     $colorSetting->execute(['shop'=>$scope['shop_id']]);
@@ -680,7 +697,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         if (!in_array($appearanceState, $allowedAppearanceStates, true)) throw new TamiranApiException('وضعیت ظاهری باید از فهرست فعال تنظیمات انتخاب شود.', 409);
     }
     $caseIdempotency=operations_optional($input['idempotencyKey']??($_SERVER['HTTP_X_IDEMPOTENCY_KEY']??''),160);
-    if($caseIdempotency===null)$caseIdempotency=hash('sha256',implode('|',[$scope['shop_id'],$scope['actor']['id'],$mobile,$normalizedIdentifier??'',trim((string)($input['declaredIssue']??'')),(string)floor(time()/30)]));
+    if($caseIdempotency===null)$caseIdempotency=hash('sha256',implode('|',[$scope['shop_id'],$scope['actor']['id'],$mobile,$normalizedIdentifier??($imei??$serial??''),trim((string)($input['declaredIssue']??'')),(string)floor(time()/30)]));
     $fingerprint=hash('sha256',json_encode(operations_canonical_value($input),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
     $replay=operations_replay_case($pdo,$scope,$caseIdempotency,$fingerprint);if($replay!==null)return $replay;
     $issueOnly=($input['receiptMode']??'')==='issue_only';
@@ -718,13 +735,17 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         }
 
         $previousDeviceId = (int)($input['previousDeviceId'] ?? 0);
+        $deviceId = null;
         if ($previousDeviceId > 0) {
             $expectedDeviceVersion=operations_version($input,'expectedDeviceVersion');
-            $deviceCheck = $pdo->prepare('SELECT id,row_version FROM repair_customer_devices WHERE id=:id AND shop_id=:shop AND customer_id=:customer LIMIT 1 FOR UPDATE');
+            $deviceCheck = $pdo->prepare('SELECT id,row_version,serial_number,imei FROM repair_customer_devices WHERE id=:id AND shop_id=:shop AND customer_id=:customer LIMIT 1 FOR UPDATE');
             $deviceCheck->execute(['id'=>$previousDeviceId, 'shop'=>$scope['shop_id'], 'customer'=>$customerId]);
             $deviceRow=$deviceCheck->fetch();$deviceId=is_array($deviceRow)?(int)$deviceRow['id']:0;
             if(is_array($deviceRow)&&(int)$deviceRow['row_version']!==$expectedDeviceVersion)throw new TamiranApiException('اطلاعات دستگاه هم‌زمان تغییر کرده است؛ سابقه را تازه‌سازی کنید.',409);
             if ($deviceId < 1) throw new TamiranApiException('دستگاه قبلی برای این مشتری معتبر نیست.', 409);
+            // Older clients can update a known primary identifier without switching its type.
+            if ($legacy!=='' && $needsImei && $deviceRow['imei']!==null) $imei=$identifier;
+            if ($legacy!=='' && !$needsImei && $deviceRow['serial_number']!==null) $serial=$identifier;
             $lastCase=$pdo->prepare('SELECT c.branch_id,c.delivered_at,c.status,w.process_status
                 FROM repair_cases c LEFT JOIN repair_case_workflows w ON w.case_id=c.id AND w.shop_id=c.shop_id
                 WHERE c.shop_id=:shop AND c.device_id=:device ORDER BY c.created_at DESC,c.id DESC LIMIT 1');
@@ -733,19 +754,17 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
             if (!is_array($previous) || (int)$previous['branch_id']!==(int)$scope['branch_id'] || !operations_case_recallable($previous)) {
                 throw new TamiranApiException('پذیرش مجدد بعد از ثبت تحویل واقعی آخرین پرونده در این شعبه امکان‌پذیر است.',409);
             }
-            $pdo->prepare('UPDATE repair_customer_devices SET device_model_id=:model,device_type_title=:type,brand_title=:brand,model_title=:model_title,color_title=:color,identifier_value=COALESCE(:identifier,identifier_value),normalized_identifier=COALESCE(:normalized,normalized_identifier),row_version=row_version+1,last_accepted_at=NOW() WHERE id=:id')->execute([
-                'model'=>$modelId, 'type'=>$model['type'], 'brand'=>$model['brand'], 'model_title'=>$model['model'], 'color'=>$color, 'identifier'=>$identifier, 'normalized'=>$normalizedIdentifier, 'id'=>$deviceId,
+        }
+
+        v2_require_unique_device_identity($pdo,$scope,$deviceId,$normalizedIdentifier,$serial,$imei);
+        if ($deviceId !== null) {
+            $pdo->prepare('UPDATE repair_customer_devices SET device_model_id=:model,device_type_title=:type,brand_title=:brand,model_title=:model_title,color_title=:color,identifier_value=COALESCE(:identifier,identifier_value),normalized_identifier=COALESCE(:normalized,normalized_identifier),serial_number=COALESCE(:serial,serial_number),imei=COALESCE(:imei,imei),row_version=row_version+1,last_accepted_at=NOW() WHERE id=:id')->execute([
+                'model'=>$modelId, 'type'=>$model['type'], 'brand'=>$model['brand'], 'model_title'=>$model['model'], 'color'=>$color, 'identifier'=>$identifier, 'normalized'=>$normalizedIdentifier, 'serial'=>$serial, 'imei'=>$imei, 'id'=>$deviceId,
             ]);
         } else {
-            if ($normalizedIdentifier !== null && $normalizedIdentifier !== '') {
-                $duplicate = $pdo->prepare('SELECT id,customer_id FROM repair_customer_devices WHERE shop_id=:shop AND normalized_identifier=:identifier LIMIT 1 FOR UPDATE');
-                $duplicate->execute(['shop'=>$scope['shop_id'],'identifier'=>$normalizedIdentifier]);
-                $existingDevice = $duplicate->fetch();
-                if (is_array($existingDevice)) throw new TamiranApiException('این IMEI/سریال قبلاً ثبت شده است؛ همان دستگاه را از سابقه مشتری انتخاب و مالکیت را بررسی کنید.',409);
-            }
-            $pdo->prepare('INSERT INTO repair_customer_devices(public_id,shop_id,customer_id,device_model_id,device_type_title,brand_title,model_title,color_title,identifier_value,normalized_identifier,ownership_verification_json,details_json,last_accepted_at) VALUES(:public,:shop,:customer,:model,:type,:brand,:model_title,:color,:identifier,:normalized_identifier,:ownership,:details,NOW())')->execute([
+            $pdo->prepare('INSERT INTO repair_customer_devices(public_id,shop_id,customer_id,device_model_id,device_type_title,brand_title,model_title,color_title,identifier_value,normalized_identifier,serial_number,imei,ownership_verification_json,details_json,last_accepted_at) VALUES(:public,:shop,:customer,:model,:type,:brand,:model_title,:color,:identifier,:normalized_identifier,:serial,:imei,:ownership,:details,NOW())')->execute([
                 'public'=>tamiran_id(), 'shop'=>$scope['shop_id'], 'customer'=>$customerId, 'model'=>$modelId, 'type'=>$model['type'], 'brand'=>$model['brand'], 'model_title'=>$model['model'],
-                'color'=>$color, 'identifier'=>$identifier, 'normalized_identifier'=>$normalizedIdentifier, 'ownership'=>json_encode(new stdClass(), JSON_UNESCAPED_UNICODE),
+                'color'=>$color, 'identifier'=>$identifier, 'normalized_identifier'=>$normalizedIdentifier, 'serial'=>$serial, 'imei'=>$imei, 'ownership'=>json_encode(new stdClass(), JSON_UNESCAPED_UNICODE),
                 'details'=>json_encode(new stdClass(), JSON_UNESCAPED_UNICODE),
             ]);
             $deviceId = (int)$pdo->lastInsertId();
@@ -764,12 +783,12 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         $trackingToken = tamiran_tracking_token();
         $trackingTokenHash = hash('sha256', $trackingToken);
         $status = $policy['profile']==='solo' ? 'diagnosing' : ($assignedId === null ? 'awaiting_assignment' : 'assigned');
-        $pdo->prepare('INSERT INTO repair_cases(public_id,case_uuid,shop_id,branch_id,customer_id,device_id,receipt_sequence,public_receipt_no,receipt_number,tracking_token_hash,tracking_token_ciphertext,product_profile_snapshot,inventory_mode_snapshot,qc_mode_snapshot,feature_flags_snapshot_json,idempotency_key,reception_request_hash,device_type_snapshot,brand_snapshot,model_snapshot,color_snapshot,identifier_snapshot,declared_issue,accessories_json,appearance_states_json,reception_notes,status,assigned_to_user_id,created_by_user_id) VALUES(:public,:case_uuid,:shop,:branch,:customer,:device,:receipt_sequence,:public_receipt,:receipt,:tracking_hash,:tracking_ciphertext,:product_profile,:inventory_mode,:qc_mode,:feature_flags,:idempotency,:request_hash,:device_type,:brand,:model_title,:color,:identifier_snapshot,:issue,:accessories,:appearance,:notes,:status,:assignee,:creator)')->execute([
+        $pdo->prepare('INSERT INTO repair_cases(public_id,case_uuid,shop_id,branch_id,customer_id,device_id,receipt_sequence,public_receipt_no,receipt_number,tracking_token_hash,tracking_token_ciphertext,product_profile_snapshot,inventory_mode_snapshot,qc_mode_snapshot,feature_flags_snapshot_json,idempotency_key,reception_request_hash,device_type_snapshot,brand_snapshot,model_snapshot,color_snapshot,identifier_snapshot,serial_number_snapshot,imei_snapshot,declared_issue,accessories_json,appearance_states_json,reception_notes,status,assigned_to_user_id,created_by_user_id) VALUES(:public,:case_uuid,:shop,:branch,:customer,:device,:receipt_sequence,:public_receipt,:receipt,:tracking_hash,:tracking_ciphertext,:product_profile,:inventory_mode,:qc_mode,:feature_flags,:idempotency,:request_hash,:device_type,:brand,:model_title,:color,:identifier_snapshot,:serial,:imei,:issue,:accessories,:appearance,:notes,:status,:assignee,:creator)')->execute([
             'public'=>tamiran_id(), 'case_uuid'=>$caseUuid, 'shop'=>$scope['shop_id'], 'branch'=>$scope['branch_id'], 'customer'=>$customerId, 'device'=>$deviceId,
             'receipt_sequence'=>$nextNumber, 'public_receipt'=>$receiptNumber, 'receipt'=>$receiptNumber,
             'tracking_hash'=>$trackingTokenHash, 'tracking_ciphertext'=>tamiran_encrypt_secret($trackingToken),
             'product_profile'=>$policy['profile'],'inventory_mode'=>$policy['inventoryMode'],'qc_mode'=>$policy['qcMode'],'feature_flags'=>json_encode($scope['feature_flags'],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),'idempotency'=>$caseIdempotency,'request_hash'=>$fingerprint,
-            'device_type'=>$model['type'], 'brand'=>$model['brand'], 'model_title'=>$model['model'], 'color'=>$color, 'identifier_snapshot'=>$identifier,
+            'device_type'=>$model['type'], 'brand'=>$model['brand'], 'model_title'=>$model['model'], 'color'=>$color, 'identifier_snapshot'=>$identifier, 'serial'=>$serial, 'imei'=>$imei,
             'issue'=>$declaredIssue, 'accessories'=>json_encode($accessories, JSON_UNESCAPED_UNICODE), 'appearance'=>json_encode($appearanceStates, JSON_UNESCAPED_UNICODE), 'notes'=>$receptionNotes,
             'status'=>$status, 'assignee'=>$assignedId, 'creator'=>(int)$scope['actor']['id'],
         ]);
@@ -810,7 +829,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         ]);
         $workflowId=(int)$pdo->lastInsertId();
         $pdo->prepare('INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at) VALUES(:public,:workflow,NULL,:status,:actor,:reason,:metadata,:idempotency,NOW())')->execute([
-            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'promisedAt'=>$promisedAt,'declaredIssues'=>$declaredIssues,'receiptIssueDetails'=>$receiptIssueDetails,'initialEstimate'=>$initialEstimate,'receiptNotes'=>$receiptNotes,'identity'=>['identifier'=>$identifier,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
+            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'promisedAt'=>$promisedAt,'declaredIssues'=>$declaredIssues,'receiptIssueDetails'=>$receiptIssueDetails,'initialEstimate'=>$initialEstimate,'receiptNotes'=>$receiptNotes,'identity'=>['identifier'=>$identifier,'serialNumber'=>$serial,'imei'=>$imei,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
         ]);
         if ($assignedId !== null) {
             $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,created_by_user_id,started_at,accepted_at) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی تعمیر',:creator,NOW(),NULL)")
@@ -952,6 +971,7 @@ function operations_create_inventory_item(PDO $pdo, array $scope, array $input):
     $publicId = tamiran_id();
     $pdo->beginTransaction();
     try {
+        if (v2_catalog_collisions($pdo,$scope,$code,$title)!==[]) throw new TamiranApiException('نام یا کد کالا تکراری است.',409);
         $statement = $pdo->prepare('INSERT INTO repair_inventory_items(public_id,shop_id,item_code,title,category,physical_quantity,reserved_quantity,minimum_quantity,hot_return_required,hot_evidence_rules_json,is_active) VALUES(:public,:shop,:code,:title,:category,:physical,0,:minimum,:hot,:hot_rules,1)');
         $statement->execute(['public'=>$publicId,'shop'=>$scope['shop_id'],'code'=>$code,'title'=>$title,'category'=>$category,'physical'=>$physical,'minimum'=>$minimum,'hot'=>$hot,'hot_rules'=>json_encode(is_array($input['hotEvidenceRules']??null)?$input['hotEvidenceRules']:['serial'=>false,'image'=>false,'condition'=>true],JSON_UNESCAPED_UNICODE)]);
         $itemId = (int)$pdo->lastInsertId();

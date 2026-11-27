@@ -75,7 +75,7 @@ function finance_workspace(PDO $pdo, array $scope, array $policy): array
 
     // Pending case identities are visible to finance viewers even while billing is unavailable.
     $query=$pdo->prepare("SELECT c.receipt_number AS receiptNumber, cu.full_name AS customerName,
-            cu.mobile AS customerMobile, c.identifier_snapshot AS identifier,
+            cu.mobile AS customerMobile, c.identifier_snapshot AS identifier,c.serial_number_snapshot AS serialNumber,c.imei_snapshot AS imei,
             CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS deviceTitle
         FROM repair_case_workflows w
         JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id AND c.branch_id=w.branch_id
@@ -93,7 +93,7 @@ function finance_payload(PDO $pdo,array $scope):array
     $statement=$pdo->prepare(
         'SELECT i.*,w.process_status,c.receipt_number,cu.full_name AS customer_name,cu.mobile AS customer_mobile,
                 tech.display_name AS technician_name,
-                c.identifier_snapshot,CONCAT_WS(\' \',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title
+                c.identifier_snapshot,c.serial_number_snapshot,c.imei_snapshot,CONCAT_WS(\' \',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title
          FROM repair_invoices i
          INNER JOIN repair_cases c ON c.id=i.case_id AND c.shop_id=i.shop_id
          INNER JOIN repair_customers cu ON cu.id=c.customer_id AND cu.shop_id=i.shop_id
@@ -142,7 +142,7 @@ function finance_payload(PDO $pdo,array $scope):array
     }
     unset($invoice);
     $draftStatement=$pdo->prepare("SELECT c.id AS caseId,c.receipt_number AS receiptNumber,
-            cu.full_name AS customerName,cu.mobile AS customer_mobile,c.identifier_snapshot,
+            cu.full_name AS customerName,cu.mobile AS customer_mobile,c.identifier_snapshot,c.serial_number_snapshot,c.imei_snapshot,
             w.lock_version AS lockVersion, w.process_status,tech.display_name AS technician_name,
             w.preapproved_amount,c.qc_mode_snapshot,c.result,
             CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title

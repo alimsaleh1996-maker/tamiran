@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS tamiran_schema_versions (
   version VARCHAR(40) NOT NULL, applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-INSERT IGNORE INTO tamiran_schema_versions(version) VALUES ('2.0.0-beta.7');
+INSERT IGNORE INTO tamiran_schema_versions(version) VALUES ('2.0.0-beta.8');
 
 CREATE TABLE IF NOT EXISTS repair_shops (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, public_id CHAR(26) NOT NULL, shop_code VARCHAR(64) NOT NULL,
@@ -393,6 +393,7 @@ CREATE TABLE IF NOT EXISTS repair_customers (
 CREATE TABLE IF NOT EXISTS repair_customer_devices (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, public_id CHAR(26) NOT NULL, shop_id BIGINT UNSIGNED NOT NULL, customer_id BIGINT UNSIGNED NOT NULL,
   device_model_id BIGINT UNSIGNED NULL, device_type_title VARCHAR(120) NOT NULL, brand_title VARCHAR(120) NOT NULL, model_title VARCHAR(160) NOT NULL, color_title VARCHAR(80) NULL,
+  serial_number VARCHAR(180) NULL, imei CHAR(15) NULL,
   identifier_value VARCHAR(190) NULL, normalized_identifier VARCHAR(190) NULL, ownership_verified_at DATETIME NULL,
   ownership_verification_json JSON NOT NULL, details_json JSON NOT NULL, last_accepted_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -412,6 +413,7 @@ CREATE TABLE IF NOT EXISTS repair_cases (
   qc_mode_snapshot ENUM('off','simple','independent') NOT NULL, feature_flags_snapshot_json JSON NOT NULL,
   idempotency_key VARCHAR(160) NOT NULL,
   device_type_snapshot VARCHAR(120) NOT NULL, brand_snapshot VARCHAR(120) NOT NULL, model_snapshot VARCHAR(160) NOT NULL, color_snapshot VARCHAR(80) NULL, identifier_snapshot VARCHAR(190) NULL,
+  serial_number_snapshot VARCHAR(180) NULL, imei_snapshot CHAR(15) NULL,
   declared_issue TEXT NOT NULL, accessories_json JSON NOT NULL, appearance_states_json JSON NOT NULL, reception_notes TEXT NULL,
   status ENUM('awaiting_assignment','assigned','diagnosing','repairing','awaiting_part','awaiting_customer','ready_for_delivery','returned','delivered','cancelled') NOT NULL DEFAULT 'awaiting_assignment',
   result ENUM('repaired','not_repaired') NULL, operation_report TEXT NULL, assigned_to_user_id BIGINT UNSIGNED NULL, created_by_user_id BIGINT UNSIGNED NOT NULL,

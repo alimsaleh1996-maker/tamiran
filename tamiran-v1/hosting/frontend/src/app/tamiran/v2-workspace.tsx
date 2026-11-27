@@ -208,7 +208,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
   }, [supplyQueue.data]);
   const queueCases = useMemo(() => {
     return (workflow?.cases ?? []).filter((item) =>
-      matchesQueueSearch(queueSearch, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle]),
+      matchesQueueSearch(queueSearch, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.serialNumber, item.imei, item.deviceTitle]),
     );
   }, [workflow?.cases, queueSearch]);
   const pageSubtitle = section === "quality"
@@ -647,7 +647,7 @@ function WorkflowBoard({
         cases={data.cases.filter(item =>
           (item.status === "awaiting_customer_approval" || (["finance_pending", "qc_conditional"].includes(item.status)
             && ["sent", "explanation_requested"].includes(item.latestEstimate?.status ?? ""))) &&
-          matchesQueueSearch(search, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle]))}
+          matchesQueueSearch(search, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.serialNumber, item.imei, item.deviceTitle]))}
         onOpen={open} openCaseId={selectedId} busy={busy}
       />}
       {assignmentPage && !metric && assignmentTab === "active" && (
@@ -861,6 +861,9 @@ function InventoryBoard({
   const warehouseActions = ["repair_manager", "warehouse_keeper"].includes(
     profile.role,
   );
+  const canReviewHot = warehouseActions || profile.permissions?.some(permission =>
+    permission === "inventory.hot_return.review" || permission === "*");
+  const [hotRejection, setHotRejection] = useState<{ publicId: string; evidenceId: number; reason: string }>();
   const openHot = (control?.hotReturns ?? []) as Array<
     Record<string, string | number>
   >;
@@ -1357,26 +1360,37 @@ function InventoryBoard({
                 <td data-label="سررسید">{localDate(String(item.due_at ?? ""))}</td>
                 <td data-label="وضعیت">{hotStatusLabels[String(item.status)] ?? "در دست بررسی"}
                   {Number(item.overdue) === 1 && <small className="v2-expired">سررسید گذشته</small>}
+                  {item.status === "rejected" && item.rejection_reason && <small>دلیل رد: {item.rejection_reason}</small>}
                 </td>
                 <td data-label="عملیات">
-                  {warehouseActions && item.status === "waiting_review" && (
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(
-                          () =>
-                            inventoryControlV2Action({
-                              action: "hot_review",
-                              hotReturnPublicId: item.public_id,
-                              decision: "accept",
-                            }),
-                          "داغی تسویه شد.",
-                        )
-                      }
-                    >
-                      تأیید دریافت
-                    </button>
-                  )}
+                  {canReviewHot && item.status === "waiting_review" && (hotRejection?.publicId === item.public_id ? (
+                    <form className="v2-hot-review-form" onSubmit={async (event) => {
+                      event.preventDefault();
+                      const result = await run(() => inventoryControlV2Action({
+                        action: "hot_review", hotReturnPublicId: item.public_id, decision: "reject",
+                        reason: hotRejection.reason.trim(), evidenceId: hotRejection.evidenceId,
+                      }), "رد دریافت ثبت شد. تعهد داغی باز است.");
+                      if (result) setHotRejection(undefined);
+                    }}>
+                      <label><span>دلیل رد دریافت</span><textarea autoFocus required rows={2} maxLength={1000} value={hotRejection.reason}
+                        onChange={(event) => setHotRejection({ ...hotRejection, reason: event.target.value })} /></label>
+                      <div className="v2-hot-review-actions">
+                        <button type="submit" disabled={busy || !hotRejection.reason.trim()}>ثبت رد دریافت</button>
+                        <button type="button" className="secondary-button" disabled={busy} onClick={() => setHotRejection(undefined)}>انصراف</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="v2-hot-review-actions">
+                      <button type="button" disabled={busy} onClick={() =>
+                        void run(() => inventoryControlV2Action({
+                          action: "hot_review", hotReturnPublicId: item.public_id, decision: "accept",
+                          evidenceId: Number(item.evidence_id),
+                        }), "دریافت فیزیکی ثبت و تعهد تسویه شد.")
+                      }>تأیید دریافت</button>
+                      <button type="button" className="secondary-button" disabled={busy}
+                        onClick={() => setHotRejection({ publicId: String(item.public_id), evidenceId: Number(item.evidence_id), reason: "" })}>رد دریافت</button>
+                    </div>
+                  ))}
                 </td>
               </tr>
             ))}
@@ -1629,7 +1643,7 @@ function FinanceUnavailable({ pending, search }: {
   search: string;
 }) {
   const cases = pending.filter(item => matchesQueueSearch(search,
-    [item.receiptNumber, item.customerName, item.customerMobile, item.identifier ?? "", item.deviceTitle]));
+    [item.receiptNumber, item.customerName, item.customerMobile, item.identifier ?? "", item.serialNumber, item.imei, item.deviceTitle]));
   return (
     <section className="v2-card-form">
       <h3>پرونده‌های منتظر تکمیل مالی</h3>
@@ -1682,7 +1696,7 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval, 
   ].map(row => ({ ...row, item: casesById.get(row.id) }))
     .filter(({ receipt, customer, device, item }) => matchesQueueSearch(search,
       [receipt, customer, device.customer_mobile ?? item?.customerMobile ?? "",
-        device.identifier_snapshot ?? item?.identifier ?? "", device.device_title ?? item?.deviceTitle ?? ""]))
+        device.identifier_snapshot ?? item?.identifier ?? "", device.serial_number_snapshot ?? item?.serialNumber, device.imei_snapshot ?? item?.imei, device.device_title ?? item?.deviceTitle ?? ""]))
     .sort((a, b) => compareQueueCases(a.item, b.item));
 
   if (advanceSearch !== null) return <AdvancePaymentView initialSearch={advanceSearch} permissions={data.permissions}
@@ -1698,7 +1712,7 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval, 
       onRefund={() => select(caseId, "refund")} />;
   }
   const historyRows = data.invoices.filter(invoice => !isOpenFinanceInvoice(invoice) && matchesQueueSearch(search,
-    [invoice.receipt_number, invoice.customer_name, invoice.customer_mobile ?? "", invoice.identifier_snapshot ?? "", invoice.device_title ?? ""]));
+    [invoice.receipt_number, invoice.customer_name, invoice.customer_mobile ?? "", invoice.identifier_snapshot ?? "", invoice.serial_number_snapshot, invoice.imei_snapshot, invoice.device_title ?? ""]));
   return <div className="v2-stack">
     <section className="v2-card-form">
       <div className="service-card-line"><h3>صف نهایی‌سازی مالی</h3><b>{toman.format(queue.length)} پرونده</b></div>
@@ -1747,7 +1761,7 @@ function DeliveryBoard({ onCaseOpen, data, cases, search, profile, allowRegistra
   const [receiptId, setReceiptId] = useState(0);
   const [warrantyReturn, setWarrantyReturn] = useState({ caseId: "", issue: "", notes: "", identifier: "" });
   const matches = (item: V2DeliveryCase) => matchesQueueSearch(search, [item.receipt_number, item.customer_name,
-    item.customer_mobile, item.identifier_snapshot ?? "", item.brand_snapshot, item.model_snapshot]);
+    item.customer_mobile, item.identifier_snapshot ?? "", item.serial_number_snapshot, item.imei_snapshot, item.brand_snapshot, item.model_snapshot]);
   const ready = data.cases.filter(item => ["ready_for_delivery", "returned_unrepaired"].includes(item.process_status) && !item.delivered_at);
   const selected = allowRegistration ? ready.find(item => item.case_id === caseId) : undefined;
   const pendingDetails = allowRegistration && caseId > 0 && !selected;
