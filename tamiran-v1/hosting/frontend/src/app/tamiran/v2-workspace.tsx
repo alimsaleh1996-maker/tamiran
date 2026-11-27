@@ -7,7 +7,7 @@ import { OperationsCaseWorkspace } from "./operations-case-workspace";
 import { technicalCaseFromLocation, writeTechnicalLocation } from "./technician-navigation";
 import { formatHandoverTime, printHandoverReceipt } from "./handover-receipt";
 import { DeliveryCaseForm } from "./delivery-case-form";
-import { formatToman } from "./money-input";
+import { formatRials } from "./money-input";
 import { AdvancePaymentView, isOpenFinanceInvoice, RepairInvoiceView, SettlementView } from "./finance-case-view";
 import "./iteration-six.css";
 import "./manager-operations.css";
@@ -102,11 +102,11 @@ const requestLabels: Record<string, string> = {
   rejected: "ردشده",
   cancelled: "لغوشده",
 };
-const toman = new Intl.NumberFormat("fa-IR");
+const persianNumber = new Intl.NumberFormat("fa-IR");
 const assignmentPageTitle = "مدیریت ارجاع تعمیرات";
 const emptyInventory = { items: [], requests: [], issues: [], warehouse: null };
 const formatMoney = (value: number | string | null | undefined) =>
-  `${formatToman(Number(value ?? 0))} تومان`;
+  `${formatRials(Number(value ?? 0))} ریال`;
 const localDate = (value: string | null | undefined) =>
   value
     ? new Intl.DateTimeFormat("fa-IR", {
@@ -727,9 +727,9 @@ const hotStatusLabels: Record<string, string> = {
 function intakeAge(acceptedAt: string) {
   const minutes = Math.floor(Math.max(0, Date.now() - queueTimestamp(acceptedAt).getTime()) / 60_000);
   if (!Number.isFinite(minutes)) return "";
-  if (minutes >= 1440) return `${toman.format(Math.floor(minutes / 1440))} روز از پذیرش`;
-  if (minutes >= 60) return `${toman.format(Math.floor(minutes / 60))} ساعت از پذیرش`;
-  return minutes > 0 ? `${toman.format(minutes)} دقیقه از پذیرش` : "تازه‌پذیرش‌شده";
+  if (minutes >= 1440) return `${persianNumber.format(Math.floor(minutes / 1440))} روز از پذیرش`;
+  if (minutes >= 60) return `${persianNumber.format(Math.floor(minutes / 60))} ساعت از پذیرش`;
+  return minutes > 0 ? `${persianNumber.format(minutes)} دقیقه از پذیرش` : "تازه‌پذیرش‌شده";
 }
 
 function ManagerAssignmentQueue({ cases, open }: { cases: ManagerQueueCase[]; open: (item: ManagerQueueCase) => void }) {
@@ -798,8 +798,8 @@ function InventoryCatalog({ data, profile, busy, run }: {
       {items.map(item => <tr key={`${item.id}:${item.warehouse_id}`}>
         <td data-label="قطعه"><strong>{item.title}</strong><small><bdi>{item.item_code}</bdi></small></td>
         <td data-label="دسته‌بندی">{item.category || "بدون دسته‌بندی"}</td>
-        <td data-label="موجودی">{toman.format(item.physical_quantity)} {item.unit_title}</td>
-        <td data-label="قابل تخصیص">{item.available_quantity > 0 ? toman.format(item.available_quantity) : "ناموجود"}</td>
+        <td data-label="موجودی">{persianNumber.format(item.physical_quantity)} {item.unit_title}</td>
+        <td data-label="قابل تخصیص">{item.available_quantity > 0 ? persianNumber.format(item.available_quantity) : "ناموجود"}</td>
         <td data-label="قیمت فروش">{item.sale_price > 0 ? formatMoney(item.sale_price) : "تعیین نشده"}</td>
       </tr>)}
     </ResponsiveTable>
@@ -912,8 +912,8 @@ function InventoryBoard({
                   <bdi>{item.item_code}</bdi> · {item.item_title}
                 </td>
                 <td data-label="درخواست/تحویل">
-                  {toman.format(item.quantity)} /{" "}
-                  {toman.format(item.delivered_quantity)}
+                  {persianNumber.format(item.quantity)} /{" "}
+                  {persianNumber.format(item.delivered_quantity)}
                 </td>
                 <td data-label="وضعیت">
                   <span className="v2-table-status">
@@ -1020,7 +1020,7 @@ function InventoryBoard({
                     {item.item_code} · {item.item_title}
                   </td>
                   <td data-label="تکنسین">{item.technician_name}</td>
-                  <td data-label="تعداد">{toman.format(item.quantity)}</td>
+                  <td data-label="تعداد">{persianNumber.format(item.quantity)}</td>
                   <td data-label="عملیات">
                     {["repair_manager", "technician"].includes(profile.role) ? (
                       <div className="v2-row-actions">
@@ -1126,7 +1126,7 @@ function InventoryBoard({
                       {item.item_code} · {item.item_title}
                     </td>
                     <td data-label="Snapshot">
-                      {toman.format(Number(item.snapshot_quantity))}
+                      {persianNumber.format(Number(item.snapshot_quantity))}
                     </td>
                     <td data-label="شمارش واقعی">
                       <input
@@ -1355,7 +1355,7 @@ function InventoryBoard({
             {openHot.map((item) => (
               <tr key={String(item.public_id)}>
                 <td data-label="پرونده">{item.receipt_number}<small>{item.device_title}</small></td>
-                <td data-label="قطعه">{item.item_title}<small>{toman.format(Number(item.quantity ?? 1))} · {localDate(String(item.created_at ?? ""))}</small></td>
+                <td data-label="قطعه">{item.item_title}<small>{persianNumber.format(Number(item.quantity ?? 1))} · {localDate(String(item.created_at ?? ""))}</small></td>
                 <td data-label="تکنسین">{item.technician_name}</td>
                 <td data-label="سررسید">{localDate(String(item.due_at ?? ""))}</td>
                 <td data-label="وضعیت">{hotStatusLabels[String(item.status)] ?? "در دست بررسی"}
@@ -1444,7 +1444,7 @@ function QualityBoard({ data, cases, profile, busy, run, onCaseOpen }: {
   if (selected) return <QualityCase key={selected.id} item={selected} profile={profile} busy={busy} run={run} close={() => select(0)} />;
   return <div className="v2-stack">
     <section className="v2-card-form">
-      <div className="service-card-line"><h3>صف کنترل کیفیت</h3><b>{toman.format(candidates.length)} دستگاه</b></div>
+      <div className="service-card-line"><h3>صف کنترل کیفیت</h3><b>{persianNumber.format(candidates.length)} دستگاه</b></div>
       <div className="service-card-grid">
         {candidates.map(item => <ServiceQueueCard key={item.id} item={item} title={item.deviceTitle}
           receipt={item.receiptNumber} customer={item.customerName} action="باز کردن پرونده" onOpen={() => select(item.id)} />)}
@@ -1461,7 +1461,7 @@ function QualityBoard({ data, cases, profile, busy, run, onCaseOpen }: {
         {data.runs.map((record, index) => <tr key={String(record.public_id ?? index)}>
           <td data-label="پرونده">{record.receipt_number}</td><td data-label="بازرس">{record.performer_name}</td>
           <td data-label="نتیجه">{{passed:"تأیید شده",failed:"مردود",conditional:"تأیید مشروط"}[String(record.result)] ?? "—"}</td>
-          <td data-label="بازکاری">{toman.format(Number(record.rework_number ?? 0))}</td>
+          <td data-label="بازکاری">{persianNumber.format(Number(record.rework_number ?? 0))}</td>
           <td data-label="زمان">{localDate(String(record.completed_at ?? ""))}</td>
         </tr>)}
       </ResponsiveTable>
@@ -1534,7 +1534,7 @@ function QualityCase({ item, profile, busy, run, close }: {
       {context.report && <p>{context.report}</p>}
       {context.activities.length > 0 && <ul>{context.activities.map((text,index) => <li key={index}>{text}</li>)}</ul>}
       <p>قطعات مصرف‌شده</p>
-      {context.parts.length ? <ul>{context.parts.map((part,index) => <li key={index}>{part.title} · {toman.format(part.quantity)} عدد</li>)}</ul> : <p>قطعه‌ای مصرف نشده است.</p>}
+      {context.parts.length ? <ul>{context.parts.map((part,index) => <li key={index}>{part.title} · {persianNumber.format(part.quantity)} عدد</li>)}</ul> : <p>قطعه‌ای مصرف نشده است.</p>}
       <button type="button" className="tech-primary" disabled={busy} onClick={() => void run(async () => {
         const response = await startV2Quality(item.id);
         setContext({ ...context, receipt: response.receipt });
@@ -1567,7 +1567,7 @@ function QualityCase({ item, profile, busy, run, close }: {
     </section>}
     {receipt && draft.step === "result" && <section className="v2-card-form">
       <h3>نتیجه کنترل کیفیت</h3>
-      <p className="service-callout">تست سالم {toman.format(results.filter(row => row.result === "passed").length)} · تست مردود {toman.format(results.filter(row => row.result === "failed").length)}</p>
+      <p className="service-callout">تست سالم {persianNumber.format(results.filter(row => row.result === "passed").length)} · تست مردود {persianNumber.format(results.filter(row => row.result === "failed").length)}</p>
       {failed ? <>
         <label>علت مردودی<input value={draft.reason} onChange={event => change({reason:event.target.value,key:""})} /></label>
         <label>مقصد بازکاری<select aria-label="مسیر بازکاری" value={draft.rework} onChange={event => change({rework:event.target.value,key:""})}>
@@ -1715,7 +1715,7 @@ function FinanceBoard({ onCaseOpen, data, cases, search, busy, run, onApproval, 
     [invoice.receipt_number, invoice.customer_name, invoice.customer_mobile ?? "", invoice.identifier_snapshot ?? "", invoice.serial_number_snapshot, invoice.imei_snapshot, invoice.device_title ?? ""]));
   return <div className="v2-stack">
     <section className="v2-card-form">
-      <div className="service-card-line"><h3>صف نهایی‌سازی مالی</h3><b>{toman.format(queue.length)} پرونده</b></div>
+      <div className="service-card-line"><h3>صف نهایی‌سازی مالی</h3><b>{persianNumber.format(queue.length)} پرونده</b></div>
       {data.permissions.payment && <button type="button" className="v2-mini-action" onClick={() => setAdvanceSearch(search.trim())}>
         پیش‌پرداخت پیش از فاکتور
       </button>}
@@ -1817,7 +1817,7 @@ function DeliveryBoard({ onCaseOpen, data, cases, search, profile, allowRegistra
         </div>
       </section>}
       {!detailOpen && <section className="v2-card-form">
-        <div className="service-card-line"><h3>صف دستگاه‌های آمادهٔ تحویل</h3><b>{toman.format(sortedReady.length)} دستگاه</b></div>
+        <div className="service-card-line"><h3>صف دستگاه‌های آمادهٔ تحویل</h3><b>{persianNumber.format(sortedReady.length)} دستگاه</b></div>
         {allowRegistration ? <div className="service-card-grid">
           {sortedReady.map(({ item, workflow }) => <ServiceQueueCard key={item.case_id}
             item={workflow} receipt={item.receipt_number} title={workflow?.deviceTitle ?? [item.brand_snapshot,item.model_snapshot].filter(Boolean).join(" ")}

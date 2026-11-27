@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { MoneyInput, formatToman } from "./money-input";
+import { MoneyInput, formatRials } from "./money-input";
 import { changeExternalPurchase, loadExternalPurchases, searchExternalCatalog, workflowV2Action, type ExternalPurchase, type ExternalPurchasePayload } from "./v2-api";
 
 const labels: Record<ExternalPurchase["status"], string> = {
@@ -9,7 +9,7 @@ const labels: Record<ExternalPurchase["status"], string> = {
 const disposals: Record<string, string> = {
   supplier: "مرجوعی به تأمین‌کننده", stock: "ورود به موجودی انبار", damage: "تعیین تکلیف خسارت", nonrecoverable: "ضایعات غیرقابل برگشت",
 };
-const toman = (amount: number) => `${formatToman(String(amount))} تومان`;
+const rialAmount = (amount: number) => `${formatRials(String(amount))} ریال`;
 
 export function ExternalPurchasePanel({ caseId, actorId, canWrite = true, onChanged }: {
   caseId?: number;
@@ -121,7 +121,7 @@ export function ExternalPurchasePanel({ caseId, actorId, canWrite = true, onChan
       </form>}
     </>}
     {caseId && data && canWrite && <div className="tech-form-grid">
-      {data.policy === "limit" && <p>اختیار باقی‌مانده در این پرونده {toman(Math.max(0, data.ownLimit - committed))}</p>}
+      {data.policy === "limit" && <p>اختیار باقی‌مانده در این پرونده {rialAmount(Math.max(0, data.ownLimit - committed))}</p>}
       <label>جست‌وجوی بانک قطعات<input maxLength={120} value={search}
         onChange={(event) => { setSelection(undefined); setSearch(event.target.value); }} /></label>
       {selection ? <p className="tech-v7-callout"><strong>{selection.title}</strong> · <bdi>{selection.code}</bdi>{" "}
@@ -136,7 +136,7 @@ export function ExternalPurchasePanel({ caseId, actorId, canWrite = true, onChan
           onClick={addLine}>{editing === null ? "افزودن به ردیف‌های خرید" : "اعمال تغییر ردیف"}</button>
       </div>}
       {!!lines.length && <ul className="tech-plain-list">{lines.map((line, index) => <li key={index}>
-        <strong>{line.title}</strong> · {line.quantity.toLocaleString("fa-IR")} عدد × {toman(line.unitCost)} · {toman(line.quantity * line.unitCost)}
+        <strong>{line.title}</strong> · {line.quantity.toLocaleString("fa-IR")} عدد × {rialAmount(line.unitCost)} · {rialAmount(line.quantity * line.unitCost)}
         <div className="tech-handover-actions">
           <button type="button" disabled={busy || editing !== null} onClick={() => {
             setSelection({ id: line.itemId, title: line.title, code: "", salePrice: 0 });
@@ -145,7 +145,7 @@ export function ExternalPurchasePanel({ caseId, actorId, canWrite = true, onChan
           <button type="button" disabled={busy || editing !== null} onClick={() => setLines(lines.filter((_, i) => i !== index))}>حذف ردیف</button>
         </div>
       </li>)}</ul>}
-      {!!lines.length && <p className="tech-v7-callout"><strong>مجموع خرید {toman(total)}</strong></p>}
+      {!!lines.length && <p className="tech-v7-callout"><strong>مجموع خرید {rialAmount(total)}</strong></p>}
       <button className="tech-primary" type="button" disabled={!lines.length || busy || editing !== null} onClick={() => void submit({
         caseId, decision: "request", purchase: !approval, lines: lines.map(({ itemId, quantity, unitCost }) => ({ itemId, quantity, unitCost })),
       }, () => setLines([]))}>{approval ? "ارسال درخواست خرید به مدیر" : "ثبت خرید قطعات"}</button>
@@ -163,7 +163,7 @@ export function ExternalPurchasePanel({ caseId, actorId, canWrite = true, onChan
         <p><strong>{row.title}</strong> · {row.quantity.toLocaleString("fa-IR")} عدد · {labels[row.status]}</p>
         {row.disposition && <p>{disposals[row.disposition]}</p>}
         {!caseId && <p>رسید <bdi>{row.receiptNumber}</bdi></p>}
-        {row.total !== undefined && <p>{toman(row.total)}</p>}
+        {row.total !== undefined && <p>{rialAmount(row.total)}</p>}
         {row.decisionNote && <p>{row.decisionNote}</p>}
         {!!actions.length && <>
           {caseId && row.status === "received" && <label>روش تعیین تکلیف

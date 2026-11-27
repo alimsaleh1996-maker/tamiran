@@ -6,7 +6,7 @@ import receiptA4Css from "./receipt-a4.css?inline";
 import type { IntakeReceiptDetails } from "./operations";
 import type { WorkspaceProfile } from "./access";
 import { SecureQr } from "./secure-qr";
-import { formatToman } from "./money-input";
+import { formatRials } from "./money-input";
 import { formatPersianDate } from "./persian-date";
 import { queueTimestamp } from "./queue-search";
 export type CompactReceiptProps = {
@@ -41,7 +41,7 @@ export type CompactReceiptProps = {
 };
 export const RECEIPT_FONT_FILE = "/assets/vazirmatn-arabic-wght-normal-Cafbb7Zc.woff2";
 const RECEIPT_FONT_CSS = `@font-face{font-family:"Tamiran Receipt";src:url('${RECEIPT_FONT_FILE}') format('woff2');font-weight:100 900;font-display:block}`;
-const receiptFontSample = '۴۰۰ تومان LCD قبض پذیرش';
+const receiptFontSample = '۴۰۰ ریال LCD قبض پذیرش';
 
 async function loadReceiptFont(document: Document) {
   const faces = await document.fonts.load('400 12px "Tamiran Receipt"', receiptFontSample);
@@ -222,7 +222,7 @@ export function CompactReceipt(p: CompactReceiptProps) {
             <dd>{dateText(p.promisedAt)}</dd>
             {p.details && p.details.advance > 0 && <>
               <dt>پیش‌دریافت</dt>
-              <dd>{formatToman(p.details.advance)} تومان
+              <dd>{formatRials(p.details.advance)} ریال
                 {p.details.advanceMethod && <> · {p.details.advanceMethod.split(",")
                   .map(method=>intakeMethodTitles[method as IntakeMethod] ?? (method === "online" ? "آنلاین" : method === "credit" ? "اعتباری" : "")).filter(Boolean).join("، ")}</>}
               </dd>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Banknote, CreditCard, Landmark } from "lucide-react";
-import { moneyDigits } from "./money";
+import { MoneyInput } from "./money-input";
+import { formatRials } from "./money";
 
 export type IntakeMethod = "cash" | "card" | "bank_transfer";
 export const intakeMethodTitles: Record<IntakeMethod, string> = {cash: "نقدی", card: "کارت‌خوان", bank_transfer: "واریزی"};
@@ -18,14 +19,12 @@ export const defaultIntakeCost: IntakeCostApproval = {
   limitText: "با موافقت مشتری، تعمیرات تا سقف {approval_limit} ریال بدون نیاز به هماهنگی مجدد انجام می‌شود. در صورت افزایش هزینه بیش از مبلغ مورد توافق، تعمیر دستگاه منوط به دریافت تأیید مشتری خواهد بود. مبلغ نهایی صرفاً بر اساس قطعات مصرف‌شده و خدمات انجام‌شده محاسبه می‌شود.",
 };
 
-export function formatIntakeRials(amount: number): string {
-  return new Intl.NumberFormat("fa-IR").format(amount);
-}
+export const formatIntakeRials = formatRials;
+
 export function IntakeRialInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return <input dir="rtl" inputMode="numeric" value={value ? formatIntakeRials(value) : ""} onChange={event => {
-    const text = moneyDigits(event.target.value);
+  return <MoneyInput value={value ? String(value) : ""} onChange={text => {
     const amount = Number(text);
-    if (/^\d*$/.test(text) && Number.isSafeInteger(amount) && amount <= 1_000_000_000_000) onChange(amount);
+    if (amount <= 1_000_000_000_000) onChange(amount);
   }} />;
 }
 export function IntakeAdvanceEditor({ locations, value, onConfirm, onCancel }: {

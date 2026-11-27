@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CheckCircle2, ChevronRight, ReceiptText } from "lucide-react";
 import { useModalFocus } from "../shared/use-modal-focus";
-import { MoneyInput, formatToman } from "./money-input";
+import { MoneyInput, formatRials } from "./money-input";
 import { PersianDatePicker } from "./persian-date-picker";
 import { financeV2Action, workflowV2Action, searchAdvanceCases, repairPaymentMethods as methods, type RepairPaymentMethod, type V2AdvanceCase, type V2FinancePermissions, type V2Invoice, type V2InvoiceDraft } from "./v2-api";
 import "./finance-case-view.css";
@@ -11,7 +11,7 @@ import "./finance-case-view.css";
 type Line = V2InvoiceDraft["items"][number];
 type Run = (job: () => Promise<unknown>, success: string) => Promise<unknown>;
 
-const money = (rials: number) => `${formatToman(rials)} تومان`;
+const money = (rials: number) => `${formatRials(rials)} ریال`;
 const count = new Intl.NumberFormat("fa-IR");
 const paymentDate = new Intl.DateTimeFormat("fa-IR", {
   dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tehran",

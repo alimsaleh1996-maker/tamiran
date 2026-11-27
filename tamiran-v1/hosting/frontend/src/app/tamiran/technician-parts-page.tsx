@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoneyInput, formatToman } from "./money-input";
+import { MoneyInput, formatRials } from "./money-input";
 import { moneyDigits } from "./money";
 import {
   inventoryV2Action,
@@ -244,7 +244,7 @@ export function TechnicianPartsPage({
                       <option key={p.id} value={p.id}>
                         {p.title} · موجودی آزاد{" "}
                         {p.available_quantity.toLocaleString("fa-IR")} ·{" "}
-                        {formatToman(String(p.sale_price))} تومان
+                        {formatRials(String(p.sale_price))} ریال
                       </option>
                     ))}
                 </select>
@@ -291,11 +291,11 @@ export function TechnicianPartsPage({
             <span>
               {p.sourceType === "manual" ? "ثبت آزاد" : "انبار"} · مصرف‌شده ·{" "}
               {Number(p.quantity).toLocaleString("fa-IR")} ×{" "}
-              {formatToman(String(p.saleUnitPrice))} تومان
+              {formatRials(String(p.saleUnitPrice))} ریال
             </span>
             {data.permissions.purchase && p.purchaseUnitCost !== undefined && (
               <span>
-                خرید هر واحد: {formatToman(String(p.purchaseUnitCost))} تومان
+                خرید هر واحد: {formatRials(String(p.purchaseUnitCost))} ریال
               </span>
             )}
           </li>

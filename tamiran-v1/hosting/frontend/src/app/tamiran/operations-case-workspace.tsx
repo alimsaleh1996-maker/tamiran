@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { WorkspaceProfile } from "./access";
 import { TechnicalCaseWorkspace } from "./technical-case-workspace";
 import { RepairDeadlinePicker, repairDeadline } from "./repair-deadline-picker";
-import { MoneyInput, formatToman } from "./money-input";
+import { MoneyInput, formatRials } from "./money-input";
 import { UserRoundCheck, ArrowLeftRight } from "lucide-react";
 import {
   assignV2Case,
@@ -463,7 +463,7 @@ export function OperationsCaseWorkspace({
                   />
                 </label>
                 <label>
-                  <span>مبلغ ثابت (تومان)</span>
+                  <span>مبلغ ثابت (ریال)</span>
                   <MoneyInput
                     value={collaborator.fixedFee}
                     onChange={(fixedFee) =>
@@ -573,7 +573,7 @@ export function OperationsCaseWorkspace({
             <strong>ثبت تصمیم مشتری درباره برآورد</strong>
             <small>
               مبلغ برآورد:{" "}
-              {formatToman(selected.latestEstimate.totalAmount) + " تومان"}
+              {formatRials(selected.latestEstimate.totalAmount) + " ریال"}
             </small>
             {data.operationsPolicy.approval !== "sms" && <>
             <label>

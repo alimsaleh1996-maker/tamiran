@@ -2198,7 +2198,7 @@ function ReceptionPage({
                 </label>
                 <div className="form-grid three-columns reception-v2-terms">
                   <label className="field-block">
-                    <span>برآورد اولیه تعمیر (تومان) <small>اختیاری</small></span>
+                    <span>برآورد اولیه تعمیر (ریال) <small>اختیاری</small></span>
                     <MoneyInput value={initialEstimate} onChange={setInitialEstimate} />
                   </label>
                   <div className="field-block intake-advance-summary">

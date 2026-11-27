@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { formatToman, moneyDigits, tomanToRials } from "./money";
-export { formatToman } from "./money";
-/** UI uses toman; all values crossing this component boundary remain integer rials. */
+import { formatRials, moneyDigits, parseRials } from "./money";
+export { formatRials } from "./money";
+/** UI and API both use integer rials. */
 export function MoneyInput({
   value,
   onChange,
@@ -17,7 +17,7 @@ export function MoneyInput({
   disabled?: boolean;
   required?: boolean;
 }) {
-  const [display, setDisplay] = useState(() => formatToman(value));
+  const [display, setDisplay] = useState(() => formatRials(value));
   const emitted = useRef(value);
   const input = useRef<HTMLInputElement>(null);
   const caretDigits = useRef<number | null>(null);
@@ -28,7 +28,7 @@ export function MoneyInput({
     let position = 0;
     let remaining = count;
     while (position < text.length && remaining > 0) {
-      if (/[0-9.]/.test(moneyDigits(text[position]))) remaining--;
+      if (/[0-9]/.test(moneyDigits(text[position]))) remaining--;
       position++;
     }
     input.current.setSelectionRange(position, position);
@@ -36,7 +36,7 @@ export function MoneyInput({
   useLayoutEffect(() => { restoreCaret(display); }, [display]);
   useEffect(() => {
     if (value !== emitted.current) {
-      setDisplay(formatToman(value));
+      setDisplay(formatRials(value));
       emitted.current = value;
     }
   }, [value]);
@@ -47,26 +47,25 @@ export function MoneyInput({
         id={id}
         dir="ltr"
         type="text"
-        inputMode="decimal"
+        inputMode="numeric"
         required={required}
         disabled={disabled}
         value={display}
         placeholder={placeholder}
         onChange={(e) => {
-          const next = tomanToRials(e.target.value);
+          const next = parseRials(e.target.value);
           if (next === null) return;
           emitted.current = next;
           onChange(next);
-          const raw = moneyDigits(e.target.value);
-          const formatted = raw.endsWith(".") ? formatToman(next) + "٫" : formatToman(next);
+          const formatted = formatRials(next);
           caretDigits.current = moneyDigits(e.target.value.slice(0, e.target.selectionStart ?? e.target.value.length))
-            .replace(/[^0-9.]/g, "").length;
+            .replace(/[^0-9]/g, "").length;
           if (formatted === display) requestAnimationFrame(() => restoreCaret(formatted));
           setDisplay(formatted);
         }}
-        onBlur={() => setDisplay(formatToman(value))}
+        onBlur={() => setDisplay(formatRials(value))}
       />
-      <span aria-hidden="true">تومان</span>
+      <span aria-hidden="true">ریال</span>
     </span>
   );
 }

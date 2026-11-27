@@ -848,7 +848,7 @@ def check_intake_print(log,url,manager,receipt,folder):
             browser_expect(document.get_by_role('img',name='QR پیگیری پرونده',exact=True)).to_be_visible()
             if size=='A4':
                 log.check('A4 receipt displays all issue and financial columns',lambda:expect(
-                    all(x in document.inner_text() for x in ['نوع ایراد','سخت‌افزاری','توضیحات تکمیلی','۲٬۵۰۰٬۰۰۰','۳٬۰۰۰٬۰۰۰','۵۰۰٬۰۰۰']),
+                    all(x in document.inner_text() for x in ['نوع ایراد','سخت‌افزاری','توضیحات تکمیلی','۲۵٬۰۰۰٬۰۰۰','۵٬۰۰۰٬۰۰۰']),
                     'A4 layout or values missing'))
                 log.check('A4 masks customer identifiers and excludes internal notes',lambda:expect(
                     '1234567891' not in document.inner_text()

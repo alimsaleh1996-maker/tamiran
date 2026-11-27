@@ -3,7 +3,7 @@ import { Smartphone, X } from "lucide-react";
 import { RepairDeadlinePicker, repairDeadline } from "./repair-deadline-picker";
 import { ExternalPurchasePanel } from "./external-purchase-panel";
 import { useEffect, useRef, useState } from "react";
-import { MoneyInput, formatToman } from "./money-input";
+import { MoneyInput, formatRials } from "./money-input";
 import { moneyDigits } from "./money";
 import { directAdminRequest } from "./directadmin-api";
 import {
@@ -856,7 +856,7 @@ export function TechnicalCaseWorkspace({
         <MoneyInput id="technical-diagnostic" value={draft.diagnostic} onChange={(diagnostic) => change({ diagnostic })} />
       </label>
     </div>
-    <p className="tech-v7-callout">مجموع پیشنهادی <strong>{formatToman(diagnosticParts + Number(draft.labor || 0) + Number(draft.diagnostic || 0))} تومان</strong></p>
+    <p className="tech-v7-callout">مجموع پیشنهادی <strong>{formatRials(diagnosticParts + Number(draft.labor || 0) + Number(draft.diagnostic || 0))} ریال</strong></p>
     <label>توضیح هزینه، اختیاری<textarea rows={2} maxLength={4000} value={draft.estimateNote}
       onChange={(event) => change({ estimateNote: event.target.value })} /></label>
   </>;
@@ -960,7 +960,7 @@ export function TechnicalCaseWorkspace({
             {stageDriven && <div><dt>ایراد اولیه</dt><dd>{item.declaredIssue}</dd></div>}
             <div><dt>مشتری</dt><dd>{item.customerName}</dd></div>
             <div><dt>مسئول</dt><dd>{item.technicianName || "تعمیرکار تعمیرگاه"}</dd></div>
-            <div><dt>سقف هزینه در پذیرش</dt><dd>{formatToman(item.preapprovedAmount)} تومان</dd></div>
+            <div><dt>سقف هزینه در پذیرش</dt><dd>{formatRials(item.preapprovedAmount)} ریال</dd></div>
             <div><dt>موعد اعلام‌شده</dt><dd>{date(item.promisedAt)}</dd></div>
           </dl>
           {data.receptionNotes && <p>{data.receptionNotes}</p>}
@@ -1004,9 +1004,9 @@ export function TechnicalCaseWorkspace({
                 <h3>تأیید هزینه توسط مشتری</h3>
                 {!!data.summary?.diagnosedIssues.length && <ul>{data.summary.diagnosedIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>}
                 <dl>
-                  <div><dt>برآورد قطعات</dt><dd>{formatToman(item.latestEstimate?.partsAmount ?? data.cost.partsAmount)} تومان</dd></div>
-                  <div><dt>اجرت</dt><dd>{formatToman(item.latestEstimate?.laborAmount ?? 0)} تومان</dd></div>
-                  <div><dt>مبلغ پیشنهادی</dt><dd>{formatToman(item.latestEstimate?.totalAmount ?? data.cost.totalAmount)} تومان</dd></div>
+                  <div><dt>برآورد قطعات</dt><dd>{formatRials(item.latestEstimate?.partsAmount ?? data.cost.partsAmount)} ریال</dd></div>
+                  <div><dt>اجرت</dt><dd>{formatRials(item.latestEstimate?.laborAmount ?? 0)} ریال</dd></div>
+                  <div><dt>مبلغ پیشنهادی</dt><dd>{formatRials(item.latestEstimate?.totalAmount ?? data.cost.totalAmount)} ریال</dd></div>
                   <div><dt>زمان تقریبی اتمام تعمیر</dt><dd>{date(item.promisedAt)}</dd></div>
                   <div><dt>روش ثبت پاسخ</dt><dd>{operationsPolicy?.approval === "phone" ? "تلفنی توسط مسئول مجاز"
                     : operationsPolicy?.approval === "sms" ? "تأیید پیامکی مشتری" : "تلفنی یا پیامکی"}</dd></div>
@@ -1130,7 +1130,7 @@ export function TechnicalCaseWorkspace({
                 <h3>{item.status === "repairing" || item.status === "qc_rework" ? "عملیات تعمیر" : "گزارش‌های پرونده"}</h3>
                 <p className="tech-v7-description">اقدامات فنی و قطعات دستگاه</p>
                 <div className="tech-v7-callout tech-v7-row"><span>{data.cost.authorized ? "سقف هزینه تأییدشده" : "سقف هزینه در پذیرش"}</span>
-                  <strong>{formatToman(data.invoice.authorizedAmount)} تومان</strong>
+                  <strong>{formatRials(data.invoice.authorizedAmount)} ریال</strong>
                 </div>
                 <div className="tech-v7-row tech-v7-work-section">
                   <h4>اقدامات انجام‌شده</h4>
@@ -1313,13 +1313,13 @@ export function TechnicalCaseWorkspace({
               <p>
                 سقف مجاز پذیرش:{" "}
                 <strong>
-                  {formatToman(String(data.cost.capAmount))} تومان
+                  {formatRials(String(data.cost.capAmount))} ریال
                 </strong>
               </p>
               {!!data.cost.partsAmount && (
                 <p>
-                  قطعات پرونده: {formatToman(String(data.cost.partsAmount))}{" "}
-                  تومان؛ یک‌بار در برآورد محاسبه می‌شود.
+                  قطعات پرونده: {formatRials(String(data.cost.partsAmount))}{" "}
+                  ریال؛ یک‌بار در برآورد محاسبه می‌شود.
                 </p>
               )}
               {canWrite ? (
@@ -1501,10 +1501,10 @@ export function TechnicalCaseWorkspace({
                     {screen === "repaired" ? (
                       <>
                         <h4>پیش‌نویس فاکتور</h4>
-                        <p>سقف مجوز مشتری: {formatToman(String(data.invoice.authorizedAmount))} تومان</p>
+                        <p>سقف مجوز مشتری: {formatRials(String(data.invoice.authorizedAmount))} ریال</p>
                         {data.invoice.items.filter((line) => line.type !== "labor").map((line, index) => (
                           <div key={line.sourceKey ?? index}>
-                            <p>{line.title} · {Number(line.quantity).toLocaleString("fa-IR")} · {formatToman(String(line.lineTotal))} تومان</p>
+                            <p>{line.title} · {Number(line.quantity).toLocaleString("fa-IR")} · {formatRials(String(line.lineTotal))} ریال</p>
                             {line.sourceKey && data.invoice.mayEditPartPrices && (
                               <label>قیمت فروش {line.title}<MoneyInput value={draft.invoicePrices[line.sourceKey] ?? String(line.saleUnitPrice)} onChange={(amount) =>
                                 change({ invoicePrices: { ...draft.invoicePrices, [line.sourceKey!]: amount } })} /></label>
@@ -1515,7 +1515,7 @@ export function TechnicalCaseWorkspace({
                           onChange={(invoiceLabor) => change({ invoiceLabor })} /></label>
                         <label>عنوان هزینهٔ اضافه<input value={draft.invoiceExtraTitle} onChange={(e) => change({ invoiceExtraTitle: e.target.value })} /></label>
                         <label>مبلغ هزینهٔ اضافه<MoneyInput value={draft.invoiceExtraAmount} onChange={(invoiceExtraAmount) => change({ invoiceExtraAmount })} /></label>
-                        <p><strong>جمع پیش‌نویس: {formatToman(invoiceTotal)} تومان</strong></p>
+                        <p><strong>جمع پیش‌نویس: {formatRials(invoiceTotal)} ریال</strong></p>
                         {!extraValid && <p className="tech-hint">عنوان و مبلغ هزینهٔ اضافه را کامل یا پاک کنید.</p>}
                         {invoiceTotal > data.invoice.authorizedAmount && (
                           <p className="tech-hint">مبلغ از مجوز مشتری بالاتر است. <button type="button" onClick={() => go("estimate", screen)}>اصلاح برآورد</button></p>
@@ -1565,11 +1565,11 @@ export function TechnicalCaseWorkspace({
                             : "عدم امکان تعمیر دستگاه ثبت شود؟"}
                         </p>
                         {screen === "repaired" && <dl>
-                          <dt>فروش قطعات</dt><dd>{formatToman(invoiceTotals.part)} تومان</dd>
-                          <dt>اجرت تعمیر</dt><dd>{formatToman(invoiceTotals.labor)} تومان</dd>
-                          <dt>عیب‌یابی و سایر هزینه‌ها</dt><dd>{formatToman(invoiceTotals.diagnostic + invoiceTotals.other)} تومان</dd>
-                          <dt>مبلغ دارای مجوز</dt><dd>{formatToman(data.invoice.authorizedAmount)} تومان</dd>
-                          <dt>مبلغ نهایی فاکتور</dt><dd>{formatToman(invoiceTotal)} تومان</dd>
+                          <dt>فروش قطعات</dt><dd>{formatRials(invoiceTotals.part)} ریال</dd>
+                          <dt>اجرت تعمیر</dt><dd>{formatRials(invoiceTotals.labor)} ریال</dd>
+                          <dt>عیب‌یابی و سایر هزینه‌ها</dt><dd>{formatRials(invoiceTotals.diagnostic + invoiceTotals.other)} ریال</dd>
+                          <dt>مبلغ دارای مجوز</dt><dd>{formatRials(data.invoice.authorizedAmount)} ریال</dd>
+                          <dt>مبلغ نهایی فاکتور</dt><dd>{formatRials(invoiceTotal)} ریال</dd>
                         </dl>}
                         <button className="tech-primary" type="submit" disabled={screen === "repaired" && (!extraValid || invoiceTotal > data.invoice.authorizedAmount)}>
                           تأیید و ثبت نتیجه
@@ -1684,7 +1684,7 @@ export function TechnicalCaseWorkspace({
         <dl className="tech-v7-summary-grid">
           <div><dt>مسئول پرونده</dt><dd>{item.technicianName || "تخصیص داده نشده"}</dd></div>
           <div><dt>موعد برآوردی</dt><dd>{date(item.promisedAt)}</dd></div>
-          <div><dt>مبلغ دارای مجوز</dt><dd>{formatToman(data.invoice.authorizedAmount)} تومان</dd></div>
+          <div><dt>مبلغ دارای مجوز</dt><dd>{formatRials(data.invoice.authorizedAmount)} ریال</dd></div>
           <div><dt>آخرین کنترل کیفیت</dt><dd>{data.summary?.qcResult ?? "انجام نشده"}</dd></div>
         </dl>
         {summaryOpen && data.permissions.devicePassword && <DevicePassword key={caseId} caseId={caseId} />}

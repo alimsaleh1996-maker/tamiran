@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import type { WorkspaceProfile } from "./access";
-import { MoneyInput, formatToman } from "./money-input";
+import { MoneyInput, formatRials } from "./money-input";
 import { moneyDigits } from "./money";
 import { loadPartRequestQueue, procurementV2Action, type V2PartRequest, type V2ProcurementPayload, type V2PurchaseDocument, type V2Supplier } from "./v2-api";
 
@@ -107,7 +107,7 @@ export function ProcurementDocuments({ data, profile, busy, run }: {
     {selected && canReceive && <ReceiveDocument key={selected.id} doc={selected} busy={busy} run={run} close={() => setOpenDocument("")} />}
     {data.documents.length ? <ul className="tech-plain-list">
       {data.documents.map(doc => <li key={doc.id}>
-        <p><bdi>{doc.document_number}</bdi> · {doc.supplier_name} · {statusLabels[doc.status] ?? doc.status} · {formatToman(doc.total_amount)} تومان</p>
+        <p><bdi>{doc.document_number}</bdi> · {doc.supplier_name} · {statusLabels[doc.status] ?? doc.status} · {formatRials(doc.total_amount)} ریال</p>
         {doc.items.map(item => <p key={item.id}>{item.item_title} · {fa.format(Number(item.quantity))} عدد
           {item.requests.length > 0 && <> · {item.requests.map(link => <span key={link.part_request_id}> پروندهٔ <bdi>{link.receipt_number}</bdi> ({fa.format(Number(link.allocated_quantity))}) </span>)}</>}
         </p>)}

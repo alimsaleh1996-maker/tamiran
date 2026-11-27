@@ -6,18 +6,18 @@ export function moneyDigits(value: string): string {
     .replace(/[,٬\s]/g, "")
     .replace(/٫/g, ".");
 }
-export function tomanToRials(value: string): string | null {
+export function parseRials(value: string): string | null {
   const text = moneyDigits(value);
   if (!text) return "";
-  if (!/^\d+(?:\.\d?)?$/.test(text)) return null;
-  const number = Math.round(Number(text) * 10);
+  if (!/^\d+$/.test(text)) return null;
+  const number = Number(text);
   return Number.isSafeInteger(number) && number >= 0 ? String(number) : null;
 }
-export function formatToman(rials: string | number): string {
+export function formatRials(rials: string | number): string {
   const n = Number(rials);
   return rials === ""
     ? ""
-    : new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(
-        Number.isFinite(n) ? n / 10 : 0,
+    : new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(
+        Number.isFinite(n) ? n : 0,
       );
 }

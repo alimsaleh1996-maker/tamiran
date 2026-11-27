@@ -1,7 +1,7 @@
 import { appearanceDescription } from "./appearance-locations";
 import { intakeMethodTitles, type IntakeMethod } from "./intake-finance";
 import type { CompactReceiptProps } from "./compact-receipt";
-import { formatToman } from "./money";
+import { formatRials } from "./money";
 import { queueTimestamp } from "./queue-search";
 import { SecureQr } from "./secure-qr";
 
@@ -82,10 +82,10 @@ export function ReceiptA4({ receipt, tracking, handling, conditions }: {
       </dl>
     </section>
     <section aria-label="اطلاعات مالی پذیرش">
-      <div className="receipt-a4-section-head"><h3>اطلاعات مالی پذیرش</h3><span>مبالغ به تومان</span></div>
+      <div className="receipt-a4-section-head"><h3>اطلاعات مالی پذیرش</h3><span>مبالغ به ریال</span></div>
       <dl className="receipt-a4-cells receipt-a4-money">
-        <div><dt>برآورد اولیه تعمیر</dt><dd>{details?.initialEstimate == null ? "—" : formatToman(details.initialEstimate)}</dd></div>
-        {details && details.advance > 0 && <div><dt>پیش‌دریافت</dt><dd>{formatToman(details.advance)}
+        <div><dt>برآورد اولیه تعمیر</dt><dd>{details?.initialEstimate == null ? "—" : formatRials(details.initialEstimate)}</dd></div>
+        {details && details.advance > 0 && <div><dt>پیش‌دریافت</dt><dd>{formatRials(details.advance)}
           {details.advanceMethod && <> · {details.advanceMethod.split(",").map(method=>intakeMethodTitles[method as IntakeMethod] ?? (method === "online" ? "آنلاین" : method === "credit" ? "اعتباری" : "")).filter(Boolean).join("، ")}</>}</dd></div>}
       </dl>
       <p className="receipt-a4-note">مبالغ پذیرش برآورد اولیه‌اند و مبلغ نهایی در فاکتور تعمیرات درج می‌شود.</p>

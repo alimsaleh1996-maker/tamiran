@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatToman, tomanToRials } from '../frontend/src/app/tamiran/money.ts';
+import { formatRials, parseRials } from '../frontend/src/app/tamiran/money.ts';
 
-test('localized toman entry preserves exact integer rials at the API boundary', () => {
+test('localized input preserves the exact integer rial amount', () => {
   for (const [entry, rials] of [
-    ['۷۵۰٬۰۰۰', '7500000'], ['٦٥٠٠٠٠', '6500000'], [' 750,000 ', '7500000'],
-    ['۰', '0'], ['۰٫۱', '1'], ['12.3', '123'], ['12.', '120'], ['', ''],
-  ]) assert.equal(tomanToRials(entry), rials, entry);
-  for (const entry of ['-1', '1.01', 'NaN', 'Infinity', '1e3', '1a', '9007199254740992'])
-    assert.equal(tomanToRials(entry), null, entry);
-  assert.equal(formatToman(7500000), '۷۵۰٬۰۰۰');
-  assert.equal(formatToman(1), '۰٫۱');
-  assert.equal(formatToman(''), '');
+    ['۷۵۰٬۰۰۰', '750000'], ['٦٥٠٠٠٠', '650000'], [' 750,000 ', '750000'],
+    ['۰', '0'], ['۱', '1'], ['50,000,000', '50000000'], ['', ''],
+  ]) assert.equal(parseRials(entry), rials, entry);
+  for (const entry of ['-1', '0.1', '1.01', 'NaN', 'Infinity', '1e3', '1a', '9007199254740992'])
+    assert.equal(parseRials(entry), null, entry);
+  assert.equal(formatRials(7500000), '۷٬۵۰۰٬۰۰۰');
+  assert.equal(formatRials(1), '۱');
+  assert.equal(formatRials(''), '');
 });
