@@ -1,3 +1,4 @@
+import { Wallet } from "lucide-react";
 "use client";
 
 import {
@@ -55,6 +56,8 @@ import * as React from "react";
 import { useModalFocus } from "../shared/use-modal-focus";
 import { useEffect, useState } from "react";
 import type { ReceiptIssueDetail } from "./operations";
+import { defaultIntakeCost, formatIntakeRials, IntakeAdvanceEditor, IntakeLocationSettings, IntakeRialInput,
+  intakeMethodTitles, type IntakeAdvance, type IntakeCostApproval, type IntakeLocation } from "./intake-finance";
 import { CompactReceipt, DEFAULT_RECEIPT_SIZE, printCompactReceipt } from "./compact-receipt";
 import { MoneyInput } from "./money-input";
 import "./iteration-six.css";
@@ -761,6 +764,7 @@ function ReceptionPage({
     shopAddress?: string;
     clauses?: Array<{ enabled: boolean; text: string }>;
     appearanceOptions?: string[];
+    costApproval?: IntakeCostApproval;
   };
   const assignmentSettings = (shopSettings.assignment_policy ?? {}) as {
     branches?: Record<
@@ -808,7 +812,13 @@ function ReceptionPage({
   const [customerCity, setCustomerCity] = useState("");
   const [customerPostalCode, setCustomerPostalCode] = useState("");
   const [secondaryMobile, setSecondaryMobile] = useState("");
-  const [preapprovedAmount, setPreapprovedAmount] = useState("");
+  const [intakeAdvance, setIntakeAdvance] = useState<IntakeAdvance | null>(null);
+  const [intakeAdvanceOpen, setIntakeAdvanceOpen] = useState(false);
+  const [intakeCostConsent, setIntakeCostConsent] = useState(false);
+  const intakeCost = receiptTemplate.costApproval ?? defaultIntakeCost;
+  const methods = (shopSettings.operations_policy as {paymentMethods?: string[]} | undefined)?.paymentMethods;
+  const locations = ((shopSettings.intake_locations ?? []) as IntakeLocation[])
+    .filter(item => item.active && (!methods || methods.includes(item.method)));
   const [initialEstimate, setInitialEstimate] = useState("");
   const [promisedAt, setPromisedAt] = useState("");
   const [devicePassword, setDevicePassword] = useState("");
@@ -1041,7 +1051,6 @@ function ReceptionPage({
           kind: details?.kind ?? "", note: details?.note ?? "" };
       }));
     setReceptionNotes(String(draft.receptionNotes ?? ""));
-    setPreapprovedAmount(String(draft.preapprovedAmount ?? ""));
     setInitialEstimate(String(draft.initialEstimate ?? ""));
     setPromisedAt(String(draft.promisedAt ?? ""));
     if (["no_erasure", "coordinate_first", "erase_authorized"].includes(String(draft.dataHandling)))
@@ -1085,7 +1094,6 @@ function ReceptionPage({
         declaredIssue,
         receiptIssueDetails,
         receptionNotes,
-        preapprovedAmount,
         initialEstimate,
         promisedAt,
         dataHandling,
@@ -1145,7 +1153,6 @@ function ReceptionPage({
     declaredIssue,
     receiptIssueDetails,
     receptionNotes,
-    preapprovedAmount,
     initialEstimate,
     promisedAt,
     dataHandling,
@@ -1304,7 +1311,8 @@ function ReceptionPage({
     setAccessories(["بدون لوازم"]);
     setAppearanceStates([]);
     setFormError("");
-    setPreapprovedAmount("");
+    setIntakeAdvance(null);
+    setIntakeCostConsent(false);
     setInitialEstimate("");
     setPromisedAt("");
     setDevicePassword("");
@@ -1315,7 +1323,8 @@ function ReceptionPage({
   const selectPreviousDevice = (device: PreviousCustomerDevice) => {
     if (!device.recallEligible) return;
     setDevicePassword("");
-    setPreapprovedAmount("");
+    setIntakeAdvance(null);
+    setIntakeCostConsent(false);
     setInitialEstimate("");
     setPromisedAt("");
     setAssignedToUserId(null);
@@ -1555,7 +1564,9 @@ function ReceptionPage({
         assignedToUserId: effectiveAssignedToUserId,
         assignmentMode: assignedToUserId === "queue" ? "queue" : "automatic",
         ...versionedDevice,
-        preapprovedAmount: Number(preapprovedAmount || 0),
+        intakeCostConsent,
+        intakeExpectedLimit: intakeCostConsent ? intakeCost.limit : undefined,
+        intakeAdvance: intakeAdvance ?? undefined,
         initialEstimate: initialEstimate === "" ? undefined : Number(initialEstimate),
         promisedAt: promisedAt ? `${promisedAt} 12:00:00` : undefined,
         devicePassword: devicePassword || undefined,
@@ -2172,14 +2183,15 @@ function ReceptionPage({
                     <span>برآورد اولیه تعمیر (تومان) <small>اختیاری</small></span>
                     <MoneyInput value={initialEstimate} onChange={setInitialEstimate} />
                   </label>
-                  <label className="field-block">
-                    <span>سقف تأیید هزینه در پذیرش (تومان)</span>
-                    <MoneyInput value={preapprovedAmount} onChange={setPreapprovedAmount}/>
-                    <small className="field-helper">
-                      فقط مبلغ بالاتر از این سقف به تأیید جداگانه مشتری نیاز
-                      دارد.
-                    </small>
-                  </label>
+                  <div className="field-block intake-advance-summary">
+                    <span>پیش‌دریافت</span>
+                    {intakeAdvance ? <>
+                      <strong>{formatIntakeRials(intakeAdvance.amount)} ریال · {intakeMethodTitles[intakeAdvance.method]}</strong>
+                      <button type="button" className="text-action" onClick={() => setIntakeAdvanceOpen(true)}>ویرایش</button>
+                      <button type="button" className="text-action" onClick={() => setIntakeAdvance(null)}>حذف</button>
+                    </> : <button type="button" className="outline-action" disabled={!locations.length}
+                      onClick={() => setIntakeAdvanceOpen(true)}>ثبت دریافت</button>}
+                  </div>
                   <div className="field-block">
                     <span>برآورد تاریخ آماده‌شدن</span>
                     <PersianDatePicker
@@ -2192,6 +2204,10 @@ function ReceptionPage({
                     </small>
                   </div>
                 </div>
+                {intakeCost.mode === "limit" && <label className="identity-missing-choice">
+                  <input type="checkbox" checked={intakeCostConsent} onChange={event => setIntakeCostConsent(event.target.checked)} />
+                  مشتری با انجام تعمیر تا سقف {formatIntakeRials(intakeCost.limit)} ریال موافق است.
+                </label>}
                 <div className="data-handling-choice">
                   <strong>
                     نحوه برخورد با اطلاعات دستگاه <b>*</b>
@@ -2377,6 +2393,10 @@ function ReceptionPage({
         </aside>
       </div>
 
+      {intakeAdvanceOpen && <Modal title="ثبت پیش‌دریافت" icon={<Wallet size={20} aria-hidden="true" />} onClose={() => setIntakeAdvanceOpen(false)}>
+        <IntakeAdvanceEditor value={intakeAdvance} locations={locations} onCancel={() => setIntakeAdvanceOpen(false)}
+          onConfirm={advance => {setIntakeAdvance(advance); setIntakeAdvanceOpen(false);}} />
+      </Modal>}
       {catalogCreateOpen && (
         <Modal
           title="تعریف سریع دستگاه"
@@ -6042,6 +6062,7 @@ function SettingsPage({
         </aside>
         <section className="settings-content panel">
           {tab === "پروفایل تعمیرگاه" && (
+            <>
             <WorkshopProfileSettings
               notify={notify}
               workspace={workspace}
@@ -6067,6 +6088,16 @@ function SettingsPage({
                 }))
               }
             />
+                {workspace?.role === "repair_manager" && <IntakeLocationSettings key={workspace.branchId}
+              initial={(shopSettings.intake_locations ?? []) as IntakeLocation[]} branch={workspace.branch}
+              onSave={async value => {
+                try {
+                  await saveShopSetting("intake_locations", value);
+                  setShopSettings?.(current => ({...current,intake_locations:value}));
+                  notify("محل‌های دریافت ذخیره شدند.");
+                } catch(error) { notify(moduleErrorMessage(error,"ذخیره محل دریافت انجام نشد.")); }
+              }} />}
+            </>
           )}
           {tab === "فرم‌های صنفی" && (
             <ServiceFormSettings
@@ -6709,7 +6740,9 @@ function ReceiptSettings({
     shopAddress?: string;
     clauses?: Array<{ id: number; enabled: boolean; text: string }>;
     appearanceOptions?: string[];
+    costApproval?: IntakeCostApproval;
   };
+  const [costApproval, setCostApproval] = useState(savedTemplate.costApproval ?? defaultIntakeCost);
   const [printSize, setPrintSize] = useState(savedTemplate.printSize ?? DEFAULT_RECEIPT_SIZE);
   const [title, setTitle] = useState(
     savedTemplate.title ?? "",
@@ -6778,6 +6811,7 @@ function ReceiptSettings({
       shopAddress,
       clauses,
       appearanceOptions,
+      costApproval,
     };
     try {
       if (directAdminApiEnabled)
@@ -6848,6 +6882,33 @@ function ReceiptSettings({
           options={["پایین شرایط", "کنار امضای پذیرش", "عدم نمایش"]}
         />
       </div>
+
+      <section className="settings-form">
+        <h3>تأیید هزینهٔ تعمیر</h3>
+        <label className="field-block">سیاست تأیید
+          <select value={costApproval.mode} onChange={event => setCostApproval(current => ({
+            ...current, mode: event.target.value === "limit" ? "limit" : "always",
+          }))}>
+            <option value="always">تأیید تمام تعمیرات هزینه‌زا</option>
+            <option value="limit">تعمیر تا سقف مورد موافقت مشتری</option>
+          </select>
+        </label>
+        {costApproval.mode === "limit" && <label className="field-block">سقف مجاز (ریال)
+          <IntakeRialInput value={costApproval.limit} onChange={limit => setCostApproval(current => ({...current,limit}))} />
+        </label>}
+        <label className="field-block">متن تأیید تمام تعمیرات
+          <textarea rows={2} maxLength={2000} value={costApproval.alwaysText} onChange={event => {
+            const alwaysText = event.target.value;
+            setCostApproval(current => ({...current,alwaysText}));
+          }} />
+        </label>
+        <label className="field-block">متن سقف مورد توافق
+          <textarea rows={3} maxLength={2000} value={costApproval.limitText} onChange={event => {
+            const limitText = event.target.value;
+            setCostApproval(current => ({...current,limitText}));
+          }} />
+        </label>
+      </section>
 
       <div className="settings-form appearance-settings">
         <h3>گزینه‌های وضعیت ظاهری دستگاه</h3>
@@ -8419,11 +8480,13 @@ function Modal({
   onClose,
   children,
   size,
+  icon,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   size?: "wide";
+  icon?: React.ReactNode;
 }) {
   const dialogRef = React.useRef<HTMLElement>(null);
   const modalId = useModalFocus(dialogRef, true, onClose);
@@ -8440,7 +8503,7 @@ function Modal({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header>
-          <h2>{title}</h2>
+          <h2>{icon}{title}</h2>
           <button type="button" onClick={onClose} aria-label="بستن">
             <X size={20} />
           </button>

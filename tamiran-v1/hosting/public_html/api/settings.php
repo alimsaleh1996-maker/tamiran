@@ -23,6 +23,15 @@ tamiran_api(static function(): array {
             if ($row['setting_key']==='operations_policy'&&is_array($decoded)&&($actor['role']??'')!=='repair_manager') {
                 $decoded['purchaseLimits']=array_intersect_key((array)($decoded['purchaseLimits']??[]),[(int)$actor['id']=>true]);
             }
+            if ($row['setting_key']==='intake_locations') {
+                $decoded=$decoded[(string)(int)($actor['branch']['id']??0)]??[];
+                if (($actor['role']??'')!=='repair_manager') {
+                    $decoded=v2_has_permission(['role'=>$actor['role'],'permissions'=>(array)($actor['permissions']??[])],'finance.payment',['finance_cashier'])
+                        ? array_values(array_map(static fn(array $item):array=>array_intersect_key($item,array_flip(['id','label','method','active'])),
+                            array_filter($decoded,static fn(array $item):bool=>$item['active'])))
+                        : [];
+                }
+            }
             $settings[(string)$row['setting_key']] = $decoded;
         }
         $termStatement=$pdo->prepare('SELECT public_id,version_number,title,body_text,content_sha256,effective_from FROM repair_receipt_term_versions WHERE shop_id=:shop AND is_active=1 AND effective_from<=NOW() AND (effective_to IS NULL OR effective_to>NOW()) ORDER BY version_number DESC LIMIT 1');
@@ -73,9 +82,32 @@ tamiran_api(static function(): array {
         }
         if (array_key_exists('key',$input)) {
             $key = trim((string)$input['key']);
-            $allowed = ['receipt_template','service_forms','customer_address_policy','inventory_policy','security_policy','assignment_policy','operations_policy','delivery_verification','reception_evidence','warranty_policy','technician_compensation','sla_policy','sms_events','device_colors'];
+            $allowed = ['receipt_template','service_forms','customer_address_policy','inventory_policy','security_policy','assignment_policy','operations_policy','delivery_verification','reception_evidence','warranty_policy','technician_compensation','sla_policy','sms_events','device_colors','intake_locations'];
             if (!in_array($key,$allowed,true)) throw new TamiranApiException('کلید تنظیمات معتبر نیست.');
             if (!array_key_exists('value',$input)) throw new TamiranApiException('مقدار تنظیمات ارسال نشده است.');
+            if ($key==='receipt_template' && isset($input['value']['costApproval'])) {
+                $input['value']['costApproval']=operations_intake_cost_policy($input['value']);
+            }
+            if ($key==='intake_locations') {
+                $branch=(int)($actor['branch']['id']??0);
+                if ($branch<1) throw new TamiranApiException('شعبه جاری معتبر نیست.',409);
+                $locations=operations_validate_intake_locations($input['value']);
+                $pdo->beginTransaction();
+                try {
+                    $lock=$pdo->prepare('SELECT id FROM repair_shops WHERE id=:shop FOR UPDATE');
+                    $lock->execute(['shop'=>$shopId]);
+                    $existing=operations_intake_setting($pdo,$shopId,$key);
+                    $existing[(string)$branch]=$locations;
+                    $pdo->prepare('INSERT INTO repair_shop_settings(shop_id,setting_key,value_json,updated_by_user_id)
+                        VALUES(:shop,:key,:value,:user) ON DUPLICATE KEY UPDATE value_json=VALUES(value_json),updated_by_user_id=VALUES(updated_by_user_id)')
+                        ->execute(['shop'=>$shopId,'key'=>$key,'value'=>v2_json($existing),'user'=>$actor['id']]);
+                    $pdo->commit();
+                } catch(Throwable $error) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    throw $error;
+                }
+                return ['updated'=>true];
+            }
             if ($key === 'operations_policy') $input['value'] = operations_policy_validate($input['value']);
             if ($key === 'assignment_policy') {
                 if (!is_array($input['value'])) throw new TamiranApiException('تنظیم تخصیص تکنسین معتبر نیست.');

@@ -87,3 +87,58 @@ function operations_policy_validate(mixed $input): array
     $reasons['other']??=['id'=>'other','title'=>'سایر موارد','active'=>true];
     return ['handover'=>$data['handover'],'approval'=>$data['approval'],'purchase'=>$data['purchase'],'purchaseLimits'=>$limits,'followHours'=>$hours,'hotReturnHours'=>$hotHours,'paymentMethods'=>$methods,'reasons'=>array_values($reasons)];
 }
+
+
+/** Read a private setting within the authenticated workshop. */
+function operations_intake_setting(PDO $pdo,int $shop,string $key):array
+{
+    $query=$pdo->prepare('SELECT value_json FROM repair_shop_settings WHERE shop_id=:shop AND setting_key=:key');
+    $query->execute(['shop'=>$shop,'key'=>$key]);
+    return json_decode((string)$query->fetchColumn(),true) ?: [];
+}
+
+function operations_intake_cost_policy(array $template):?array
+{
+    $policy=$template['costApproval']??null;
+    if (!is_array($policy)) return null;
+    $mode=$policy['mode']??null;
+    if (!in_array($mode,['always','limit'],true)) throw new TamiranApiException('سیاست تأیید هزینه معتبر نیست.');
+    $limit=technician_money($policy['limit']??0);
+    if ($mode==='limit' && $limit<1) throw new TamiranApiException('سقف موافقت مشتری باید بیشتر از صفر باشد.');
+    return ['mode'=>$mode,'limit'=>$mode==='limit'?$limit:0,
+        'alwaysText'=>v2_text($policy['alwaysText']??'','متن تأیید هزینه',2000),
+        'limitText'=>v2_text($policy['limitText']??'','متن سقف هزینه',2000)];
+}
+
+function operations_intake_locations(PDO $pdo,int $shop,int $branch):array
+{
+    return operations_intake_setting($pdo,$shop,'intake_locations')[(string)$branch]??[];
+}
+
+function operations_validate_intake_locations(mixed $input):array
+{
+    if (!is_array($input)||!array_is_list($input)||count($input)>80) throw new TamiranApiException('فهرست محل‌های دریافت معتبر نیست.');
+    $locations=[];
+    foreach ($input as $item) {
+        if (!is_array($item)) throw new TamiranApiException('محل دریافت معتبر نیست.');
+        $id=v2_text($item['id']??'','شناسه محل دریافت',80);
+        $method=$item['method']??null;
+        if (isset($locations[$id])||!in_array($method,['card','cash','bank_transfer'],true)) throw new TamiranApiException('شناسه یا نوع محل دریافت معتبر نیست.');
+        $locations[$id]=['id'=>$id,'method'=>$method,'active'=>($item['active']??false)===true,'label'=>v2_text($item['label']??'','عنوان محل دریافت',100)];
+        if ($method !== 'cash') $locations[$id]['bank']=v2_text($item['bank']??'','نام بانک',80);
+        if ($method === 'card') {
+            $locations[$id]['terminal']=v2_text($item['terminal']??'','شماره پایانه',40);
+            $locations[$id]['accountId']=v2_text($item['accountId']??'','حساب متصل',80);
+        }
+        if ($method === 'bank_transfer') {
+            foreach (['account','card','iban'] as $field) $locations[$id][$field]=v2_text($item[$field]??'','شناسه حساب',40,false);
+            if (!$locations[$id]['account']&&!$locations[$id]['card']&&!$locations[$id]['iban']) throw new TamiranApiException('یکی از شناسه‌های حساب بانکی را وارد کنید.');
+        }
+    }
+    foreach ($locations as $item) {
+        if ($item['method']!=='card') continue;
+        $bank=$locations[$item['accountId']]??null;
+        if (($bank['method']??null)!=='bank_transfer'||($item['active']&&!$bank['active'])) throw new TamiranApiException('حساب بانکی متصل به کارت‌خوان را بررسی کنید.');
+    }
+    return array_values($locations);
+}

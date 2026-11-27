@@ -264,8 +264,9 @@ function finance_advance(PDO $pdo,array $scope,array $input,bool $refund):array
                 throw new TamiranApiException('مجموع پیش‌پرداخت خارج از محدوده است.');
             }
         }
+        $creditPosted=$refund && !empty($matching[0]['meta']['creditPosted']);
         $reference??=tamiran_id();
-        v2_financial_event($pdo,$scope,$case,null,$refund?'refund_issued':'payment_received',0,$refund?-$amount:$amount,0,
+        v2_financial_event($pdo,$scope,$case,null,$refund?'refund_issued':'payment_received',$creditPosted?$amount:0,$refund?-$amount:$amount,0,
             $type,$reference,$idempotency,['method'=>$method,'tracking'=>$tracking,'reason'=>$reason,'fingerprint'=>$fingerprint]);
         tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],$type.'.record','repair_case',
             $case['case_public_id'],null,['publicId'=>$reference,'amount'=>$amount,'method'=>$method],$reason);
@@ -287,7 +288,7 @@ function finance_apply_advances(PDO $pdo,array $scope,array $case,int $invoiceId
         $ref=$advance['reference_public_id'];$amount=$advance['remaining'];$public=tamiran_id();
         $payment->execute(['public'=>$public,'invoice'=>$invoiceId,'amount'=>$amount,'method'=>$advance['meta']['method'],
             'tracking'=>$advance['meta']['tracking']??null,'actor'=>$advance['created_by_user_id'],'key'=>'advance:'.$ref,'date'=>$advance['occurred_at']]);
-        v2_financial_event($pdo,$scope,$case,$invoiceId,'payment_received',-$amount,0,0,'case_advance_applied',$ref,
+        v2_financial_event($pdo,$scope,$case,$invoiceId,'payment_received',!empty($advance['meta']['creditPosted'])?0:-$amount,0,0,'case_advance_applied',$ref,
             'advance-applied:'.$ref,['paymentPublicId'=>$public,'method'=>$advance['meta']['method']]);
         $paid+=$amount;
     }

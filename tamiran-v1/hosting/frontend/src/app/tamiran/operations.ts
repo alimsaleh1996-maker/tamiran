@@ -35,6 +35,7 @@ export type IntakeReceiptDetails = {
   declaredIssues: string[];
   issueDetails?: ReceiptIssueDetail[];
   advance: number;
+  advanceMethod?: string | null;
   terms: string;
 };
 
@@ -201,6 +202,9 @@ export type CreateRepairCaseInput = {
   previousDeviceId?: number;
   expectedDeviceVersion?: number;
   preapprovedAmount?: number;
+  intakeCostConsent?: boolean;
+  intakeExpectedLimit?: number;
+  intakeAdvance?: import("./intake-finance").IntakeAdvance;
   initialEstimate?: number;
   receiptNotes?: string;
   promisedAt?: string;
