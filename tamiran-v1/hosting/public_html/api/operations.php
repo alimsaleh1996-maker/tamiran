@@ -262,10 +262,11 @@ function operations_customer_lookup(PDO $pdo, array $scope, string $mobile, stri
     if ($query !== '') {
         $search = " AND (CONCAT_WS(' ',d.brand_title,d.model_title) LIKE :text ESCAPE '!'
             OR d.imei LIKE :digits ESCAPE '!' OR d.serial_number LIKE :text ESCAPE '!'
-            OR d.identifier_value LIKE :text ESCAPE '!')";
+            OR d.identifier_value LIKE :text ESCAPE '!' OR d.identifier_value LIKE :digits ESCAPE '!')";
         $escape = static fn(string $text): string => '%'.strtr($text, ['!'=>'!!','%'=>'!%','_'=>'!_']).'%';
         $parameters['text'] = $escape($query);
-        $parameters['digits'] = $escape(operations_digits($query) ?: $query);
+        $digitsOnly = preg_match('/^[0-9۰-۹٠-٩\s-]+$/u', $query) === 1;
+        $parameters['digits'] = $escape($digitsOnly ? (operations_digits($query) ?: $query) : $query);
     }
     $deviceFilter = '';
     if ($deviceId > 0) {
