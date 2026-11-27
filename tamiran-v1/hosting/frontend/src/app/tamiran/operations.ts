@@ -36,6 +36,8 @@ export type IntakeReceiptDetails = {
   issueDetails?: ReceiptIssueDetail[];
   advance: number;
   advanceMethod?: string | null;
+  costApprovalText?: string | null;
+  appearanceLocations?: import("./appearance-locations").DamageLocations;
   terms: string;
 };
 
@@ -195,6 +197,7 @@ export type CreateRepairCaseInput = {
   declaredIssues?: string[];
   receiptIssueDetails?: ReceiptIssueDetail[];
   accessories: string[];
+  appearanceLocations?: import("./appearance-locations").DamageLocations;
   appearanceStates: string[];
   receptionNotes?: string;
   assignedToUserId?: number | null;

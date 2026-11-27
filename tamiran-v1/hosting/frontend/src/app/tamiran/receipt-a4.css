@@ -114,3 +114,24 @@
   }
   .receipt-a4 thead { display: table-header-group; }
 }
+
+.receipt-a4 .receipt-a4-cells > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5mm;
+}
+.receipt-a4 .receipt-a4-cells dt { flex: 0 1 auto; }
+.receipt-a4 .receipt-a4-cells dd { min-width: 0; text-align: end; }
+.receipt-damage-markers { position:absolute; inset:0 0 auto; height:30mm; pointer-events:none; }
+.receipt-damage-marker { position:absolute; display:flex; gap:.35mm; }
+.receipt-damage-marker b {
+  display:grid; place-items:center; min-width:2.7mm; height:2.7mm;
+  border:.25mm solid #111; border-radius:50%; background:white; color:#111; font-size:6pt;
+}
+.receipt-damage-marker.marker-center { top:42%; left:50%; transform:translateX(-50%); }
+.receipt-damage-marker.marker-top { top:2%; left:50%; transform:translateX(-50%); }
+.receipt-damage-marker.marker-bottom { bottom:2%; left:50%; transform:translateX(-50%); }
+.receipt-damage-marker.marker-left, .receipt-damage-marker.marker-right { top:38%; flex-direction:column; }
+.receipt-damage-marker.marker-left { left:2%; }
+.receipt-damage-marker.marker-right { right:2%; }

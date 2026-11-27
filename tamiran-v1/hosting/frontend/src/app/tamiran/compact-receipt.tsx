@@ -1,3 +1,5 @@
+import { appearanceDescription } from "./appearance-locations";
+import { intakeMethodTitles, type IntakeMethod } from "./intake-finance";
 import { useEffect, useState } from "react";
 import { ReceiptA4 } from "./receipt-a4";
 import receiptA4Css from "./receipt-a4.css?inline";
@@ -48,6 +50,11 @@ async function loadReceiptFont(document: Document) {
 }
 
 const RECEIPT_CSS = `
+.tamiran-receipt ol.receipt-numbered-conditions{list-style:none;margin:0;padding:0;text-align:justify}
+.tamiran-receipt .receipt-numbered-conditions li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1.5mm;text-align:justify;text-align-last:start;margin-block-end:0.7mm}
+.tamiran-receipt .cr-facts>div{justify-content:space-between;align-items:center}
+.tamiran-receipt .cr-facts dd{text-align:end;min-width:0}
+
 .tamiran-receipt{box-sizing:border-box;width:148mm;max-width:100%;margin:0 auto;padding:8mm;background:#fff;color:#111;font-family:"Tamiran Receipt",Vazirmatn,Tahoma,sans-serif;font-size:13px;line-height:1.65;text-align:right;direction:rtl;border:1px solid #c8d5d1;border-radius:8px}
 .tamiran-receipt *{box-sizing:border-box}.tamiran-receipt p,.tamiran-receipt h2,.tamiran-receipt h3,.tamiran-receipt dl,.tamiran-receipt dd{margin:0}.tamiran-receipt header{display:flex;justify-content:space-between;align-items:start;gap:5mm;border-bottom:2px solid #173f3c;padding-bottom:3mm;margin-bottom:3mm}.tamiran-receipt header h2{font-size:20px;line-height:1.4;color:#111}.tamiran-receipt header p{font-size:11px;color:#444}.tamiran-receipt .cr-number{text-align:left;font-size:17px;font-weight:800;white-space:nowrap}.tamiran-receipt .cr-number small{display:block;font-size:10px;font-weight:400}.tamiran-receipt h3{font-size:12px;font-weight:700;margin-bottom:2mm}.tamiran-receipt section{padding:2.5mm 0;border-bottom:1px solid #d3ddda;break-inside:avoid}.tamiran-receipt .cr-facts{display:grid;grid-template-columns:1fr 1fr;gap:1.5mm 5mm}.tamiran-receipt .cr-facts>div{display:flex;gap:2mm;min-width:0;align-items:baseline}.tamiran-receipt dt{color:#444;font-size:11px;flex:none}.tamiran-receipt dd{font-weight:600;overflow-wrap:anywhere}.tamiran-receipt .cr-wide{grid-column:1/-1}.tamiran-receipt .cr-text{display:grid;grid-template-columns:auto 1fr;gap:2mm;font-size:12px}.tamiran-receipt .cr-text dt{font-weight:700}.tamiran-receipt .cr-text dd{font-weight:400;white-space:pre-wrap;overflow-wrap:anywhere}.tamiran-receipt .cr-footer{display:grid;grid-template-columns:1fr 35mm;gap:5mm;padding-top:3mm;align-items:start}.tamiran-receipt .cr-conditions{font-size:10.5px;line-height:1.65}.tamiran-receipt .cr-conditions p{margin-bottom:1.5mm}.tamiran-receipt .secure-qr{width:34mm;max-width:100%;display:block;padding:0;background:#fff;border:0;text-align:center}.tamiran-receipt .secure-qr svg{display:block;width:34mm;height:34mm;max-width:100%;background:#fff}.tamiran-receipt .secure-qr>span{font-size:10px;display:block;color:#111}.tamiran-receipt .cr-link{font-size:8px;word-break:break-all;line-height:1.3;direction:ltr;text-align:left;margin-top:1mm}.tamiran-receipt .cr-signatures{display:grid;grid-template-columns:1fr 1fr;gap:10mm;padding-top:5mm;font-size:11px}.tamiran-receipt .cr-signatures>span{border-bottom:1px solid #889e96;padding-bottom:6mm}.tamiran-receipt .cr-muted{font-size:10px;color:#444}
 @media(max-width:480px){.tamiran-receipt{padding:5mm;font-size:12px}.tamiran-receipt .cr-number{font-size:14px}.tamiran-receipt header h2{font-size:17px}.tamiran-receipt .cr-facts{gap:2mm;grid-template-columns:1fr}.tamiran-receipt .cr-footer{grid-template-columns:1fr 32mm}.tamiran-receipt .secure-qr svg{width:32mm;height:32mm}}
@@ -124,12 +131,13 @@ export function CompactReceipt(p: CompactReceiptProps) {
           : "ثبت نشده";
   const conditions = p.details?.terms?.trim() ? p.details.terms.split(/\n+/).map(line => line.trim()).filter(Boolean)
     : p.conditions?.length
-    ? p.conditions
+    ? [...p.conditions]
     : [
         "تحویل دستگاه با ارائهٔ این رسید و احراز هویت مشتری انجام می‌شود.",
         "تعمیر و هزینهٔ بالاتر از سقف پذیرش نیازمند تأیید مشتری است.",
         "ضمانت خدمت و قطعات مطابق فاکتور نهایی است.",
       ];
+  if (p.details?.costApprovalText) conditions.push(p.details.costApprovalText);
   const printSize = p.printSize ?? DEFAULT_RECEIPT_SIZE;
   if (printSize === "A4") return <>
     <style>{RECEIPT_FONT_CSS}</style>
@@ -200,7 +208,7 @@ export function CompactReceipt(p: CompactReceiptProps) {
             </div>
             <div className="cr-wide">
               <dt>وضعیت ظاهری</dt>
-              <dd>{p.appearanceStates.join("، ") || "موردی ثبت نشده"}</dd>
+              <dd>{p.appearanceStates.map(state=>appearanceDescription(state,p.details?.appearanceLocations)).join("، ") || "موردی ثبت نشده"}</dd>
             </div>
           </dl>
         </section>
@@ -212,12 +220,13 @@ export function CompactReceipt(p: CompactReceiptProps) {
             <dd>{handling}</dd>
             <dt>موعد برآوردی</dt>
             <dd>{dateText(p.promisedAt)}</dd>
-            {Boolean(p.preapprovedAmount) && (
-              <>
-                <dt>سقف هزینه</dt>
-                <dd>{formatToman(p.preapprovedAmount!)} تومان</dd>
-              </>
-            )}
+            {p.details && p.details.advance > 0 && <>
+              <dt>پیش‌دریافت</dt>
+              <dd>{formatToman(p.details.advance)} تومان
+                {p.details.advanceMethod && <> · {p.details.advanceMethod.split(",")
+                  .map(method=>intakeMethodTitles[method as IntakeMethod] ?? (method === "online" ? "آنلاین" : method === "credit" ? "اعتباری" : "")).filter(Boolean).join("، ")}</>}
+              </dd>
+            </>}
             {p.previousReceipt && (
               <>
                 <dt>رسید قبلی</dt>
@@ -230,9 +239,9 @@ export function CompactReceipt(p: CompactReceiptProps) {
         </section>
         <footer className="cr-footer">
           <div className="cr-conditions">
-            {conditions.map((s, i) => (
-              <p key={i}>{s}</p>
-            ))}
+            <ol className="receipt-numbered-conditions">{conditions.map((text, index) => (
+              <li key={index}><span aria-hidden="true">{new Intl.NumberFormat("fa-IR").format(index+1)}.</span><span>{text}</span></li>
+            ))}</ol>
             <div className="cr-signatures">
               <span>امضای پذیرنده</span>
               <span>امضای مشتری</span>

@@ -44,14 +44,14 @@ function operations_digits(string $value): string
 
 function operations_appearance_options(PDO $pdo, int $shopId): array
 {
-    $defaults = ['بدون ایراد ظاهری','خط‌وخش','ترک یا شکستگی','فرورفتگی','آثار ضربه','آثار آب‌خوردگی','تغییر رنگ یا سوختگی','بازشدگی قبلی'];
+    $defaults = ['بدون ایراد ظاهری','خط‌وخش','ترک یا شکستگی','فرورفتگی','آثار ضربه','آثار آب‌خوردگی','تغییر رنگ یا سوختگی','بازشدگی قبلی','تاب‌داشتگی'];
     $statement = $pdo->prepare("SELECT value_json FROM repair_shop_settings WHERE shop_id=:shop AND setting_key='receipt_template' LIMIT 1");
     $statement->execute(['shop'=>$shopId]);
     $decoded = json_decode((string)($statement->fetchColumn() ?: ''), true);
     $configured = is_array($decoded) && is_array($decoded['appearanceOptions'] ?? null)
         ? array_values(array_unique(array_filter(array_map(static fn($value): string => trim((string)$value), $decoded['appearanceOptions']))))
         : [];
-    return $configured === [] ? $defaults : $configured;
+    return array_values(array_unique([...$defaults,...$configured]));
 }
 
 function operations_scope(PDO $pdo): array
@@ -177,7 +177,9 @@ function operations_case_to_api(array $row, string $role, array $events = []): a
         'declaredIssues'=>$intake['declaredIssues']??[],
         'issueDetails'=>$intake['receiptIssueDetails']??[],
         'advance'=>(int)$row['receipt_advance'],
-        'terms'=>implode("\n",array_filter([$row['receipt_terms_body']??'', $intake['costApproval']['text']??''])),
+        'terms'=>($row['receipt_terms_body']??'') ?: ($intake['receiptRules']??''),
+        'costApprovalText'=>$intake['costApproval']['text']??null,
+        'appearanceLocations'=>$intake['appearanceLocations']??new stdClass(),
         'advanceMethod'=>$row['receipt_advance_methods']??null,
     ]:null;
     if ($canReadReceipt && !empty($row['tracking_token_ciphertext'])) {
@@ -725,6 +727,26 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
     foreach ($appearanceStates as $appearanceState) {
         if (!in_array($appearanceState, $allowedAppearanceStates, true)) throw new TamiranApiException('وضعیت ظاهری باید از فهرست فعال تنظیمات انتخاب شود.', 409);
     }
+    $damageTypes=['خط‌وخش','ترک یا شکستگی','فرورفتگی','آثار ضربه','تغییر رنگ یا سوختگی'];
+    $places=['کل دستگاه','صفحه‌نمایش','پشت دستگاه','لبه بالا','لبه پایین','لبه راست','لبه چپ','محل نامشخص'];
+    $appearanceLocations=$input['appearanceLocations']??[];
+    if (!is_array($appearanceLocations) || (count($appearanceStates)>1 && in_array('بدون ایراد ظاهری',$appearanceStates,true))) {
+        throw new TamiranApiException('وضعیت ظاهری معتبر نیست.');
+    }
+    foreach ($appearanceLocations as $damage=>$locations) {
+        if (!in_array($damage,$damageTypes,true)||!in_array($damage,$appearanceStates,true)||!is_array($locations)||
+            !array_is_list($locations)||!$locations||count($locations)>8) {
+            throw new TamiranApiException('محل آسیب با وضعیت ظاهری سازگار نیست.');
+        }
+        foreach($locations as $location) if(!in_array($location,$places,true)) throw new TamiranApiException('محل آسیب معتبر نیست.');
+        if (count($locations)>1 && array_intersect($locations,[$places[0],$places[7]])) throw new TamiranApiException('محل کلی و جزئی آسیب هم‌زمان مجاز نیست.');
+        $appearanceLocations[$damage]=array_values(array_unique($locations));
+    }
+    if (array_key_exists('appearanceLocations',$input)) {
+        foreach (array_intersect($appearanceStates,$damageTypes) as $damage) if (!isset($appearanceLocations[$damage])) {
+            throw new TamiranApiException('محل آسیب را مشخص کنید.');
+        }
+    }
     $caseIdempotency=operations_optional($input['idempotencyKey']??($_SERVER['HTTP_X_IDEMPOTENCY_KEY']??''),160);
     if($caseIdempotency===null)$caseIdempotency=hash('sha256',implode('|',[$scope['shop_id'],$scope['actor']['id'],$mobile,$normalizedIdentifier??($imei??$serial??''),trim((string)($input['declaredIssue']??'')),(string)floor(time()/30)]));
     $fingerprint=hash('sha256',json_encode(operations_canonical_value($input),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
@@ -840,7 +862,16 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
             'evidence'=>json_encode(['termTitle'=>$termRow['title'],'contentSha256'=>$termRow['content_sha256'],'details'=>$consent['evidence']??new stdClass()],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),
         ]);
         }
-        $costPolicy=operations_intake_cost_policy(operations_intake_setting($pdo,(int)$scope['shop_id'],'receipt_template'));
+        $receiptTemplate=operations_intake_setting($pdo,(int)$scope['shop_id'],'receipt_template');
+        $costPolicy=operations_intake_cost_policy($receiptTemplate);
+        $receiptRules=[];
+        foreach ((array)($receiptTemplate['clauses']??[]) as $clause) {
+            if (is_array($clause) && !empty($clause['enabled']) && is_string($clause['text']??null)
+                && trim($clause['text'])!=='') $receiptRules[]=trim($clause['text']);
+        }
+        if (!$receiptRules) $receiptRules=['تحویل دستگاه با ارائهٔ این رسید و احراز هویت مشتری انجام می‌شود.',
+            'تعمیر و هزینهٔ بالاتر از سقف پذیرش نیازمند تأیید مشتری است.',
+            'ضمانت خدمت و قطعات مطابق فاکتور نهایی است.'];
         $preapproved=max(0,(int)($input['preapprovedAmount']??0));
         $costSnapshot=null;
         if ($costPolicy!==null || array_key_exists('intakeCostConsent',$input)) {
@@ -872,7 +903,7 @@ function operations_create_case(PDO $pdo, array $scope, array $input): array
         ]);
         $workflowId=(int)$pdo->lastInsertId();
         $pdo->prepare('INSERT INTO repair_case_stage_events(public_id,workflow_id,from_status,to_status,actor_user_id,reason,metadata_json,idempotency_key,started_at) VALUES(:public,:workflow,NULL,:status,:actor,:reason,:metadata,:idempotency,NOW())')->execute([
-            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'promisedAt'=>$promisedAt,'declaredIssues'=>$declaredIssues,'receiptIssueDetails'=>$receiptIssueDetails,'initialEstimate'=>$initialEstimate,'receiptNotes'=>$receiptNotes,'costApproval'=>$costSnapshot,'identity'=>['identifier'=>$identifier,'serialNumber'=>$serial,'imei'=>$imei,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
+            'public'=>tamiran_id(),'workflow'=>$workflowId,'status'=>$processStatus,'actor'=>(int)$scope['actor']['id'],'reason'=>'ثبت پذیرش نسخه ۲.۰','metadata'=>json_encode(['receiptNumber'=>$receiptNumber,'productProfile'=>$policy['profile'],'receiptMode'=>$issueOnly?'issue_only':'accepted','receiptConsentRecorded'=>!$issueOnly,'receiptTermsSnapshot'=>$receiptTermsSnapshot,'promisedAt'=>$promisedAt,'declaredIssues'=>$declaredIssues,'receiptIssueDetails'=>$receiptIssueDetails,'initialEstimate'=>$initialEstimate,'receiptNotes'=>$receiptNotes,'costApproval'=>$costSnapshot,'receiptRules'=>implode("\n",$receiptRules),'appearanceLocations'=>(object)$appearanceLocations,'identity'=>['identifier'=>$identifier,'serialNumber'=>$serial,'imei'=>$imei,'unavailable'=>$unavailable,'unavailableReason'=>$unavailableReason,'unavailableNote'=>$unavailableNote]],JSON_UNESCAPED_UNICODE),'idempotency'=>'case-create:'.$caseIdempotency,
         ]);
         if ($assignedId !== null) {
             $pdo->prepare("INSERT INTO repair_case_assignments(public_id,workflow_id,technician_user_id,assignment_type,task_title,created_by_user_id,started_at,accepted_at) VALUES(:public,:workflow,:technician,'primary','مسئول اصلی تعمیر',:creator,NOW(),NULL)")

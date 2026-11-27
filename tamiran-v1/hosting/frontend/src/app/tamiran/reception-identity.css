@@ -265,3 +265,32 @@
 .intake-advance-summary > span, .intake-advance-summary > .outline-action {
   grid-column: 1 / -1;
 }
+
+.intake-appearance-chips button,
+.intake-appearance-chips button.selected {
+  font-size: 14px;
+  font-weight: 650;
+  border-width: 1px;
+  min-height: 44px;
+}
+.intake-appearance-chips button svg { flex: none; }
+.intake-damage-places {
+  direction: rtl;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.intake-damage-places label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.intake-appearance-chips button[aria-pressed] {
+  font-size: 14px !important;
+  font-weight: 650 !important;
+  font-variation-settings: "wght" 650;
+  padding-inline: 12px !important;
+  border-width: 1px !important;
+  line-height: 1.5 !important;
+}

@@ -58,6 +58,7 @@ import { useEffect, useState } from "react";
 import type { ReceiptIssueDetail } from "./operations";
 import { defaultIntakeCost, formatIntakeRials, IntakeAdvanceEditor, IntakeLocationSettings, IntakeRialInput,
   intakeMethodTitles, type IntakeAdvance, type IntakeCostApproval, type IntakeLocation } from "./intake-finance";
+import { damagePlaces, damageTypes, exclusiveDamagePlaces, intakeAppearance, type DamageLocations } from "./appearance-locations";
 import { CompactReceipt, DEFAULT_RECEIPT_SIZE, printCompactReceipt } from "./compact-receipt";
 import { MoneyInput } from "./money-input";
 import "./iteration-six.css";
@@ -804,6 +805,8 @@ function ReceptionPage({
   const [selectedDeviceType, setSelectedDeviceType] = useState("");
   const [accessories, setAccessories] = useState<string[]>(["بدون لوازم"]);
   const [appearanceStates, setAppearanceStates] = useState<string[]>([]);
+  const [damageLocations, setDamageLocations] = useState<DamageLocations>({});
+  const [damageDialog, setDamageDialog] = useState<{type: string; places: string[]} | null>(null);
   const [customerMobile, setCustomerMobile] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [nationalCode, setNationalCode] = useState("");
@@ -875,10 +878,6 @@ function ReceptionPage({
   const deviceColors = normalizeDeviceColors(shopSettings.device_colors).filter(
     (item) => item.active,
   );
-  const appearanceOptions = receiptTemplate.appearanceOptions?.filter(Boolean)
-    .length
-    ? receiptTemplate.appearanceOptions.filter(Boolean)
-    : defaultAppearanceStates;
   const profileKey = profileKeyForWorkshop(
     workspace?.repairType,
     selectedDeviceType,
@@ -1057,6 +1056,7 @@ function ReceptionPage({
       setDataHandling(draft.dataHandling as "no_erasure" | "coordinate_first" | "erase_authorized");
     if (Array.isArray(draft.accessories)) setAccessories(draft.accessories.map(String));
     if (Array.isArray(draft.appearanceStates)) setAppearanceStates(draft.appearanceStates.map(String));
+    setDamageLocations((draft.appearanceLocations ?? {}) as DamageLocations);
     const catalogItem = deviceCatalog.find((item) => item.id === Number(draft.deviceModelId));
     if (catalogItem) {
       setSelectedCatalogItem(catalogItem);
@@ -1091,6 +1091,7 @@ function ReceptionPage({
         color: deviceColor,
         accessories,
         appearanceStates,
+        appearanceLocations: damageLocations,
         declaredIssue,
         receiptIssueDetails,
         receptionNotes,
@@ -1150,6 +1151,7 @@ function ReceptionPage({
     deviceColor,
     accessories,
     appearanceStates,
+    damageLocations,
     declaredIssue,
     receiptIssueDetails,
     receptionNotes,
@@ -1310,6 +1312,7 @@ function ReceptionPage({
     setReceptionNotes("");
     setAccessories(["بدون لوازم"]);
     setAppearanceStates([]);
+    setDamageLocations({});
     setFormError("");
     setIntakeAdvance(null);
     setIntakeCostConsent(false);
@@ -1334,6 +1337,7 @@ function ReceptionPage({
     setSelectedDeviceType(device.deviceType);
     setAccessories(["بدون لوازم"]);
     setAppearanceStates([]);
+    setDamageLocations({});
     setIssueRows([]);
     setReceptionNotes("");
     const legacy = device.identifier.trim();
@@ -1370,17 +1374,30 @@ function ReceptionPage({
     setAccessories(["بدون لوازم"]);
   };
 
-  const toggleAppearance = (item: string) =>
-    setAppearanceStates((current) => {
-      if (item === "بدون ایراد ظاهری")
-        return current.includes(item) ? [] : [item];
-      const withoutClear = current.filter(
-        (value) => value !== "بدون ایراد ظاهری",
-      );
-      return withoutClear.includes(item)
-        ? withoutClear.filter((value) => value !== item)
-        : [...withoutClear, item];
+  const setDamage = (type: string, places: string[] | null) => {
+    setAppearanceStates(current => {
+      if (type === intakeAppearance[0]) return [type];
+      const states = current.filter(item => item !== type && item !== intakeAppearance[0]);
+      return places === null ? states : [...states, type];
     });
+    setDamageLocations(current => {
+      if (type === intakeAppearance[0]) return {};
+      const next = {...current};
+      if (places?.length) next[type] = places;
+      else delete next[type];
+      return next;
+    });
+    setDamageDialog(null);
+  };
+  const toggleAppearance = (type: string) => {
+    if (damageTypes.includes(type) || (type === intakeAppearance[0] && appearanceStates.some(item=>item!==type))) {
+      setDamageDialog({type,places:damageLocations[type]??[]});
+      return;
+    }
+    setAppearanceStates(current => current.includes(type)
+      ? current.filter(item=>item!==type)
+      : type === intakeAppearance[0] ? [type] : [...current.filter(item=>item!==intakeAppearance[0]),type]);
+  };
 
   const toggleAccessory = (item: string) =>
     setAccessories((current) => {
@@ -1560,6 +1577,7 @@ function ReceptionPage({
         receiptIssueDetails,
         accessories,
         appearanceStates,
+        appearanceLocations: damageLocations,
         receptionNotes: receptionNotes.trim() || undefined,
         assignedToUserId: effectiveAssignedToUserId,
         assignmentMode: assignedToUserId === "queue" ? "queue" : "automatic",
@@ -2108,8 +2126,8 @@ function ReceptionPage({
                   فقط وضعیت همین مراجعه را انتخاب کنید؛ این موارد از سابقه قبلی
                   کپی نمی‌شوند.
                 </p>
-                <div className="choice-chips appearance-choice-chips">
-                  {appearanceOptions.map((item) => (
+                <div className="choice-chips appearance-choice-chips intake-appearance-chips">
+                  {intakeAppearance.map((item) => (
                     <button
                       type="button"
                       key={item}
@@ -2119,7 +2137,7 @@ function ReceptionPage({
                       }
                       onClick={() => toggleAppearance(item)}
                     >
-                      {appearanceStates.includes(item) && <Check size={14} />}
+                      <Check size={14} aria-hidden="true" style={{visibility:appearanceStates.includes(item) ? "visible" : "hidden"}} />
                       {item}
                     </button>
                   ))}
@@ -2393,6 +2411,32 @@ function ReceptionPage({
         </aside>
       </div>
 
+      {damageDialog && <Modal title={damageDialog.type === intakeAppearance[0] ? "ثبت بدون ایراد ظاهری" : `محل ${damageDialog.type}`}
+        onClose={() => setDamageDialog(null)}>
+        {damageDialog.type === intakeAppearance[0] ? <p>با تأیید، آسیب‌های ثبت‌شدهٔ این مراجعه پاک می‌شوند.</p> :
+          <div className="intake-damage-places">
+            {damagePlaces.map(place => <label key={place}>
+              <input type="checkbox" checked={damageDialog.places.includes(place)} onChange={event => {
+                const checked = event.target.checked;
+                setDamageDialog(current => {
+                  if (!current) return current;
+                  const places = !checked ? current.places.filter(item=>item!==place)
+                    : exclusiveDamagePlaces.includes(place) ? [place]
+                    : [...current.places.filter(item=>!exclusiveDamagePlaces.includes(item)),place];
+                  return {...current,places};
+                });
+              }} />{place}
+            </label>)}
+          </div>}
+        <div className="identity-actions">
+          <button type="button" className="primary-action"
+            disabled={damageDialog.type !== intakeAppearance[0] && !damageDialog.places.length}
+            onClick={() => setDamage(damageDialog.type,damageDialog.places)}>تأیید</button>
+          <button type="button" className="outline-action" onClick={() => setDamageDialog(null)}>انصراف</button>
+          {appearanceStates.includes(damageDialog.type) && <button type="button" className="outline-action"
+            onClick={() => setDamage(damageDialog.type,null)}>حذف آسیب</button>}
+        </div>
+      </Modal>}
       {intakeAdvanceOpen && <Modal title="ثبت پیش‌دریافت" icon={<Wallet size={20} aria-hidden="true" />} onClose={() => setIntakeAdvanceOpen(false)}>
         <IntakeAdvanceEditor value={intakeAdvance} locations={locations} onCancel={() => setIntakeAdvanceOpen(false)}
           onConfirm={advance => {setIntakeAdvance(advance); setIntakeAdvanceOpen(false);}} />
@@ -2929,8 +2973,8 @@ function SearchableCatalogSelect({
 
 const ReceiptDocument = CompactReceipt;
 
-function useA4Receipt(record: RepairCaseRecord | null, size?: string) {
-  const receipt = (size ?? DEFAULT_RECEIPT_SIZE) === "A4" ? record?.receiptNumber : undefined;
+function useA4Receipt(record: RepairCaseRecord | null, _size?: string) {
+  const receipt = record?.receiptNumber;
   const [result, setResult] = useState<{ receipt: string; details?: RepairCaseRecord["receiptDetails"]; error?: string }>();
   const [retry, setRetry] = useState(0);
   useEffect(() => {
