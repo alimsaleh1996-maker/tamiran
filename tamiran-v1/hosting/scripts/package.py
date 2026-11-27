@@ -8,7 +8,6 @@ from io import BytesIO
 import json
 from pathlib import Path
 import re
-import secrets
 import subprocess
 import tarfile
 from tempfile import TemporaryDirectory
@@ -17,13 +16,14 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_BRANCH = "tamiran-v1/foundation"
-UPDATE_FROM = {"1.0.0-rc.14": "1.0.0-rc.13", "1.0.0-rc.15": "1.0.0-rc.14", "1.0.0-rc.16": "1.0.0-rc.15", "1.0.0-rc.17": "1.0.0-rc.16", "1.0.0-rc.18": "1.0.0-rc.17"}
-UPDATE_MIGRATIONS = {"1.0.0-rc.16": "private/database/migrations/2.0.0-beta.8-device-identifiers.sql"}
+UPDATE_FROM = {"1.0.0-rc.14": "1.0.0-rc.13", "1.0.0-rc.15": "1.0.0-rc.14", "1.0.0-rc.16": "1.0.0-rc.15", "1.0.0-rc.17": "1.0.0-rc.16", "1.0.0-rc.18": "1.0.0-rc.17", "1.0.0-rc.19": "1.0.0-rc.13"}
+DEVICE_IDENTIFIERS_MIGRATION = "private/database/migrations/2.0.0-beta.8-device-identifiers.sql"
+UPDATE_MIGRATIONS = dict.fromkeys(("1.0.0-rc.16", "1.0.0-rc.19"), DEVICE_IDENTIFIERS_MIGRATION)
 MANIFEST = "private/build/manifest.json"
 PRIVATE = (
     ".htaccess", "install.php", "config.example.php", "v2-core.php", "technician-service.php", "operations-policy.php", "external-purchase.php", "case-invoice.php", "manager-operations.php",
     "product-service.php", "capability-service.php", "catalog-similarity.php", "backup-engine.php",
-    "sms-service.php", "database/schema.sql", "database/migrations/2.0.0-beta.8-device-identifiers.sql",
+    "sms-service.php", "database/schema.sql", DEVICE_IDENTIFIERS_MIGRATION.removeprefix("private/"),
     "captcha-audio.php", "captcha-audio/CREDITS.json",
     *(f"captcha-audio/{digit}.wav" for digit in range(2, 10)),
 )
@@ -73,9 +73,6 @@ def runtime_files(root: Path = ROOT) -> dict[str, bytes]:
 
 def source_files(base: dict[str, bytes], root: Path = ROOT) -> dict[str, bytes]:
     files = dict(base)
-    # Editable source carries no install authorization token. The web installer
-    # can generate a private key on first access, or a new package creates one.
-    files.pop("private/install.key", None)
     for name in ("frontend", "scripts", "tests", "dev"):
         directory = root / name
         for path in sorted(directory.rglob("*")):
@@ -107,7 +104,7 @@ def update_files(base: dict[str, bytes], version: str | None = None) -> dict[str
 
 
 def write_zip(path: Path, files: dict[str, bytes], stamp: tuple[int, ...]) -> dict[str, object]:
-    forbidden = ("private/config.php", "private/installed.lock")
+    forbidden = ("private/config.php", "private/installed.lock", "private/install.key")
     if any(name in files for name in forbidden):
         raise SystemExit("Refusing to package generated configuration")
     files = dict(files)
@@ -230,10 +227,9 @@ def main() -> None:
         manifest = release_manifest(runtime, version, branch, commit)
         runtime[MANIFEST] = manifest
         source[MANIFEST] = manifest
-        install = runtime | {"private/install.key": (secrets.token_hex(32) + "\n").encode()}
         output.mkdir(parents=True, exist_ok=True)
         results = [
-            write_zip(output / f"tamiran-{version}-install.zip", install, stamp),
+            write_zip(output / f"tamiran-{version}-install.zip", runtime, stamp),
             write_zip(output / f"tamiran-{version}-source.zip", source, stamp),
         ]
         if previous := UPDATE_FROM.get(version):

@@ -31,13 +31,18 @@ class UpgradePackageTests(unittest.TestCase):
 
     def test_schema_update_carries_only_the_matching_migration_and_manifest_hash(self):
         runtime = package.runtime_files()
-        version = '1.0.0-rc.16'
+        version = '1.0.0-rc.19'
         migration = package.UPDATE_MIGRATIONS[version]
         update = package.update_files(runtime, version)
         manifest = json.loads(package.release_manifest(runtime, version, package.RELEASE_BRANCH, 'a' * 40))
         self.assertEqual([name for name in update if name.endswith('.sql')], [migration])
+        self.assertEqual(manifest['update']['from_version'], '1.0.0-rc.13')
         self.assertTrue(manifest['update']['database_migration'])
         self.assertEqual(manifest['update']['migration'], {'path': migration, 'sha256': package.digest(update[migration])})
+
+    def test_packager_rejects_install_credentials(self):
+        with self.assertRaisesRegex(SystemExit, 'generated configuration'):
+            package.write_zip(root / 'unused.zip', {'private/install.key': b'test-fixture'}, (2026, 1, 1, 0, 0, 0))
 
     def test_manifest_identifies_commit_and_runtime_without_private_state(self):
         runtime = package.runtime_files()

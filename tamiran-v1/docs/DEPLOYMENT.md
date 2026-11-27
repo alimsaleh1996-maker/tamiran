@@ -25,6 +25,8 @@ python3 tamiran-v1/hosting/scripts/package.py \
 
 ارتقا از `rc.15` به `rc.16` به [Migration شناسه‌های دستگاه](DATABASE-MIGRATIONS.md) نیاز دارد. مسیر و هش Migration در `update.migration` در Manifest خصوصی درج می‌شوند. بسته در گیت انتشار ساخته می‌شود.
 
+نامزد `1.0.0-rc.19` مسیر تجمعی مستقیم از `1.0.0-rc.13` دارد. بستهٔ ارتقا حاوی Migration `2.0.0-beta.8-device-identifiers.sql` است. نصب تازه از ZIP جداگانه انجام می‌شود. کلید یک‌بارمصرف هنگام بازکردن صفحهٔ نصب روی هاست تولید می‌شود. جزئیات در [راهنمای نصب](../hosting/INSTALL-FA.md) و [راهنمای ارتقا](../hosting/UPGRADE-FA.md) آمده است.
+
 نسخهٔ `1.0.0-rc.15` از `rc.14` و نسخهٔ `rc.14` از `rc.13` با بستهٔ ارتقا و بدون Migration نصب می‌شوند. `public_html/` ریشهٔ وب است. `private/` و فایل `VERSION` در پوشهٔ والد آن قرار می‌گیرند.
 
 بستهٔ `1.0.0-rc.13` از `1.0.0-rc.12` با فایل به‌روزرسانی و بدون Migration نصب می‌شود.
