@@ -276,6 +276,14 @@ export type V2InventoryPayload = {
   warehouse: { id: number; public_id: string; title: string } | null;
   catalogPage?: { offset: number; nextOffset: number | null };
 };
+export type QueuePage = { offset: number; pageSize: number; total: number };
+export type PartRequestQueue = V2InventoryPayload & {
+  requestPage: QueuePage;
+  requestCase: { id: number; receiptNumber: string } | null;
+  requestTechnicians: Array<{ id: number; name: string }>;
+};
+export const loadPartRequestQueue = (params: string) =>
+  directAdminRequest<PartRequestQueue>(`/api/inventory-v2.php?requests=1&${params}`);
 export function loadV2Inventory(caseId?: number, catalog = false, search = "", offset = 0) {
   const params = new URLSearchParams();
   if (caseId) params.set("caseId", String(caseId));
@@ -601,9 +609,16 @@ export type ManagerPulseData = {
   receiptOverdue: number;
   overdue: number;
   openHotReturns: number;
+  counts: Record<string, number>;
 };
 export const loadManagerPulse = () =>
   directAdminRequest<ManagerPulseData>("/api/workflow-v2.php?managerPulse=1");
+export type ManagerQueueCase = Pick<V2Case, "id" | "status" | "receiptNumber" | "customerName" |
+  "deviceTitle" | "technicianName" | "declaredIssue" | "priority" | "acceptedAt" | "promisedAt" | "receiptPending">;
+export const loadManagerCaseQueue = (params: string) =>
+  directAdminRequest<QueuePage & { rows: ManagerQueueCase[] }>(`/api/workflow-v2.php?${params}`);
+export const loadManagerQueueOptions = () =>
+  directAdminRequest<V2WorkflowPayload>("/api/workflow-v2.php?managerQueueOptions=1");
 
 export type ManagerPerformance = {
   id: number;

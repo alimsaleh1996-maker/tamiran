@@ -40,14 +40,96 @@ function inventory_v2_payload(PDO $pdo,array $scope,?int $caseId=null,bool $cata
     foreach($items as &$item){$item['id']=(int)$item['id'];foreach(['purchase_price','sale_price','minimum_quantity','physical_quantity','reserved_quantity','available_quantity','average_unit_cost','row_version']as$key)$item[$key]=(int)$item[$key];$item['hot_return_required']=(bool)$item['hot_return_required'];if(!in_array($scope['role'],['repair_manager','finance_cashier','warehouse_keeper'],true)){unset($item['purchase_price'],$item['average_unit_cost']);}}
     unset($item);
     if ($catalog) return ['items'=>$items,'requests'=>[],'issues'=>[],'warehouse'=>null,'catalogPage'=>['offset'=>$offset,'nextOffset'=>$nextOffset]];
-    $requestWhere='r.shop_id=:shop AND r.branch_id=:branch';$params=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];
-    if($caseId!==null){$requestWhere.=' AND r.case_id=:case';$params['case']=$caseId;}elseif($scope['role']==='technician'){$requestWhere.=' AND r.requested_by_user_id=:actor';$params['actor']=$scope['actor']['id'];}
-    $requests=$pdo->prepare("SELECT r.*,CASE WHEN r.reservation_expires_at IS NOT NULL AND r.reservation_expires_at<NOW() AND r.status IN ('reserved','partially_delivered') THEN 1 ELSE 0 END AS reservation_is_expired,i.item_code,i.title AS item_title,c.receipt_number,CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title,u.display_name AS requester_name FROM repair_part_requests r LEFT JOIN repair_inventory_items i ON i.id=r.item_id INNER JOIN repair_cases c ON c.id=r.case_id INNER JOIN tamiran_users u ON u.id=r.requested_by_user_id WHERE {$requestWhere} ORDER BY r.updated_at DESC LIMIT 1000");$requests->execute($params);
-    $rows=$requests->fetchAll();foreach($rows as &$row){foreach(['id','case_id','item_id','quantity','reserved_quantity','delivered_quantity','consumed_quantity','returned_quantity']as$key)$row[$key]=$row[$key]===null?null:(int)$row[$key];$row['reservation_is_expired']=(bool)$row['reservation_is_expired'];}unset($row);
+    $requests=inventory_v2_requests($pdo,$scope,$caseId,null);
+    return ['items'=>$items]+$requests+inventory_v2_request_context($pdo,$scope,$caseId);
+}
+
+function inventory_v2_requests(PDO $pdo,array $scope,?int $caseId,?array $filters):array
+{
+    $where=['r.shop_id=:shop','r.branch_id=:branch'];
+    $params=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];
+    if ($caseId!==null) {
+        $where[]='r.case_id=:case';
+        $params['case']=$caseId;
+    } elseif ($scope['role']==='technician') {
+        $where[]='r.requested_by_user_id=:actor';
+        $params['actor']=$scope['actor']['id'];
+    }
+    $from="FROM repair_part_requests r LEFT JOIN repair_inventory_items i ON i.id=r.item_id AND i.shop_id=r.shop_id
+        JOIN repair_cases c ON c.id=r.case_id AND c.shop_id=r.shop_id AND c.branch_id=r.branch_id
+        JOIN tamiran_users u ON u.id=r.requested_by_user_id AND u.shop_id=r.shop_id";
+    $page=null;
+    $limit='LIMIT 1000';
+    if ($filters!==null) {
+        $offset=v2_queue_offset($filters);
+        if (($term=v2_queue_term($filters))!==null) {
+            $where[]="(c.receipt_number LIKE :q ESCAPE '!' OR i.title LIKE :q ESCAPE '!' OR i.item_code LIKE :q ESCAPE '!'
+                OR u.display_name LIKE :q ESCAPE '!' OR CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) LIKE :q ESCAPE '!')";
+            $params['q']=$term;
+        }
+        if (($technician=v2_queue_id($filters,'technician'))!==null) {
+            $where[]='r.requested_by_user_id=:technician';
+            $params['technician']=$technician;
+        }
+        if (($itemId=v2_queue_id($filters,'purchaseItem'))!==null) {
+            $where[]="r.item_id=:item AND r.quantity>r.reserved_quantity
+                AND r.status IN ('pending','needs_supply','reserved','partially_delivered')
+                AND ".v2_request_has_no_open_purchase_sql();
+            $params['item']=$itemId;
+        }
+        if (isset($filters['status'])&&!is_string($filters['status'])) throw new TamiranApiException('وضعیت درخواست قطعه معتبر نیست.');
+        if (($status=v2_text($filters['status']??'','وضعیت درخواست',48,false))!==null) {
+            if (!in_array($status,['pending','reserved','partially_delivered','needs_supply','delivered','consumed','returned','rejected','cancelled'],true)) {
+                throw new TamiranApiException('وضعیت درخواست قطعه معتبر نیست.');
+            }
+            $where[]='r.status=:status';
+            $params['status']=$status;
+        }
+        $condition=implode(' AND ',$where);
+        $count=$pdo->prepare("SELECT COUNT(*) $from WHERE $condition");
+        $count->execute($params);
+        $pageSize=30;
+        $page=['total'=>(int)$count->fetchColumn(),'offset'=>$offset,'pageSize'=>$pageSize];
+        $limit="LIMIT $pageSize OFFSET $offset";
+    }
+    $condition=implode(' AND ',$where);
+    $requests=$pdo->prepare("SELECT r.*,CASE WHEN r.reservation_expires_at IS NOT NULL AND r.reservation_expires_at<NOW() AND r.status IN ('reserved','partially_delivered') THEN 1 ELSE 0 END AS reservation_is_expired,i.item_code,i.title AS item_title,c.receipt_number,CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title,u.display_name AS requester_name
+        $from WHERE $condition ORDER BY r.updated_at DESC,r.id DESC $limit");
+    $requests->execute($params);
+    $rows=$requests->fetchAll();
+    foreach($rows as &$row){foreach(['id','case_id','item_id','quantity','reserved_quantity','delivered_quantity','consumed_quantity','returned_quantity']as$key)$row[$key]=$row[$key]===null?null:(int)$row[$key];$row['reservation_is_expired']=(bool)$row['reservation_is_expired'];}unset($row);
+    return ['requests'=>$rows]+($page===null?[]:['requestPage'=>$page]);
+}
+
+function inventory_v2_request_context(PDO $pdo,array $scope,?int $caseId,?array $requestIds=null):array
+{
     $issueWhere='x.shop_id=:shop AND x.branch_id=:branch';$issueParams=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];if($caseId!==null){$issueWhere.=' AND x.case_id=:case';$issueParams['case']=$caseId;}elseif($scope['role']==='technician'){$issueWhere.=' AND x.technician_user_id=:issue_actor';$issueParams['issue_actor']=$scope['actor']['id'];}
+    if ($requestIds!==null) {
+        $issueWhere.=" AND x.status IN ('awaiting_technician','delivered') AND x.part_request_id IN (".implode(',',array_map('intval',$requestIds?:[0])).")";
+    }
     $issues=$pdo->prepare("SELECT x.id,x.public_id,x.part_request_id,x.case_id,x.item_id,x.technician_user_id,x.quantity,x.status,x.notes,x.created_at,c.receipt_number,i.item_code,i.title AS item_title,u.display_name AS technician_name FROM repair_part_issues x INNER JOIN repair_cases c ON c.id=x.case_id INNER JOIN repair_inventory_items i ON i.id=x.item_id INNER JOIN tamiran_users u ON u.id=x.technician_user_id WHERE {$issueWhere} ORDER BY x.created_at DESC LIMIT 1000");$issues->execute($issueParams);$issueRows=$issues->fetchAll();foreach($issueRows as &$issue){foreach(['id','part_request_id','case_id','item_id','technician_user_id','quantity']as$key)$issue[$key]=(int)$issue[$key];}unset($issue);
     $warehouse=$pdo->prepare('SELECT id,public_id,title FROM repair_warehouses WHERE shop_id=:shop AND branch_id=:branch AND is_main=1 AND is_active=1 LIMIT 1');$warehouse->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
-    return ['items'=>$items,'requests'=>$rows,'issues'=>$issueRows,'warehouse'=>$warehouse->fetch()?:null];
+    return ['issues'=>$issueRows,'warehouse'=>$warehouse->fetch()?:null];
+}
+
+function inventory_v2_request_queue(PDO $pdo,array $scope,array $input):array
+{
+    if ($scope['role']==='technician' || (!v2_has_permission($scope,'inventory.request.view',['warehouse_keeper'])
+        && !v2_has_permission($scope,'procurement.view'))) {
+        throw new TamiranApiException('مشاهده صف درخواست قطعه مجاز نیست.',403);
+    }
+    v2_require_queue_branch($scope,$input);
+    $caseId=v2_queue_id($input,'caseId');
+    $case=$caseId===null?null:v2_case($pdo,$scope,$caseId);
+    $requests=inventory_v2_requests($pdo,$scope,$caseId,$input);
+    $context=inventory_v2_request_context($pdo,$scope,$caseId,array_column($requests['requests'],'id'));
+    $people=$pdo->prepare("SELECT u.id,u.display_name FROM tamiran_users u JOIN tamiran_user_branches b ON b.user_id=u.id AND b.shop_id=u.shop_id
+        WHERE b.shop_id=:shop AND b.branch_id=:branch AND b.branch_role_code IN ('technician','repair_manager') ORDER BY u.display_name,u.id");
+    $people->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
+    return ['items'=>[]]+$requests+$context+[
+        'requestCase'=>$case===null?null:['id'=>$caseId,'receiptNumber'=>$case['receipt_number']],
+        'requestTechnicians'=>array_map(static fn($row)=>['id'=>(int)$row['id'],'name'=>$row['display_name']],$people->fetchAll()),
+    ];
 }
 
 function inventory_v2_request(PDO $pdo,array $scope,array $input):array
@@ -85,5 +167,5 @@ function inventory_v2_reject_or_cancel(PDO $pdo,array $scope,array $input,string
     v2_require_permission($scope,'inventory.request.decide',['warehouse_keeper','technician'],'رد یا لغو درخواست مجاز نیست.');if($action==='reject'&&$scope['role']==='technician')throw new TamiranApiException('تکنسین نمی‌تواند درخواست را رد کند.',403);$requestId=(int)($input['requestId']??0);$reason=v2_text($input['reason']??'','علت',1000);$pdo->beginTransaction();try{$statement=$pdo->prepare('SELECT * FROM repair_part_requests WHERE id=:id AND shop_id=:shop AND branch_id=:branch FOR UPDATE');$statement->execute(['id'=>$requestId,'shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);$request=$statement->fetch();if(!is_array($request)||in_array($request['status'],['consumed','returned','rejected','cancelled'],true))throw new TamiranApiException('درخواست قابل تغییر نیست.',409);if($scope['role']==='technician'&&(int)$request['requested_by_user_id']!==(int)$scope['actor']['id'])throw new TamiranApiException('فقط درخواست‌کننده می‌تواند درخواست خودش را لغو کند.',403);$openIssues=$pdo->prepare("SELECT COUNT(*) FROM repair_part_issues WHERE part_request_id=:request AND status NOT IN ('consumed','returned')");$openIssues->execute(['request'=>$requestId]);if((int)$openIssues->fetchColumn()>0)throw new TamiranApiException('ابتدا تمام قطعات تحویل‌شده را مصرف یا مرجوع کنید.',409);$reserved=max(0,(int)$request['reserved_quantity']-(int)$request['delivered_quantity']);if($reserved>0){$warehouseId=(int)($input['warehouseId']??0);v2_stock_mutate($pdo,$scope,$warehouseId,(int)$request['item_id'],0,-$reserved,'release','part_request',$request['public_id'],$reason,(int)$request['case_id']);}$status=$action==='reject'?'rejected':'cancelled';$pdo->prepare('UPDATE repair_part_requests SET status=:status,rejection_reason=:reason,reserved_quantity=delivered_quantity WHERE id=:id')->execute(['status'=>$status,'reason'=>$reason,'id'=>$requestId]);tamiran_audit($pdo,$scope['shop_id'],$scope['branch_id'],$scope['actor']['id'],'part_request.'.$status,'repair_part_request',$request['public_id'],['status'=>$request['status'],'reserved'=>(int)$request['reserved_quantity']],['status'=>$status,'released'=>$reserved],$reason);v2_notify($pdo,$scope,(int)$request['requested_by_user_id'],'part_request_'.$status,'درخواست قطعه تعیین‌تکلیف شد',$reason,'repair_part_request',$request['public_id']);$pdo->commit();}catch(Throwable$error){if($pdo->inTransaction())$pdo->rollBack();throw$error;}$routed=inventory_v2_route_after_parts($pdo,$scope,(int)$request['case_id'],'part-request:'.$request['public_id'].':'.$status);return ['updated'=>true,'status'=>$status,'routed'=>$routed];
 }
 
-tamiran_api(static function():array{$pdo=tamiran_db();$scope=v2_scope();v2_require_capability(v2_product_policy($pdo,$scope),'stockPartsAvailable','انبار برای محصول یا تنظیمات این تعمیرگاه فعال نیست.');$method=$_SERVER['REQUEST_METHOD']??'GET';if($method==='GET')return inventory_v2_payload($pdo,$scope,isset($_GET['caseId'])?(int)$_GET['caseId']:null,($_GET['catalog']??'')==='1');if($method!=='POST')throw new TamiranApiException('روش درخواست مجاز نیست.',405);tamiran_require_csrf();$input=tamiran_json_body();return match((string)($input['action']??'')){
+tamiran_api(static function():array{$pdo=tamiran_db();$scope=v2_scope();v2_require_capability(v2_product_policy($pdo,$scope),'stockPartsAvailable','انبار برای محصول یا تنظیمات این تعمیرگاه فعال نیست.');$method=$_SERVER['REQUEST_METHOD']??'GET';if($method==='GET'&&isset($_GET['requests']))return inventory_v2_request_queue($pdo,$scope,$_GET);if($method==='GET')return inventory_v2_payload($pdo,$scope,isset($_GET['caseId'])?(int)$_GET['caseId']:null,($_GET['catalog']??'')==='1');if($method!=='POST')throw new TamiranApiException('روش درخواست مجاز نیست.',405);tamiran_require_csrf();$input=tamiran_json_body();return match((string)($input['action']??'')){
     'request'=>inventory_v2_request($pdo,$scope,$input),'reserve'=>inventory_v2_reserve($pdo,$scope,$input),'issue'=>inventory_v2_issue($pdo,$scope,$input),'finalize_issue'=>inventory_v2_finalize_issue($pdo,$scope,$input),'reject'=>inventory_v2_reject_or_cancel($pdo,$scope,$input,'reject'),'cancel'=>inventory_v2_reject_or_cancel($pdo,$scope,$input,'cancel'),default=>throw new TamiranApiException('عملیات انبار معتبر نیست.'),};});

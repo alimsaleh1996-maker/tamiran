@@ -490,6 +490,8 @@ export default function Home() {
     url.searchParams.delete("assignmentTab");
     url.searchParams.delete("assignmentTech");
     url.searchParams.delete("assignmentStage");
+    url.searchParams.delete("managerMetric");
+    url.searchParams.delete("supplyCase");
     url.searchParams.delete("deliveryCase");
     url.searchParams.delete("financeCase");
     if (requested === "مالی پرونده") url.searchParams.set("deliveryTab", "finance");

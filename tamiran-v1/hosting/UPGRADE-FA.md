@@ -1,3 +1,7 @@
+## ارتقای 1.0.0-rc.14 به 1.0.0-rc.15
+
+پس از تهیه و تأیید پشتیبان، هش‌های بسته را بررسی کنید و `tamiran-1.0.0-rc.15-update-from-rc.14.zip` را در پوشهٔ والد `public_html/` و `private/` اعمال کنید. این ارتقا Migration ندارد. پس از بازبارگذاری PHP/OPcache، نسخهٔ دو مؤلفه، وضعیت `build_verified` و `schema_compatible` و هش Manifest را در `/api/health.php` با فایل همراه بسته تطبیق دهید.
+
 ## ارتقای 1.0.0-rc.13 به 1.0.0-rc.14
 
 ابتدا نسخهٔ فعلی و امکان بازیابی پشتیبان فایل‌ها، تنظیمات و دیتابیس را بررسی کنید. بررسی هش‌های `CHECKSUMS.sha256` را در محل استخراج بسته انجام دهید. فایل `tamiran-1.0.0-rc.14-update-from-rc.13.zip` را در پوشهٔ والد `public_html/` و `private/` اعمال کنید و PHP/OPcache را بازبارگذاری کنید. این ارتقا Migration ندارد. در `/api/health.php` هر دو نسخه باید `1.0.0-rc.14` باشند، `build_verified` و `schema_compatible` باید `true` باشند و هش Manifest باید با فایل `artifacts.json` همان بسته برابر باشد.

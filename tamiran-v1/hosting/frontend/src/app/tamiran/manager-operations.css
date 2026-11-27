@@ -33,3 +33,8 @@
   .manager-pulse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .technical-desk .manager-pulse-grid button { min-height: 74px; }
 }
+
+.operational-filters { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin-block:12px; }
+.operational-filters label { min-width:0; max-width:100%; }
+.operational-filters select, .operational-pagination button { min-height:44px; }
+.operational-pagination { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-block:12px; }

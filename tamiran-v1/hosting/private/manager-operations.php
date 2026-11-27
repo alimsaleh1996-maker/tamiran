@@ -1,46 +1,137 @@
 <?php
 declare(strict_types=1);
 
+/** All pulse cards and operational case queues use these branch-scoped predicates. */
+function manager_queue_conditions(int $receiptHours): array
+{
+    $receipt=v2_receipt_pending_since_sql();
+    $receiptHours=max(0,$receiptHours);
+    $notReady="w.process_status NOT IN ('ready_for_delivery','returned_unrepaired')";
+    return [
+        'active'=>'1=1',
+        'unassigned'=>"w.process_status IN ('reception','awaiting_assignment')",
+        'assigned'=>"w.primary_technician_user_id IS NOT NULL AND $notReady",
+        'receipt'=>"($receipt) IS NOT NULL",
+        'receipt_late'=>"($receipt)<=DATE_SUB(UTC_TIMESTAMP(),INTERVAL $receiptHours HOUR)",
+        'repairing'=>"w.process_status IN ('assigned','diagnosing','estimate_pending','repairing','parts_closeout')",
+        'late'=>"w.promised_at<UTC_TIMESTAMP() AND $notReady",
+        'customer'=>"w.process_status='awaiting_customer_approval'",
+        'parts'=>"w.process_status='awaiting_parts'",
+        'hot'=>"EXISTS(SELECT 1 FROM repair_hot_returns h WHERE h.case_id=c.id AND h.shop_id=w.shop_id
+            AND h.branch_id=w.branch_id AND h.status IN ('pending_return','waiting_review','rejected'))",
+        'quality'=>"w.process_status IN ('qc_pending','qc_conditional')",
+        'qc_rework'=>"w.process_status='qc_rework'",
+        'finance'=>"w.process_status='finance_pending'",
+        'delivery'=>"w.process_status IN ('ready_for_delivery','returned_unrepaired')",
+    ];
+}
+
+const MANAGER_QUEUE_SCOPE="w.shop_id=:shop AND w.branch_id=:branch AND c.delivered_at IS NULL
+    AND w.process_status NOT IN ('closed','cancelled','delivered')";
+const MANAGER_QUEUE_CASES="FROM repair_case_workflows w
+    JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id AND c.branch_id=w.branch_id
+    JOIN repair_customers cu ON cu.id=c.customer_id AND cu.shop_id=c.shop_id";
+
 function manager_pulse(PDO $pdo,array $scope):array
 {
     if ($scope['role']!=='repair_manager') throw new TamiranApiException('نبض تعمیرگاه فقط برای مدیر تعمیرگاه است.',403);
     $params=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];
-    $receipt=v2_receipt_pending_since_sql();
-    $params['receipt_cutoff']=gmdate('Y-m-d H:i:s',time()-operations_policy($pdo,(int)$scope['shop_id'])['followHours']['receipt']*3600);
-    $work=$pdo->prepare("SELECT w.process_status,w.primary_technician_user_id AS technician_id,COUNT(*) AS amount,
-        SUM(($receipt) IS NOT NULL) AS receipt_pending,
-        SUM(($receipt)<=:receipt_cutoff) AS receipt_overdue,
-        SUM(w.promised_at IS NOT NULL AND w.promised_at<UTC_TIMESTAMP()
-            AND w.process_status NOT IN ('ready_for_delivery','returned_unrepaired')) AS overdue
-        FROM repair_case_workflows w INNER JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id
-        WHERE w.shop_id=:shop AND w.branch_id=:branch AND c.delivered_at IS NULL
-        AND w.process_status NOT IN ('closed','cancelled','delivered')
-        GROUP BY w.process_status,w.primary_technician_user_id");
+    $conditions=manager_queue_conditions(operations_policy($pdo,(int)$scope['shop_id'])['followHours']['receipt']);
+    $columns=implode(',',array_map(static fn($key,$predicate)=>"SUM(($predicate)) AS ".'`'.$key.'`',array_keys($conditions),$conditions));
+    $work=$pdo->prepare("SELECT w.process_status,w.primary_technician_user_id AS technician_id,$columns "
+        .MANAGER_QUEUE_CASES." WHERE ".MANAGER_QUEUE_SCOPE." GROUP BY w.process_status,w.primary_technician_user_id");
     $work->execute($params);
     $users=$pdo->prepare("SELECT u.id,u.display_name FROM tamiran_users u INNER JOIN tamiran_user_branches b
         ON b.user_id=u.id AND b.shop_id=u.shop_id WHERE b.shop_id=:shop AND b.branch_id=:branch
-        AND b.branch_role_code='technician' AND u.is_active=1 ORDER BY u.display_name,u.id");
-    $users->execute(array_intersect_key($params,['shop'=>true,'branch'=>true]));
+        AND b.branch_role_code='technician' AND b.is_active=1 AND u.is_active=1 ORDER BY u.display_name,u.id");
+    $users->execute($params);
     $technicians=[];
     while ($user=$users->fetch()) {
         $id=(int)$user['id'];
         $technicians[$id]=['id'=>$id,'name'=>$user['display_name'],'active'=>0,'awaitingReceipt'=>0,'overdue'=>0];
     }
-    $stages=[];$unreceived=0;$overdue=0;$receiptOverdue=0;
+    $stages=[];
+    $counts=array_fill_keys(array_keys($conditions),0);
     while ($row=$work->fetch()) {
         $stage=$row['process_status'];$id=(int)$row['technician_id'];
-        $stages[$stage]=($stages[$stage]??0)+(int)$row['amount'];
-        $unreceived+=(int)$row['receipt_pending'];$overdue+=(int)$row['overdue'];$receiptOverdue+=(int)$row['receipt_overdue'];
-        if (!isset($technicians[$id])||in_array($stage,['ready_for_delivery','returned_unrepaired'],true)) continue;
-        $technicians[$id]['active']+=(int)$row['amount'];
-        $technicians[$id]['awaitingReceipt']+=(int)$row['receipt_pending'];
-        $technicians[$id]['overdue']+=(int)$row['overdue'];
+        $stages[$stage]=($stages[$stage]??0)+(int)$row['active'];
+        foreach ($counts as $key=>$total) $counts[$key]=$total+(int)$row[$key];
+        if (!isset($technicians[$id])||!(int)$row['assigned']) continue;
+        $technicians[$id]['active']+=(int)$row['assigned'];
+        $technicians[$id]['awaitingReceipt']+=(int)$row['receipt'];
+        $technicians[$id]['overdue']+=(int)$row['late'];
     }
     $hot=$pdo->prepare("SELECT COUNT(*) FROM repair_hot_returns WHERE shop_id=:shop AND branch_id=:branch
         AND status IN ('pending_return','waiting_review','rejected')");
-    $hot->execute(array_intersect_key($params,['shop'=>true,'branch'=>true]));
-    return ['stages'=>(object)$stages,'technicians'=>array_values($technicians),'awaitingReceipt'=>$unreceived,
-        'overdue'=>$overdue,'receiptOverdue'=>$receiptOverdue,'openHotReturns'=>(int)$hot->fetchColumn()];
+    $hot->execute($params);
+    return ['stages'=>(object)$stages,'counts'=>$counts,'technicians'=>array_values($technicians),
+        'awaitingReceipt'=>$counts['receipt'],'overdue'=>$counts['late'],'receiptOverdue'=>$counts['receipt_late'],
+        'openHotReturns'=>(int)$hot->fetchColumn()];
+}
+
+function manager_case_queue(PDO $pdo,array $scope,array $input):array
+{
+    $metric=$input['managerQueue']??'';
+    if (in_array($metric,['assigned','unassigned'],true)) {
+        v2_require_permission($scope,'repair_operations.view',[],'مشاهده صف ارجاع مجاز نیست.');
+    } elseif ($scope['role']!=='repair_manager') {
+        throw new TamiranApiException('شاخص‌های نبض فقط برای مدیر تعمیرگاه است.',403);
+    }
+    v2_require_queue_branch($scope,$input);
+    $conditions=manager_queue_conditions(operations_policy($pdo,(int)$scope['shop_id'])['followHours']['receipt']);
+    if (!is_string($metric)||!isset($conditions[$metric])) throw new TamiranApiException('نوع صف پرونده معتبر نیست.');
+    $offset=v2_queue_offset($input);
+    $params=['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']];
+    $where=MANAGER_QUEUE_SCOPE." AND (".$conditions[$metric].")";
+    if ($scope['role']==='technician') {
+        $where.=" AND (w.primary_technician_user_id=:actor OR EXISTS(
+            SELECT 1 FROM repair_case_assignments a WHERE a.workflow_id=w.id
+            AND a.technician_user_id=:actor AND a.ended_at IS NULL))";
+        $params['actor']=$scope['actor']['id'];
+    }
+    $technician=v2_queue_id($input,'technician');
+    if ($technician!==null) {
+        $where.=' AND w.primary_technician_user_id=:technician';
+        $params['technician']=$technician;
+    }
+    if (isset($input['status'])&&!is_string($input['status'])) throw new TamiranApiException('وضعیت صف پرونده معتبر نیست.');
+    $status=v2_text($input['status']??'','وضعیت صف',48,false);
+    if ($status!==null) {
+        if (!in_array($status,['reception','awaiting_assignment','assigned','diagnosing','estimate_pending',
+            'awaiting_customer_approval','awaiting_parts','repairing','parts_closeout','qc_pending','qc_rework',
+            'qc_conditional','finance_pending','ready_for_delivery','returned_unrepaired'],true)) {
+            throw new TamiranApiException('وضعیت صف پرونده معتبر نیست.');
+        }
+        $where.=' AND w.process_status=:status';
+        $params['status']=$status;
+    }
+    $from=MANAGER_QUEUE_CASES;
+    $term=v2_queue_term($input);
+    if ($term!==null) {
+        $where.=" AND (c.receipt_number LIKE :q ESCAPE '!' OR cu.full_name LIKE :q ESCAPE '!'
+            OR cu.mobile LIKE :q ESCAPE '!' OR c.identifier_snapshot LIKE :q ESCAPE '!'
+            OR CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) LIKE :q ESCAPE '!')";
+        $params['q']=$term;
+    }
+    $total=$pdo->prepare("SELECT COUNT(*) $from WHERE $where");
+    $total->execute($params);
+    $pageSize=30;
+    $receipt=v2_receipt_pending_sql();
+    $rows=$pdo->prepare("SELECT w.case_id,w.process_status,w.promised_at,($receipt) AS receipt_pending,c.receipt_number,
+        c.declared_issue,c.created_at AS accepted_at,cu.full_name AS customer_name,u.display_name AS technician_name,
+        CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device_title,
+        (SELECT JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.payload.priority')) FROM repair_case_events e
+            WHERE e.case_id=c.id AND e.event_type='manager_priority' ORDER BY e.id DESC LIMIT 1) AS priority
+        $from LEFT JOIN tamiran_users u ON u.id=w.primary_technician_user_id AND u.shop_id=w.shop_id
+        WHERE $where ORDER BY (w.process_status='qc_rework') DESC, FIELD(priority,'urgent','critical') DESC,
+            w.promised_at IS NULL,w.promised_at,c.created_at,w.case_id LIMIT $pageSize OFFSET $offset");
+    $rows->execute($params);
+    return ['rows'=>array_map(static fn($row)=>[
+        'id'=>(int)$row['case_id'],'status'=>$row['process_status'],'receiptNumber'=>$row['receipt_number'],
+        'deviceTitle'=>$row['device_title'],'customerName'=>$row['customer_name'],'technicianName'=>$row['technician_name']??'',
+        'declaredIssue'=>$row['declared_issue'],'priority'=>$row['priority']??'normal','acceptedAt'=>$row['accepted_at'],
+        'promisedAt'=>$row['promised_at'],'receiptPending'=>(bool)$row['receipt_pending'],
+    ],$rows->fetchAll()),'total'=>(int)$total->fetchColumn(),'offset'=>$offset,'pageSize'=>$pageSize];
 }
 
 function manager_operations_report(PDO $pdo, array $scope, mixed $from, mixed $to, ?array $detail=null): array
@@ -274,10 +365,8 @@ function manager_followup_queue(PDO $pdo,array $scope,mixed $filter,mixed $offse
         CONCAT_WS(' ',c.device_type_snapshot,c.brand_snapshot,c.model_snapshot) AS device,
         u.display_name AS technician,
         (SELECT MAX(e.started_at) FROM repair_case_stage_events e WHERE e.workflow_id=w.id AND e.to_status=w.process_status) AS stage_started_at
-        FROM repair_case_workflows w JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id
-        LEFT JOIN tamiran_users u ON u.id=w.primary_technician_user_id
-        WHERE w.shop_id=:shop AND w.branch_id=:branch AND c.delivered_at IS NULL
-        AND w.process_status NOT IN ('closed','cancelled','delivered')";
+        ".MANAGER_QUEUE_CASES." LEFT JOIN tamiran_users u ON u.id=w.primary_technician_user_id AND u.shop_id=w.shop_id
+        WHERE ".MANAGER_QUEUE_SCOPE;
     $eligible="SELECT q.*,
         CASE WHEN q.process_status='awaiting_customer_approval' AND q.wait_started_at<=:customer THEN q.wait_started_at END AS customer,
         CASE WHEN q.process_status='awaiting_parts' AND q.wait_started_at<=:parts THEN q.wait_started_at END AS parts,

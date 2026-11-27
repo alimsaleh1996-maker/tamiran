@@ -14,6 +14,46 @@ type FollowReason = keyof typeof followTitles;
 const hours = 3_600_000;
 const fa = (value: number) => Number(value).toLocaleString("fa-IR");
 
+export const managerMetricLabels: Record<string, string> = {
+  active: "پرونده‌های فعال",
+  unassigned: "در انتظار ارجاع",
+  assigned: "پرونده‌های فعال ارجاع‌شده",
+  receipt: "ارجاع‌شده و دریافت‌نشده",
+  receipt_late: "تأخیر در دریافت دستگاه",
+  repairing: "در حال بررسی یا تعمیر",
+  late: "دارای تأخیر",
+  customer: "در انتظار مشتری",
+  parts: "در انتظار قطعه",
+  hot: "پرونده‌های دارای تعهد داغی باز",
+  quality: "کنترل کیفیت",
+  qc_rework: "برگشتی از کنترل کیفیت",
+  finance: "در انتظار مالی",
+  delivery: "آماده تحویل",
+};
+
+export function openManagerQueueCase(item: Pick<V2Case, "id" | "status" | "receiptNumber">,
+  profile: WorkspaceProfile, onNavigate: (page: string) => void) {
+    const inventoryEnabled = profile.modules.includes("inventory");
+    const multiTechnician = profile.productProfile !== "solo";
+    const target = ["ready_for_delivery", "returned_unrepaired", "finance_pending"].includes(item.status)
+      ? (item.status === "finance_pending" ? "مالی پرونده" : "تحویل تعمیرات")
+      : item.status === "awaiting_customer_approval" ? "تأیید هزینه"
+      : item.status === "awaiting_parts" && inventoryEnabled ? "درخواست‌های قطعات پرونده‌ها"
+      : item.status === "qc_pending" || item.status === "qc_conditional" ? "کنترل کیفیت"
+      : multiTechnician ? "مدیریت ارجاع تعمیرات" : "کارهای من";
+    if (["تأیید هزینه", "مدیریت ارجاع تعمیرات"].includes(target)) sessionStorage.setItem("tamiran:focused-workflow-case", String(item.id));
+    if (["کنترل کیفیت", "مالی پرونده", "تحویل تعمیرات"].includes(target)) sessionStorage.setItem("tamiran:focused-module-receipt", item.receiptNumber);
+    onNavigate(target);
+    const url = new URL(location.href);
+    if (target === "درخواست‌های قطعات پرونده‌ها") url.searchParams.set("supplyCase", String(item.id));
+    if (target === "کارهای من") url.searchParams.set("techCase", String(item.id));
+    if (target === "تأیید هزینه") url.searchParams.set("opsTask", "approval");
+    if (target === "مالی پرونده") url.searchParams.set("financeCase", String(item.id));
+    if (target === "تحویل تعمیرات") url.searchParams.set("deliveryCase", String(item.id));
+    if (target === "کنترل کیفیت") url.searchParams.set("qcCase", String(item.id));
+    history.replaceState(history.state, "", url);
+  }
+
 export function ManagerPulse({ profile, onNavigate }: {
   profile: WorkspaceProfile; onNavigate: (page: string) => void;
 }) {
@@ -22,85 +62,43 @@ export function ManagerPulse({ profile, onNavigate }: {
   const [revision, setRevision] = useState(0);
   const [view, setView] = useState(() => new URLSearchParams(location.search).get("view") === "purchase-approvals" ? "purchases" : "followups");
   const multiTechnician = profile.productProfile !== "solo";
-  const inventoryEnabled = profile.modules.includes("inventory");
   useEffect(() => {
     let current = true;
     void loadManagerPulse().then(result => { if (current) { setData(result); setError(""); } })
       .catch(error => { if (current) setError(error instanceof Error ? error.message : "نبض تعمیرگاه بارگذاری نشد."); });
     return () => { current = false; };
   }, [revision]);
-  function assign(active = false, technician?: number, stage?: string) {
-    if (!multiTechnician) return onNavigate("کارهای من");
+  function assign(metric: string, technician?: number) {
     onNavigate("مدیریت ارجاع تعمیرات");
     const url = new URL(location.href);
-    url.searchParams.set("assignmentTab", active ? "active" : "pending");
+    url.searchParams.set("managerMetric", metric);
     if (technician) url.searchParams.set("assignmentTech", String(technician));
-    if (stage) url.searchParams.set("assignmentStage", stage);
     history.replaceState(history.state, "", url);
   }
-  function open(item: V2Case) {
-    const target = ["ready_for_delivery", "returned_unrepaired", "finance_pending"].includes(item.status)
-      ? (item.status === "finance_pending" ? "مالی پرونده" : "تحویل تعمیرات")
-      : item.status === "awaiting_customer_approval" ? "تأیید هزینه"
-      : item.status === "awaiting_parts" && inventoryEnabled ? "درخواست‌های قطعات پرونده‌ها"
-      : item.status === "qc_pending" || item.status === "qc_conditional" ? "کنترل کیفیت"
-      : multiTechnician ? "مدیریت ارجاع تعمیرات" : "کارهای من";
-    if (["تأیید هزینه", "مدیریت ارجاع تعمیرات"].includes(target)) sessionStorage.setItem("tamiran:focused-workflow-case", String(item.id));
-    if (["درخواست‌های قطعات پرونده‌ها", "کنترل کیفیت", "مالی پرونده", "تحویل تعمیرات"].includes(target)) sessionStorage.setItem("tamiran:focused-module-receipt", item.receiptNumber);
-    onNavigate(target);
-    const url = new URL(location.href);
-    if (target === "کارهای من") url.searchParams.set("techCase", String(item.id));
-    if (target === "تأیید هزینه") url.searchParams.set("opsTask", "approval");
-    if (target === "مالی پرونده") url.searchParams.set("financeCase", String(item.id));
-    if (target === "تحویل تعمیرات") url.searchParams.set("deliveryCase", String(item.id));
-    if (target === "کنترل کیفیت") url.searchParams.set("qcCase", String(item.id));
-    history.replaceState(history.state, "", url);
-  }
-  const [initialFollowup, setInitialFollowup] = useState<FollowReason | "all">("all");
-  function focusFollowups(reason: FollowReason | "all" = "all") {
-    setInitialFollowup(reason);
-    setRevision(value => value + 1);
-    setView("followups");
-    const section = document.getElementById("manager-followups");
-    section?.focus();
-    section?.scrollIntoView({ block: "start" });
-  }
-  const stages = data?.stages ?? {};
-  const sum = (...status: string[]) => status.reduce((total, key) => total + (stages[key] ?? 0), 0);
-  const tiles = [
-    { label: "پرونده‌های فعال", count: Object.values(stages).reduce((a, b) => a + b, 0), open: () => assign(true) },
-    { label: "در انتظار ارجاع", count: sum("reception", "awaiting_assignment"), open: () => assign() },
-    { label: "ارجاع‌شده و دریافت‌نشده", count: data?.awaitingReceipt, open: () => assign(true, undefined, "receipt") },
-    { label: "تأخیر در دریافت دستگاه", count: data?.receiptOverdue, open: () => focusFollowups("receipt") },
-    { label: "در حال بررسی یا تعمیر", count: sum("assigned", "diagnosing", "estimate_pending", "repairing", "parts_closeout"), open: () => assign(true, undefined, "repairing") },
-    { label: "دارای تأخیر", count: data?.overdue, open: () => focusFollowups() },
-    { label: "در انتظار مشتری", count: sum("awaiting_customer_approval"), open: () => onNavigate("تأیید هزینه") },
-    { label: "در انتظار قطعه", count: sum("awaiting_parts"), open: () => inventoryEnabled ? onNavigate("درخواست‌های قطعات پرونده‌ها") : assign(true) },
-    ...(profile.inventoryMode === "pro" ? [{ label: "تعهد داغی باز", count: data?.openHotReturns, open: () => onNavigate("تعهدات داغی") }] : []),
-    { label: "کنترل کیفیت", count: sum("qc_pending", "qc_conditional"), open: () => onNavigate("کنترل کیفیت") },
-    { label: "برگشتی از کنترل کیفیت", count: sum("qc_rework"), open: () => assign(true, undefined, "qc_rework") },
-    { label: "در انتظار مالی", count: sum("finance_pending"), open: () => onNavigate("مالی پرونده") },
-    { label: "آماده تحویل", count: sum("ready_for_delivery", "returned_unrepaired"), open: () => onNavigate("تحویل تعمیرات") },
-  ];
+  const tiles = Object.entries(managerMetricLabels).filter(([key]) =>
+    key !== "assigned" && (key !== "hot" || profile.inventoryMode === "pro"));
   return <div className="technical-desk manager-workspace manager-pulse" dir="rtl">
     <header className="manager-section-header"><h2>{profile.shopName}</h2><button type="button" onClick={() => setRevision(value => value + 1)}>تازه‌سازی</button></header>
     {error && <p role="alert" className="tech-error">{error}</p>}
     {!data && !error && <p role="status">در حال دریافت وضعیت تعمیرگاه…</p>}
     {data && <div className="manager-pulse-grid" aria-label="صف‌های عملیاتی">
-      {tiles.map(tile => <button type="button" key={tile.label} onClick={tile.open}><span>{tile.label}</span><strong>{fa(tile.count ?? 0)}</strong></button>)}
+      {tiles.map(([key, label]) => <button type="button" key={key} onClick={() => assign(key)}>
+        <span>{label}</span><strong>{fa(data.counts[key] ?? 0)}</strong>
+        {key === "hot" && <small>{fa(data.openHotReturns)} تعهد باز</small>}
+      </button>)}
     </div>}
     <section className="tech-task manager-pulse-work" id="manager-followups" tabIndex={-1}>
       <div className="manager-switch" role="group" aria-label="درخواست‌ها و پیگیری‌ها">
         <button type="button" aria-pressed={view === "followups"} onClick={() => setView("followups")}>پرونده‌های نیازمند پیگیری</button>
         <button type="button" aria-pressed={view === "purchases"} onClick={() => setView("purchases")}>مجوز خرید قطعه</button>
       </div>
-      {view === "followups" ? <OperationsFollowups key={`${revision}-${initialFollowup}`} initialFilter={initialFollowup} open={open} />
+      {view === "followups" ? <OperationsFollowups key={revision} open={item => openManagerQueueCase(item, profile, onNavigate)} />
         : <ExternalPurchasePanel key={revision} actorId={profile.actorId} />}
     </section>
     {data && multiTechnician && <section className="tech-task manager-pulse-load">
       <h3>بار کاری تکنسین‌ها</h3>
       {data.technicians.length ? <ul className="manager-workload-list">{data.technicians.map(person =>
-        <li key={person.id}><button type="button" onClick={() => assign(true, person.id)}>
+        <li key={person.id}><button type="button" onClick={() => assign("assigned", person.id)}>
           <strong>{person.name}</strong><span>{fa(person.active)} فعال · {fa(person.awaitingReceipt)} منتظر دریافت · {fa(person.overdue)} دارای تأخیر</span>
         </button></li>)}</ul> : <p>تکنسین فعالی در این شعبه ثبت نشده است.</p>}
     </section>}

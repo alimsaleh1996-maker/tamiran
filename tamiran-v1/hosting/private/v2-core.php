@@ -569,6 +569,47 @@ function v2_require_case_access(PDO $pdo,array $scope,array $case): void
     if((int)$statement->fetchColumn()<1)throw new TamiranApiException('این پرونده به شما تخصیص ندارد.',403);
 }
 
+function v2_queue_offset(array $input): int
+{
+    $offset=filter_var($input['offset']??0,FILTER_VALIDATE_INT,['options'=>['min_range'=>0,'max_range'=>1000000]]);
+    if ($offset===false) throw new TamiranApiException('صفحهٔ صف معتبر نیست.');
+    return $offset;
+}
+
+function v2_queue_id(array $input,string $name): ?int
+{
+    if (!isset($input[$name])) return null;
+    $id=filter_var($input[$name],FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+    if ($id===false) throw new TamiranApiException('شناسهٔ صف معتبر نیست.');
+    return $id;
+}
+
+function v2_queue_term(array $input): ?string
+{
+    $value=$input['q']??'';
+    if (!is_string($value)) throw new TamiranApiException('عبارت جست‌وجو معتبر نیست.');
+    $query=v2_text($value,'جست‌وجوی صف',120,false);
+    if ($query===null) return null;
+    $query=preg_replace_callback('/[۰-۹٠-٩]/u',static fn($match)=>tamiran_digits($match[0]),$query)??$query;
+    return '%'.strtr($query,['!'=>'!!','%'=>'!%','_'=>'!_','ي'=>'ی','ك'=>'ک']).'%';
+}
+
+function v2_require_queue_branch(array $scope,array $input): void
+{
+    $branch=v2_queue_id($input,'branchId');
+    if ($branch!==null && $branch!==(int)$scope['branch_id']) {
+        throw new TamiranApiException('صف فقط در شعبهٔ فعال قابل مشاهده است.',403);
+    }
+}
+
+function v2_request_has_no_open_purchase_sql(): string
+{
+    return "NOT EXISTS (SELECT 1 FROM repair_purchase_request_links l
+        JOIN repair_purchase_document_items pi ON pi.id=l.purchase_item_id
+        JOIN repair_purchase_documents pd ON pd.id=pi.purchase_document_id
+        WHERE l.part_request_id=r.id AND pd.status NOT IN ('received','rejected','cancelled'))";
+}
+
 require_once __DIR__.'/technician-service.php';
 require_once __DIR__.'/operations-policy.php';
 require_once __DIR__.'/external-purchase.php';

@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import type { WorkspaceProfile } from "./access";
 import { MoneyInput, formatToman } from "./money-input";
 import { moneyDigits } from "./money";
-import { procurementV2Action, type V2PartRequest, type V2ProcurementPayload, type V2PurchaseDocument, type V2Supplier } from "./v2-api";
+import { loadPartRequestQueue, procurementV2Action, type V2PartRequest, type V2ProcurementPayload, type V2PurchaseDocument, type V2Supplier } from "./v2-api";
 
 type Run = (job: () => Promise<unknown>, success: string) => Promise<unknown>;
 const fa = new Intl.NumberFormat("fa-IR");
@@ -21,7 +21,30 @@ export function ProcurementForm({ selected, eligible, suppliers, busy, run, clos
   const [quantities, setQuantities] = useState<Record<number,string>>({
     [selected.id]: String(selected.quantity - selected.reserved_quantity),
   });
-  const rows = [selected, ...eligible.filter(row => row.id !== selected.id && row.item_id === selected.item_id)];
+  const [more, setMore] = useState<V2PartRequest[]>([]);
+  const [next, setNext] = useState<number | null>(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const related = new Map([...more, ...eligible].filter(row =>
+    row.id !== selected.id && row.item_id === selected.item_id).map(row => [row.id, row]));
+  const rows = [selected, ...related.values()];
+  async function loadRelated() {
+    if (next === null || loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await loadPartRequestQueue(new URLSearchParams({
+        purchaseItem: String(selected.item_id), offset: String(next),
+      }).toString());
+      setMore(current => [...current, ...result.requests]);
+      const { offset, pageSize, total } = result.requestPage;
+      setNext(offset + pageSize < total ? offset + pageSize : null);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "دریافت درخواست‌های مرتبط انجام نشد.");
+    } finally {
+      setLoading(false);
+    }
+  }
   const allocations = rows.map(row => ({ requestId: row.id, quantity: Number(quantities[row.id] || 0) }))
     .filter(row => row.quantity > 0);
   const quantity = allocations.reduce((sum, row) => sum + row.quantity, 0);
@@ -50,6 +73,10 @@ export function ProcurementForm({ selected, eligible, suppliers, busy, run, clos
           <input inputMode="numeric" value={quantities[row.id] ?? ""} maxLength={6} placeholder="۰"
             onChange={event => setQuantities(old => ({ ...old, [row.id]: moneyDigits(event.target.value) }))} />
         </label>)}
+        {next !== null && <button type="button" disabled={busy || loading} onClick={() => void loadRelated()}>
+          {loading ? "در حال بارگذاری…" : "درخواست‌های مرتبط بیشتر"}
+        </button>}
+        {error && <p role="alert">{error}</p>}
       </fieldset>
       <button className="tech-primary" disabled={busy || !supplier || price === "" || !valid || !Number(quantities[selected.id])}>ثبت سفارش {fa.format(quantity)} عدد</button>
       <button type="button" disabled={busy} onClick={close}>بازگشت</button>

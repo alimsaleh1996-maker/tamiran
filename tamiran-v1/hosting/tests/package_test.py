@@ -38,7 +38,7 @@ class UpgradePackageTests(unittest.TestCase):
         self.assertEqual(manifest['frontend_version'], version)
         self.assertEqual(manifest['backend_version'], version)
         self.assertEqual(manifest['schema_sha256'], package.digest(runtime['private/database/schema.sql']))
-        self.assertEqual(manifest['update']['from_version'], '1.0.0-rc.13')
+        self.assertEqual(manifest['update']['from_version'], package.UPDATE_FROM[version])
         self.assertRegex(manifest['build_id'], '^[0-9a-f]{16}$')
         self.assertNotEqual(
             manifest['build_id'],

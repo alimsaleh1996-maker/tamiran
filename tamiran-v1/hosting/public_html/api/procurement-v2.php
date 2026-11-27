@@ -54,9 +54,7 @@ function procurement_create(PDO $pdo,array $scope,array $input):array
         $caseRequest=$pdo->prepare("SELECT r.id,r.case_id,r.quantity-r.reserved_quantity AS remaining FROM repair_part_requests r
             WHERE r.id=:request AND r.shop_id=:shop AND r.branch_id=:branch AND r.item_id=:item
               AND r.status IN ('pending','needs_supply','reserved','partially_delivered')
-              AND NOT EXISTS (SELECT 1 FROM repair_purchase_request_links l JOIN repair_purchase_document_items pi ON pi.id=l.purchase_item_id
-                JOIN repair_purchase_documents pd ON pd.id=pi.purchase_document_id
-                WHERE l.part_request_id=r.id AND pd.status NOT IN ('received','rejected','cancelled')) FOR UPDATE");
+              AND ".v2_request_has_no_open_purchase_sql()." FOR UPDATE");
         foreach($items as $line) {
             $itemId=(int)($line['itemId']??0);
             $quantity=(int)($line['quantity']??0);

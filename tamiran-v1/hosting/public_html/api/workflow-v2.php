@@ -705,6 +705,11 @@ function workflow_v2_estimate_send(PDO $pdo,array $scope,array $input): array
 tamiran_api(static function():array{
     $pdo=tamiran_db();$scope=v2_scope();$method=$_SERVER['REQUEST_METHOD']??'GET';
     if($method==='GET'&&isset($_GET['managerPulse']))return manager_pulse($pdo,$scope);
+    if($method==='GET'&&isset($_GET['managerQueue']))return manager_case_queue($pdo,$scope,$_GET);
+    if($method==='GET'&&isset($_GET['managerQueueOptions'])){
+        v2_require_permission($scope,'repair_operations.view',[],'مشاهده صف ارجاع مجاز نیست.');
+        return workflow_v2_payload($pdo,$scope,0);
+    }
     if($method==='GET'&&isset($_GET['managerFollowups']))return manager_followup_queue($pdo,$scope,$_GET['filter']??'all',$_GET['offset']??0);
     if($method==='GET'&&isset($_GET['managerReport']))return manager_operations_report($pdo,$scope,$_GET['from']??'',$_GET['to']??'',isset($_GET['metric'])?$_GET:null);
     if($method==='GET'&&isset($_GET['externalCatalog']))return external_purchase_catalog($pdo,$scope,(int)($_GET['caseId']??0),$_GET['q']??'');

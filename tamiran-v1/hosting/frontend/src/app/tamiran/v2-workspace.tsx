@@ -1,6 +1,6 @@
 "use client";
 import { createInventoryItem } from "./directadmin-api";
-import { OperationsPerformance, OperationsPolicyForm } from "./manager-operations";
+import { managerMetricLabels, openManagerQueueCase, OperationsPerformance, OperationsPolicyForm } from "./manager-operations";
 import { ProcurementDocuments, ProcurementForm } from "./case-procurement";
 import { CaseStageBoard } from "./case-stage-board";
 import { OperationsCaseWorkspace } from "./operations-case-workspace";
@@ -33,6 +33,7 @@ import {
 import type { WorkspaceProfile } from "./access";
 import { FollowUpApiError } from "./followups-api";
 import { matchesQueueSearch, queueTimestamp } from "./queue-search";
+import { QueueFeedback, useOperationalQueue } from "./operational-queue";
 import {
   deliveryV2Action,
   handoverDiscrepancy,
@@ -40,6 +41,11 @@ import {
   inventoryControlV2Action,
   inventoryV2Action,
   loadManagerPulse,
+  loadManagerCaseQueue,
+  loadManagerQueueOptions,
+  loadPartRequestQueue,
+  type ManagerQueueCase,
+  type PartRequestQueue,
   type ManagerWorkload,
   loadV2Delivery,
   loadV2FinanceWorkspace,
@@ -97,6 +103,8 @@ const requestLabels: Record<string, string> = {
   cancelled: "لغوشده",
 };
 const toman = new Intl.NumberFormat("fa-IR");
+const assignmentPageTitle = "مدیریت ارجاع تعمیرات";
+const emptyInventory = { items: [], requests: [], issues: [], warehouse: null };
 const formatMoney = (value: number | string | null | undefined) =>
   `${formatToman(Number(value ?? 0))} تومان`;
 const localDate = (value: string | null | undefined) =>
@@ -176,10 +184,28 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [queueSearch, setQueueSearch] = useState(() => {
-    if (!["supply","quality","delivery"].includes(section)) return "";
+    if (!["quality","delivery"].includes(section)) return "";
     const receipt=window.sessionStorage.getItem("tamiran:focused-module-receipt") ?? "";
     window.sessionStorage.removeItem("tamiran:focused-module-receipt"); return receipt;
   });
+  const [queueRevision, setQueueRevision] = useState(0);
+  const [supplyStatus, setSupplyStatus] = useState("");
+  const [supplyTechnician, setSupplyTechnician] = useState("");
+  const [supplyOffset, setSupplyOffset] = useState(0);
+  const [supplyCase] = useState(() => new URLSearchParams(location.search).get("supplyCase") ?? "");
+  const supplyFilters = new URLSearchParams({ offset: String(supplyOffset) });
+  if (supplyCase) supplyFilters.set("caseId", supplyCase);
+  if (queueSearch.trim()) supplyFilters.set("q", queueSearch.trim());
+  if (supplyStatus) supplyFilters.set("status", supplyStatus);
+  if (supplyTechnician) supplyFilters.set("technician", supplyTechnician);
+  const supplyQueue = useOperationalQueue(section === "supply" ? supplyFilters.toString() : null, queueRevision, loadPartRequestQueue);
+  const [supplyContext, setSupplyContext] = useState<Pick<PartRequestQueue, "requestCase" | "requestTechnicians">>();
+  useEffect(() => {
+    if (supplyQueue.data) {
+      const { requestCase, requestTechnicians } = supplyQueue.data;
+      setSupplyContext({ requestCase, requestTechnicians });
+    }
+  }, [supplyQueue.data]);
   const queueCases = useMemo(() => {
     return (workflow?.cases ?? []).filter((item) =>
       matchesQueueSearch(queueSearch, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle]),
@@ -213,6 +239,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
   const reload = useCallback(async () => {
     setLoading(true);
     setError("");
+    setQueueRevision(value => value + 1);
     try {
       if (section === "delivery") {
         const [base, financial, handover] = await Promise.allSettled([
@@ -230,7 +257,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
       }
       if (section === "inventory" || section === "supply") {
         const [stock, control, purchasing] = await Promise.allSettled([
-          page !== "تعهدات داغی" ? loadV2Inventory(undefined, page === "انبار قطعات") : null,
+          section === "inventory" && page !== "تعهدات داغی" ? loadV2Inventory(undefined, page === "انبار قطعات") : null,
           ["گردش‌ها", "تعهدات داغی"].includes(page) && profile.inventoryMode === "pro" ? loadV2InventoryControl() : null,
           section === "supply" && profile.inventoryMode === "pro" && (
             ["repair_manager", "warehouse_keeper"].includes(profile.role) || profile.permissions.includes("procurement.view"))
@@ -243,7 +270,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
         if (errors.length) setError(errors.join(" · "));
         return;
       }
-      setWorkflow(await loadV2Workflow());
+      setWorkflow(await (page === assignmentPageTitle ? loadManagerQueueOptions() : loadV2Workflow()));
       if (section === "quality") setQuality(await loadV2Quality());
       if (section === "sms") setSms(await loadV2Sms());
     } catch (cause) {
@@ -298,7 +325,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
           تازه‌سازی
         </button>
       </header>}
-      {!serviceCaseOpen && ["supply", "quality", "delivery"].includes(section) && (
+      {!serviceCaseOpen && ["quality", "delivery"].includes(section) && (
         <label className="module-search v2-queue-search">
           <FileText size={17} />
           <input
@@ -325,18 +352,42 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
           notify={notify}
           onNavigate={onNavigate}
           onBusyChange={setBusy}
+          queueRevision={queueRevision}
           onCaseOpenChange={setWorkflowCaseOpen}
           onCaseChanged={fresh=>setWorkflow(current=>current?{...current,cases:current.cases.map(item=>item.id===fresh.id?fresh:item)}:current)}
         />
       )}
-      {["inventory", "supply"].includes(section) && (inventory || inventoryControl) && (
+      {section === "supply" && <>
+        {supplyCase && <div className="v2-row-actions">
+          {supplyContext?.requestCase && <strong>درخواست‌های پروندهٔ <bdi>{supplyContext.requestCase.receiptNumber}</bdi></strong>}
+          <button type="button" onClick={() => onNavigate("نبض تعمیرگاه")}>بازگشت به نبض تعمیرگاه</button>
+          <button type="button" onClick={() => onNavigate("درخواست‌های قطعات پرونده‌ها")}>همهٔ درخواست‌ها</button>
+        </div>}
+        <div className="operational-filters">
+          <label>جست‌وجوی صف<input aria-label="جست‌وجوی صف" value={queueSearch} maxLength={120}
+            placeholder="شماره پرونده یا نام و کد قطعه" onChange={event => { setQueueSearch(event.target.value); setSupplyOffset(0); }} /></label>
+          <label>وضعیت درخواست<select value={supplyStatus}
+            onChange={event => { setSupplyStatus(event.target.value); setSupplyOffset(0); }}>
+            <option value="">همهٔ وضعیت‌ها</option>{Object.entries(requestLabels).map(([key, title]) => <option key={key} value={key}>{title}</option>)}
+          </select></label>
+          <label>درخواست‌کننده<select value={supplyTechnician}
+            onChange={event => { setSupplyTechnician(event.target.value); setSupplyOffset(0); }}>
+            <option value="">همهٔ درخواست‌کننده‌ها</option>
+            {supplyContext?.requestTechnicians.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
+          </select></label>
+        </div>
+        <QueueFeedback page={supplyQueue.data?.requestPage} loading={supplyQueue.loading} error={supplyQueue.error}
+          onOffset={setSupplyOffset} onRetry={() => setQueueRevision(value => value + 1)} />
+      </>}
+      {((section === "inventory" && (inventory || inventoryControl)) || section === "supply") && (
         <InventoryBoard
           page={page}
-          data={inventory ?? { items: [], requests: [], issues: [], warehouse: null }}
+          data={section === "supply" ? supplyQueue.data ?? emptyInventory : inventory ?? emptyInventory}
           control={inventoryControl}
           profile={profile}
           supply={section === "supply"}
-          search={queueSearch}
+          supplyCase={supplyCase}
+          showSupplyRows={Boolean(supplyQueue.data?.requests.length)}
           procurement={procurement}
           busy={busy}
           run={run}
@@ -394,6 +445,7 @@ function WorkflowBoard({
   notify,
   onNavigate,
   onBusyChange,
+  queueRevision,
   onCaseChanged,
   onCaseOpenChange,
 }: {
@@ -405,6 +457,7 @@ function WorkflowBoard({
   notify: (message: string) => void;
   onNavigate: (page: string) => void;
   onBusyChange: (busy: boolean) => void;
+  queueRevision: number;
   onCaseChanged: (item: V2Case) => void;
   onCaseOpenChange: (open: boolean) => void;
 }) {
@@ -423,37 +476,30 @@ function WorkflowBoard({
     const params = new URLSearchParams(location.search);
     return params.get("view") === "handovers" || params.get("assignmentTab") === "active" ? "active" : "pending";
   });
-  const [matching, setMatching] = useState<V2Case[] | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [retry, setRetry] = useState(0);
+  const [metric, setMetric] = useState(() => {
+    const value = new URLSearchParams(location.search).get("managerMetric") ?? "";
+    return Object.hasOwn(managerMetricLabels, value) ? value : "";
+  });
+  const [technicianFilter, setTechnicianFilter] = useState(() => new URLSearchParams(location.search).get("assignmentTech") ?? "");
+  const [statusFilter, setStatusFilter] = useState("");
   const [workload, setWorkload] = useState<ManagerWorkload[]>([]);
+  const assignmentPage = page === assignmentPageTitle;
   useEffect(() => {
-    if (page !== "مدیریت ارجاع تعمیرات" || profile.role !== "repair_manager") return;
+    if (!assignmentPage || profile.role !== "repair_manager") return;
     let current = true;
     void loadManagerPulse().then(result => { if (current) setWorkload(result.technicians); }).catch(() => {});
     return () => { current = false; };
-  }, [page, profile.role, data]);
-  const [searchError, setSearchError] = useState("");
-  const [, setAssignmentFilterRevision] = useState(0);
-  const assignmentPage = page === "مدیریت ارجاع تعمیرات";
-  const filters = new URLSearchParams(location.search);
-  const technicianFilter = Number(filters.get("assignmentTech"));
-  const assignmentStage = filters.get("assignmentStage");
-  const activeStages = assignmentStage === "repairing" ? ["assigned", "diagnosing", "estimate_pending", "repairing", "parts_closeout"] : [assignmentStage];
-  useEffect(() => {
-    if (!assignmentPage || !search.trim()) {
-      setMatching(null);
-      setSearchError("");
-      return;
-    }
-    let current = true;
-    setMatching(null);
-    setSearchError("");
-    const timer = window.setTimeout(() => {
-      void loadV2Workflow(undefined, search.trim()).then(reply => {
-        if (current) setMatching(reply.cases);
-      }).catch(error => { if (current) setSearchError(errorText(error)); });
-    }, 250);
-    return () => { current = false; window.clearTimeout(timer); };
-  }, [assignmentPage, search]);
+  }, [assignmentPage, profile.role, queueRevision]);
+  const filters = new URLSearchParams({
+    managerQueue: metric || (assignmentTab === "active" ? "assigned" : "unassigned"),
+    offset: String(offset),
+  });
+  if (technicianFilter) filters.set("technician", technicianFilter);
+  if (statusFilter) filters.set("status", statusFilter);
+  if (search.trim()) filters.set("q", search.trim());
+  const assignmentQueue = useOperationalQueue(assignmentPage ? filters.toString() : null, queueRevision + retry, loadManagerCaseQueue);
   const managerPage = {
     "عملکرد تکنسین‌ها": "performance",
     "سیاست‌های تعمیرگاه": "policy",
@@ -462,16 +508,18 @@ function WorkflowBoard({
     Record<number, string>
   >({});
   const [openedCase, setOpenedCase] = useState<V2Case>();
+  const [caseLoadFailedId, setCaseLoadFailedId] = useState(0);
   const listedCase = data.cases.find((item) => item.id === selectedId);
   const selected = listedCase ?? (openedCase?.id === selectedId ? openedCase : undefined);
   useEffect(() => {
-    if (!selectedId || selected || profile.role !== "repair_manager") return;
+    if (!selectedId || selected) return;
     let active = true;
     void loadV2Workflow(selectedId).then((reply) => {
       if (active && reply.cases[0]) setOpenedCase(reply.cases[0]);
-    }).catch(() => {});
+      else if (active) setCaseLoadFailedId(selectedId);
+    }).catch(() => { if (active) setCaseLoadFailedId(selectedId); });
     return () => { active = false; };
-  }, [selectedId, selected, profile.role]);
+  }, [selectedId, selected]);
   useEffect(() => onCaseOpenChange(!!selected), [selected?.id, onCaseOpenChange]);
   useEffect(() => {
     if (selectedId && !technicalCaseFromLocation())
@@ -532,7 +580,8 @@ function WorkflowBoard({
     );
   return (
     <div className="v2-stack operations-board">
-      {selectedId && !selected && (
+      {!!selectedId && !selected && caseLoadFailedId !== selectedId && <p role="status">در حال دریافت پرونده…</p>}
+      {!!selectedId && !selected && caseLoadFailedId === selectedId && (
         <p role="alert">
           پرونده در دسترسی فعلی موجود نیست.{" "}
           <button onClick={exit}>بازگشت به دستگاه‌ها</button>
@@ -552,30 +601,48 @@ function WorkflowBoard({
           aria-label="جست‌وجوی دستگاه‌ها"
           value={search}
           maxLength={120}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
           placeholder="رسید، نام مشتری یا سریال"
         />
       </label>
       {assignmentPage ? <>
-        <div className="manager-switch" role="group" aria-label="صف ارجاع">
-          {["pending", "active"].map(tab => <button type="button" key={tab} aria-pressed={assignmentTab === tab}
-            onClick={() => {
+        {metric ? <div className="v2-row-actions">
+          <strong>{managerMetricLabels[metric]}</strong>
+          <button type="button" onClick={() => onNavigate("نبض تعمیرگاه")}>بازگشت به نبض تعمیرگاه</button>
+          <button type="button" onClick={() => onNavigate(assignmentPageTitle)}>صف‌های ارجاع</button>
+        </div> : <div className="manager-switch" role="group" aria-label="صف ارجاع">
+          {[["pending", "در انتظار ارجاع"], ["active", "پرونده‌های فعال ارجاع‌شده"]].map(([tab, label]) =>
+            <button type="button" key={tab} aria-pressed={assignmentTab === tab} onClick={() => {
               const url = new URL(location.href);
-              url.searchParams.set("view", "assignments");
               url.searchParams.set("assignmentTab", tab);
-              url.searchParams.delete("assignmentStage");
-              url.searchParams.delete("assignmentTech");
               history.replaceState(history.state, "", url);
-              setAssignmentTab(tab);
-              setAssignmentFilterRevision(value => value + 1);
-            }}>{tab === "pending" ? "در انتظار ارجاع" : "پرونده‌های فعال ارجاع‌شده"}</button>)}
+              setAssignmentTab(tab); setMetric(""); setTechnicianFilter(""); setStatusFilter(""); setOffset(0);
+            }}>{label}</button>)}
+        </div>}
+        <div className="operational-filters">
+          <label>تکنسین<select value={technicianFilter}
+            onChange={event => { setTechnicianFilter(event.target.value); setOffset(0); }}>
+            <option value="">همهٔ تکنسین‌ها</option>
+            {data.users.filter(user => ["technician", "repair_manager"].includes(user.role)).map(user =>
+              <option key={user.id} value={user.id}>{user.display_name}</option>)}
+          </select></label>
+          <label>وضعیت پرونده<select value={statusFilter}
+            onChange={event => { setStatusFilter(event.target.value); setOffset(0); }}>
+            <option value="">همهٔ وضعیت‌ها</option>
+            {Object.entries(statusLabels).filter(([key]) => !["delivered", "cancelled", "closed"].includes(key))
+              .map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select></label>
         </div>
-        {searchError && <p role="alert" className="v2-alert">{searchError}</p>}
-        {!searchError && search.trim() && !matching && <p role="status">در حال جست‌وجوی پرونده‌ها…</p>}
-        <ManagerAssignmentQueue cases={(search.trim() ? matching ?? [] : data.cases).filter(item => assignmentTab !== "active" || (
-            (!technicianFilter || item.primaryTechnicianUserId === technicianFilter) &&
-            (!assignmentStage || (assignmentStage === "receipt" ? item.receiptPending : activeStages.includes(item.status)))
-          ))} active={assignmentTab === "active"} open={open} />
+        <QueueFeedback page={assignmentQueue.data} loading={assignmentQueue.loading} error={assignmentQueue.error}
+          onOffset={setOffset} onRetry={() => setRetry(value => value + 1)} />
+        {!!assignmentQueue.data?.rows.length && <ManagerAssignmentQueue cases={assignmentQueue.data.rows}
+          open={item => {
+            if (metric && !["assigned", "unassigned"].includes(metric)) {
+              openManagerQueueCase(item, profile, onNavigate);
+            } else {
+              writeTechnicalLocation(item.id); setSelectedId(item.id);
+            }
+          }} />}
       </> : <CaseStageBoard
         cases={data.cases.filter(item =>
           (item.status === "awaiting_customer_approval" || (["finance_pending", "qc_conditional"].includes(item.status)
@@ -583,7 +650,7 @@ function WorkflowBoard({
           matchesQueueSearch(search, [item.receiptNumber, item.customerName, item.customerMobile, item.identifier, item.deviceTitle]))}
         onOpen={open} openCaseId={selectedId} busy={busy}
       />}
-      {assignmentPage && assignmentTab === "active" && (
+      {assignmentPage && !metric && assignmentTab === "active" && (
         <section className="tech-handover-list">
           <h3>تحویل‌های رسمی در انتظار</h3>
           {!openHandovers.length && <p>ارجاعی در انتظار رسیدگی نیست.</p>}
@@ -665,16 +732,15 @@ function intakeAge(acceptedAt: string) {
   return minutes > 0 ? `${toman.format(minutes)} دقیقه از پذیرش` : "تازه‌پذیرش‌شده";
 }
 
-function ManagerAssignmentQueue({ cases, active, open }: { cases: V2Case[]; active: boolean; open: (item: V2Case) => void }) {
-  const entries = cases.filter(item => active
-    ? !!item.primaryTechnicianUserId && !["ready_for_delivery", "delivered", "returned_unrepaired", "cancelled", "closed"].includes(item.status)
-    : ["reception", "awaiting_assignment"].includes(item.status));
-  return entries.length ? <div className="manager-assignment-grid">
-    {entries.sort(compareQueueCases).map(item => <ServiceQueueCard key={item.id} receipt={item.receiptNumber} title={item.deviceTitle}
+function ManagerAssignmentQueue({ cases, open }: { cases: ManagerQueueCase[]; open: (item: ManagerQueueCase) => void }) {
+  return <div className="manager-assignment-grid">
+    {cases.map(item => <ServiceQueueCard key={item.id} receipt={item.receiptNumber} title={item.deviceTitle}
       customer={[item.customerName, item.technicianName].filter(Boolean).join(" · ")} item={item}
       metadata={intakeAge(item.acceptedAt)}
-      action={active ? (item.receiptPending ? "منتظر دریافت دستگاه" : statusLabels[item.status]) : "ارجاع به تکنسین"} onOpen={() => open(item)} />)}
-  </div> : <p role="status">پرونده‌ای در این صف نیست.</p>;
+      action={item.receiptPending ? "منتظر دریافت دستگاه"
+        : ["reception", "awaiting_assignment"].includes(item.status) ? "ارجاع به تکنسین" : statusLabels[item.status]}
+      onOpen={() => open(item)} />)}
+  </div>;
 }
 
 function InventoryCatalog({ data, profile, busy, run }: {
@@ -752,7 +818,8 @@ function InventoryBoard({
   data,
   control,
   supply,
-  search,
+  supplyCase,
+  showSupplyRows,
   procurement,
   profile,
   busy,
@@ -762,7 +829,8 @@ function InventoryBoard({
   data: V2InventoryPayload;
   control: Record<string, unknown[]> | null;
   supply: boolean;
-  search: string;
+  supplyCase: string;
+  showSupplyRows: boolean;
   procurement: V2ProcurementPayload | null;
   profile: WorkspaceProfile;
   busy: boolean;
@@ -816,12 +884,12 @@ function InventoryBoard({
       {supply && procurement && purchaseRequest && <ProcurementForm
         key={purchaseRequest.id} selected={purchaseRequest} eligible={eligible} suppliers={procurement.suppliers}
         busy={busy} run={run} close={() => setPurchaseRequestId(undefined)} />}
-      {supply && <section className="v2-table-panel">
+      {supply && showSupplyRows && <section className="v2-table-panel">
         <div className="v2-panel-title"><div><PackageOpen /><strong>درخواست‌های پرونده‌ها</strong></div></div>
         <ResponsiveTable
           headers={["پرونده", "کالا", "درخواست/تحویل", "وضعیت", "عملیات"]}
         >
-          {data.requests.filter(item => matchesQueueSearch(search, [item.receipt_number, item.device_title ?? "", item.item_title, item.item_code, item.requester_name])).map((item) => {
+          {data.requests.map((item) => {
             const reservable = Math.max(
               0,
               item.quantity - item.reserved_quantity,
@@ -999,7 +1067,10 @@ function InventoryBoard({
           </ResponsiveTable>
         </section>
       )}
-      {supply && procurement && <ProcurementDocuments data={procurement} profile={profile} busy={busy} run={run} />}
+      {supply && procurement && <ProcurementDocuments data={supplyCase ? {
+        ...procurement, documents: procurement.documents.filter(document =>
+          document.items.some(item => item.requests.some(request => String(request.case_id) === supplyCase))),
+      } : procurement} profile={profile} busy={busy} run={run} />}
       {page === "گردش‌ها" && warehouseActions && control && (
         <section className="v2-table-panel">
           <div className="v2-panel-title">
@@ -1324,7 +1395,7 @@ const compareQueueCases = (a?: V2Case, b?: V2Case) =>
   (a?.acceptedAt ?? "").localeCompare(b?.acceptedAt ?? "");
 
 function ServiceQueueCard({ receipt, title, customer, action, item, metadata, onOpen }: {
-  receipt: string; title: string; customer: string; action: string; item?: V2Case; metadata?: string; onOpen: () => void;
+  receipt: string; title: string; customer: string; action: string; item?: Pick<V2Case, "priority" | "declaredIssue">; metadata?: string; onOpen: () => void;
 }) {
   const priority = item?.priority ?? "normal";
   return <button type="button" className="service-queue-card" onClick={onOpen}>

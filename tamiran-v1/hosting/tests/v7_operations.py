@@ -475,7 +475,7 @@ def check_supply_browser(log,url,warehouse,receipt,folder):
         log.check('supply queue has no standalone order form',lambda:browser_expect(page.get_by_role('button',name='ثبت سفارش',exact=False)).to_have_count(0))
         row=page.get_by_role('row').filter(has_text=receipt).first
         row.get_by_role('button',name='ساخت سفارش خرید',exact=True).click()
-        form=page.locator('section').filter(has=page.get_by_role('heading',name='سفارش خرید کابل آزمایشی',exact=True))
+        form=page.locator('section.v2-card-form').filter(has=page.get_by_role('heading',name='سفارش خرید کابل آزمایشی',exact=True))
         browser_expect(form.get_by_text('درخواست مبدأ',exact=False)).to_contain_text(receipt)
         form.get_by_role('combobox').select_option(index=1)
         form.locator('#supply-order-price').fill('۱۲۰٬۰۰۰')

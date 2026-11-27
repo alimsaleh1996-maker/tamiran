@@ -17,7 +17,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_BRANCH = "tamiran-v1/foundation"
-UPDATE_FROM = {"1.0.0-rc.14": "1.0.0-rc.13"}
+UPDATE_FROM = {"1.0.0-rc.14": "1.0.0-rc.13", "1.0.0-rc.15": "1.0.0-rc.14"}
 MANIFEST = "private/build/manifest.json"
 PRIVATE = (
     ".htaccess", "install.php", "config.example.php", "v2-core.php", "technician-service.php", "operations-policy.php", "external-purchase.php", "case-invoice.php", "manager-operations.php",
