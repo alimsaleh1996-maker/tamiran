@@ -244,6 +244,7 @@ export type CustomerLookupResult = {
   postalCode?: string;
   secondaryMobile?: string;
   devices: PreviousCustomerDevice[];
+  nextDeviceOffset?: number | null;
 };
 
 export type CreateInventoryItemInput = {

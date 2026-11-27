@@ -792,9 +792,10 @@ export const loadOperations = (caseOffset = 0) => request<OperationalSnapshot>(
 export const loadRepairCase = (receipt: string) => request<{ repairCase: RepairCaseRecord }>(
   `/api/operations.php?receipt=${encodeURIComponent(receipt)}`,
 );
-export const lookupCustomer = (mobile: string) =>
+export const lookupCustomer = (mobile: string, query = "", offset = 0, deviceId = 0) =>
   request<{ customer: CustomerLookupResult | null }>(
-    `/api/operations.php?customerMobile=${encodeURIComponent(mobile)}`,
+    `/api/operations.php?${new URLSearchParams({ customerMobile: mobile, deviceQuery: query,
+      deviceOffset: String(offset), deviceId: String(deviceId) })}`,
   );
 export const createRepairCase = (input: CreateRepairCaseInput) =>
   request<{ created: boolean; repairCase: RepairCaseRecord }>(

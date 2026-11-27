@@ -853,6 +853,11 @@ function ReceptionPage({
   const [customerLookup, setCustomerLookup] =
     useState<CustomerLookupResult | null>(null);
   const [customerLoading, setCustomerLoading] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [appliedHistoryQuery, setAppliedHistoryQuery] = useState("");
+  const [history, setHistory] = useState<CustomerLookupResult | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const historyRequest = React.useRef(0);
   const errorRef = React.useRef<HTMLDivElement>(null);
   const addressPolicy = (shopSettings.customer_address_policy ?? {}) as {
     required?: boolean;
@@ -910,8 +915,7 @@ function ReceptionPage({
   const needsImei = /(موبایل|تبلت|تلفن همراه|mobile|tablet|phone)/iu.test(selectedDeviceType);
   const hasSerialField = needsImei || Boolean(identifierField?.label.includes("سریال"));
   const primaryIdentity = needsImei ? imei : hasSerialField ? serialNumber : identifier;
-  const historicalIdentity = hasSerialField && !primaryIdentity.trim() ? identifier : "";
-  const enteredImei = needsImei && identifierUnavailable ? "" : imei.trim() || (needsImei ? historicalIdentity.trim() : "");
+  const enteredImei = needsImei && identifierUnavailable ? "" : imei.trim();
   const imeiValidation = enteredImei ? imeiError(normalizeImei(enteredImei)) : "";
   const activeTechnicians = operations.users.filter(
     (user) => user.isActive && user.role === "technician",
@@ -1196,7 +1200,7 @@ function ReceptionPage({
     const timer = window.setTimeout(() => {
       setCustomerLoading(true);
       lookupCustomer(customerMobile)
-        .then(({ customer }) => {
+        .then(async ({ customer }) => {
           if (!active) return;
           setCustomerLookup(customer);
           const restoringDraft = restoredCustomerMobileRef.current === customerMobile;
@@ -1215,7 +1219,9 @@ function ReceptionPage({
             }
             const previousId = restoredPreviousDeviceIdRef.current;
             if (previousId !== null) {
-              const ownedDevice = customer.devices.find(device => device.id === previousId);
+              const match = customer.devices.find(device => device.id === previousId);
+              const ownedDevice = match ?? (await lookupCustomer(customerMobile, "", 0, previousId)).customer?.devices[0];
+              if (!active) return;
               if (!ownedDevice?.recallEligible) {
                 setFormError("دستگاه پیش‌نویس برای پذیرش مجدد در این شعبه آماده نیست.");
                 setStep(1);
@@ -1252,6 +1258,20 @@ function ReceptionPage({
     };
   }, [customerMobile]);
 
+  const loadDeviceHistory = (query: string, offset = 0) => {
+    const request = ++historyRequest.current;
+    setHistoryLoading(true);
+    if (!offset) { setHistory(null); setAppliedHistoryQuery(query); }
+    void lookupCustomer(customerMobile, query.trim(), offset).then(({customer}) => {
+      if (historyRequest.current !== request || !customer) return;
+      setHistory(current => offset ? {...customer, devices: [...(current ?? customerLookup)?.devices ?? [], ...customer.devices]} : customer);
+    }).catch(error => {
+      if (historyRequest.current === request) showFormError(moduleErrorMessage(error, "جست‌وجوی سابقه انجام نشد."));
+    }).finally(() => {
+      if (historyRequest.current === request) setHistoryLoading(false);
+    });
+  };
+
   const updateCustomerMobile = (value: string) => {
     const normalized = normalizeDigits(value);
     restoredCustomerMobileRef.current = null;
@@ -1259,6 +1279,11 @@ function ReceptionPage({
     setRestoringPreviousDevice(false);
     setCustomerMobile(normalized);
     setCustomerLookup(null);
+    setHistoryQuery("");
+    setAppliedHistoryQuery("");
+    setHistory(null);
+    setHistoryLoading(false);
+    historyRequest.current++;
     setCustomerName("");
     setNationalCode("");
     setCustomerAddress("");
@@ -1302,9 +1327,15 @@ function ReceptionPage({
     setAppearanceStates([]);
     setIssueRows([]);
     setReceptionNotes("");
-    setIdentifier(device.identifier === device.imei || device.identifier === device.serialNumber ? "" : device.identifier);
-    setSerialNumber(device.serialNumber ?? "");
-    setImei(device.imei ?? "");
+    const legacy = device.identifier.trim();
+    const mobileDevice = /(موبایل|تبلت|تلفن همراه|mobile|tablet|phone)/iu.test(device.deviceType);
+    const normalizedLegacy = normalizeImei(legacy);
+    const legacyImei = mobileDevice && !imeiError(normalizedLegacy) ? normalizedLegacy : "";
+    const legacySerial = !legacyImei && legacy !== device.imei ? legacy : "";
+    const typedSerial = mobileDevice || /لپ.?تاپ|رایانه|computer|laptop|appliance|لوازم/iu.test(device.deviceType);
+    setIdentifier(typedSerial ? "" : legacy);
+    setSerialNumber(device.serialNumber || (typedSerial ? legacySerial : ""));
+    setImei(device.imei || legacyImei);
     setImeiTouched(false);
     setIdentifierUnavailable(false); setIdentifierUnavailableReason(""); setIdentifierUnavailableNote("");
     setDeviceColor(device.color || "");
@@ -1327,15 +1358,6 @@ function ReceptionPage({
     setSelectedCatalogItem(item);
     if (!item) return;
     setSelectedDeviceType(item.deviceType);
-    if (
-      selectedPreviousDevice &&
-      (selectedPreviousDevice.deviceType !== item.deviceType ||
-        selectedPreviousDevice.brand !== item.brand ||
-        selectedPreviousDevice.model !== item.model)
-    ) {
-      setSelectedPreviousDevice(null);
-      setCustomerChoice("new");
-    }
     setAccessories(["بدون لوازم"]);
   };
 
@@ -1419,7 +1441,7 @@ function ReceptionPage({
       );
       return;
     }
-    if (!identifierUnavailable && !primaryIdentity.trim() && !historicalIdentity.trim()) {
+    if (!identifierUnavailable && !primaryIdentity.trim()) {
       showFormError(
         `${terminology?.identifierLabel || identifierField?.label || "شناسه محصول"} را کامل کنید.`,
       );
@@ -1785,8 +1807,7 @@ function ReceptionPage({
                   <div>
                     <strong>این مشتری سابقه پذیرش دارد.</strong>
                     <p>
-                      {knownCustomer.devices.length} محصول قبلی برای{" "}
-                      {knownCustomer.name} پیدا شد. پذیرش برای محصول جدید است یا
+                      سابقهٔ محصول برای {knownCustomer.name} پیدا شد. پذیرش برای محصول جدید است یا
                       یکی از سوابق؟
                     </p>
                   </div>
@@ -1831,8 +1852,18 @@ function ReceptionPage({
                       ثبت محصول جدید
                     </button>
                   </div>
+                  {directAdminApiEnabled && <form className="identity-actions" onSubmit={event => {
+                    event.preventDefault();
+                    loadDeviceHistory(historyQuery);
+                  }}>
+                    <label className="field-block">جست‌وجوی سوابق
+                      <input value={historyQuery} onChange={event => setHistoryQuery(event.target.value)}
+                        placeholder="مدل، IMEI یا شماره سریال" />
+                    </label>
+                    <button type="submit" className="outline-action">جست‌وجو</button>
+                  </form>}
                   <div className="previous-device-grid">
-                    {knownCustomer.devices.map((device) => (
+                    {(history ?? knownCustomer).devices.map((device) => (
                       <button
                         type="button"
                         key={device.id}
@@ -1871,6 +1902,11 @@ function ReceptionPage({
                       </button>
                     ))}
                   </div>
+                  {historyLoading && <p role="status">در حال دریافت سوابق…</p>}
+                  {!historyLoading && history && !history.devices.length && <p>سابقه‌ای با این جست‌وجو پیدا نشد.</p>}
+                  {(history ?? knownCustomer).nextDeviceOffset != null && <button type="button" className="outline-action"
+                    disabled={historyLoading}
+                    onClick={() => loadDeviceHistory(appliedHistoryQuery, (history ?? knownCustomer).nextDeviceOffset ?? 0)}>نمایش بیشتر</button>}
                 </div>
               )}
             </section>
@@ -1951,17 +1987,14 @@ function ReceptionPage({
                       field.label === "پلاک" ||
                       field.label === "شناسه" ? (
                       <div className="field-block reception-identity-field" key={field.label}>
-                        {historicalIdentity && !identifierUnavailable && <p className="field-helper">
-                          شناسهٔ ثبت‌شده در سابقه <bdi>{historicalIdentity}</bdi>
-                        </p>}
                         <div className="identity-primary field-block"><label htmlFor="reception-device-identifier">
                           <span>{needsImei ? "IMEI" : terminology?.identifierLabel || field.label}</span>
-                          {!identifierUnavailable && !historicalIdentity && <b aria-hidden="true">*</b>}
+                          {!identifierUnavailable && <b aria-hidden="true">*</b>}
                         </label>
                         <div className="input-with-icon">
                           <Fingerprint size={17} />
                           <input
-                            id="reception-device-identifier" disabled={identifierUnavailable} aria-required={!identifierUnavailable && !historicalIdentity}
+                            id="reception-device-identifier" disabled={identifierUnavailable} aria-required={!identifierUnavailable}
                             value={identifierUnavailable ? "" : primaryIdentity} dir="ltr"
                             onChange={(event) => {
                               const value = event.target.value;

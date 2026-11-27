@@ -237,7 +237,7 @@ function operations_case_recallable(array $row): bool
     return in_array($row['status'] ?? null, ['delivered', 'returned'], true);
 }
 
-function operations_customer_lookup(PDO $pdo, array $scope, string $mobile): array
+function operations_customer_lookup(PDO $pdo, array $scope, string $mobile, string $query = "", int $offset = 0, int $deviceId = 0): array
 {
     operations_require_role($scope, ['repair_manager','reception'], 'مشاهده سابقه مشتری فقط برای مدیر یا پذیرش مجاز است.');
     if (!preg_match('/^09\d{9}$/', $mobile)) throw new TamiranApiException('شماره موبایل مشتری معتبر نیست.');
@@ -245,15 +245,34 @@ function operations_customer_lookup(PDO $pdo, array $scope, string $mobile): arr
     $customerStatement->execute(['shop'=>$scope['shop_id'],'mobile'=>$mobile]);
     $customer = $customerStatement->fetch();
     if (!is_array($customer)) return ['customer'=>null];
+    $parameters = ['case_shop'=>$scope['shop_id'],'device_shop'=>$scope['shop_id'],
+        'customer'=>(int)$customer['id'],'branch'=>$scope['branch_id']];
+    $search = '';
+    if ($query !== '') {
+        $search = " AND (CONCAT_WS(' ',d.brand_title,d.model_title) LIKE :text ESCAPE '!'
+            OR d.imei LIKE :digits ESCAPE '!' OR d.serial_number LIKE :text ESCAPE '!'
+            OR d.identifier_value LIKE :text ESCAPE '!')";
+        $escape = static fn(string $text): string => '%'.strtr($text, ['!'=>'!!','%'=>'!%','_'=>'!_']).'%';
+        $parameters['text'] = $escape($query);
+        $parameters['digits'] = $escape(operations_digits($query) ?: $query);
+    }
+    $deviceFilter = '';
+    if ($deviceId > 0) {
+        $deviceFilter = ' AND d.id=:current_device';
+        $parameters['current_device'] = $deviceId;
+    }
     $devicesStatement = $pdo->prepare(
         "SELECT d.id,d.row_version,d.device_model_id,d.device_type_title,d.brand_title,d.model_title,d.identifier_value,d.serial_number,d.imei,d.color_title,d.last_accepted_at,
                 latest.receipt_number,latest.declared_issue,latest.status,latest.updated_at,latest.branch_id,latest.delivered_at,w.process_status
          FROM repair_customer_devices d
-         LEFT JOIN repair_cases latest ON latest.id=(SELECT c.id FROM repair_cases c WHERE c.device_id=d.id AND c.shop_id=:case_shop ORDER BY c.created_at DESC,c.id DESC LIMIT 1)
+         JOIN repair_cases latest ON latest.id=(SELECT c.id FROM repair_cases c WHERE c.device_id=d.id AND c.shop_id=:case_shop ORDER BY c.created_at DESC,c.id DESC LIMIT 1)
          LEFT JOIN repair_case_workflows w ON w.case_id=latest.id AND w.shop_id=d.shop_id
-         WHERE d.shop_id=:device_shop AND d.customer_id=:customer ORDER BY COALESCE(d.last_accepted_at,d.created_at) DESC,d.id DESC"
+         WHERE d.shop_id=:device_shop AND d.customer_id=:customer AND latest.branch_id=:branch
+         $search $deviceFilter ORDER BY latest.created_at DESC,latest.id DESC LIMIT 11 OFFSET ".max(0,$offset)
     );
-    $devicesStatement->execute(['case_shop'=>$scope['shop_id'],'device_shop'=>$scope['shop_id'],'customer'=>(int)$customer['id']]);
+    $devicesStatement->execute($parameters);
+    $rows = $devicesStatement->fetchAll();
+    $hasMore = count($rows) > 10;
     $devices = array_map(static function (array $row) use ($scope): array {
         $sameBranch = (int)($row['branch_id'] ?? 0) === (int)$scope['branch_id'];
         return [
@@ -267,12 +286,13 @@ function operations_customer_lookup(PDO $pdo, array $scope, string $mobile): arr
         'lastStatus'=>$sameBranch ? ($row['status']??null) : null,
         'recallEligible'=>$sameBranch && operations_case_recallable($row),
         ];
-    }, $devicesStatement->fetchAll());
+    }, array_slice($rows,0,10));
     return ['customer'=>[
         'id'=>(int)$customer['id'], 'name'=>(string)$customer['full_name'], 'mobile'=>(string)$customer['mobile'],
         'nationalCode'=>(string)($customer['national_code']??''), 'address'=>(string)($customer['address']??''),
         'province'=>(string)($customer['province']??''), 'city'=>(string)($customer['city']??''), 'postalCode'=>(string)($customer['postal_code']??''),
         'secondaryMobile'=>(string)($customer['secondary_mobile']??''), 'devices'=>$devices,
+        'nextDeviceOffset'=>$hasMore ? $offset+10 : null,
     ]];
 }
 
@@ -1044,7 +1064,9 @@ tamiran_api(static function (): array {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if ($method === 'GET') {
         $customerMobile = operations_digits((string)($_GET['customerMobile'] ?? ''));
-        if ($customerMobile !== '') return operations_customer_lookup($pdo,$scope,$customerMobile);
+        if ($customerMobile !== '') return operations_customer_lookup($pdo,$scope,$customerMobile,
+            mb_substr(trim((string)($_GET['deviceQuery']??'')),0,120),
+            max(0,(int)($_GET['deviceOffset']??0)),max(0,(int)($_GET['deviceId']??0)));
         $receipt = trim((string)($_GET['receipt'] ?? ''));
         if ($receipt !== '') {
             $normalizedReceipt = operations_digits($receipt);

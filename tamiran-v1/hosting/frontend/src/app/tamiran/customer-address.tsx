@@ -71,8 +71,7 @@ export function CustomerAddress({
       {open && (
         <div id={`${id}-editor`} className="reception-address-editor">
           <p>
-            آدرس در پروندهٔ مشتری نگهداری می‌شود و روی قبض چاپی نمایش داده
-            نمی‌شود.
+            آدرس در پروندهٔ مشتری نگهداری می‌شود.
           </p>
           <div className="address-fields">
             <label>
@@ -101,20 +100,10 @@ export function CustomerAddress({
                 ))}
               </select>
             </label>
-            <label className="address-wide">
-              <span id={`${id}-address-label`}>نشانی {required && "*"}</span>
-              <textarea
-                rows={3}
-                maxLength={1000}
-                aria-labelledby={`${id}-address-label`} value={draft.address}
-                onChange={(e) => update("address", e.target.value)}
-                placeholder="خیابان، کوچه، پلاک و واحد"
-              />
-            </label>
             <label>
               <span id={`${id}-postalCode-label`}>کد پستی {required && "*"}</span>
               <input
-                dir="ltr"
+                dir="rtl"
                 inputMode="numeric"
                 maxLength={10}
                 aria-labelledby={`${id}-postalCode-label`} value={draft.postalCode}
@@ -130,6 +119,16 @@ export function CustomerAddress({
                 }
               />
               <small>۱۰ رقم، بدون خط تیره</small>
+            </label>
+            <label className="address-wide">
+              <span id={`${id}-address-label`}>نشانی {required && "*"}</span>
+              <textarea
+                rows={3}
+                maxLength={1000}
+                aria-labelledby={`${id}-address-label`} value={draft.address}
+                onChange={(e) => update("address", e.target.value)}
+                placeholder="خیابان، کوچه، پلاک و واحد"
+              />
             </label>
           </div>
           {error && (

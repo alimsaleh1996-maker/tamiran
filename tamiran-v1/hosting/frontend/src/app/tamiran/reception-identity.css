@@ -41,8 +41,8 @@
 }
 .address-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
   margin: 16px 0;
 }
 .address-fields label,
@@ -228,4 +228,12 @@
   .reception-default-issue {
     grid-template-columns: repeat(3, auto);
   }
+}
+
+.address-fields select {
+  appearance: none;
+  padding-inline-end: 2.25rem;
+  direction: rtl;
+  text-align: start;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m2 4 4 4 4-4' stroke='%23234b46' fill='none'/%3E%3C/svg%3E") no-repeat left 12px center / 12px;
 }
