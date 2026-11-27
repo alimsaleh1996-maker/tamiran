@@ -310,7 +310,7 @@ def check_recall_browser(log,url,manager,device,entry,folder,mobile):
         receipt=page.locator('.tamiran-receipt')
         visible(receipt.get_by_text('شماره سریال',exact=True)).to_be_visible()
         visible(receipt.get_by_text('IMEI',exact=True)).to_be_visible()
-        assert device['serialNumber'] not in receipt.inner_text() and device['imei'] not in receipt.inner_text()
+        assert device['serialNumber'] in receipt.inner_text() and device['imei'] in receipt.inner_text()
         page.screenshot(path=str(folder/'receipt-identifiers.png'),animations='disabled')
         page.goto(url+'/?view=reception',wait_until='networkidle')
         page.get_by_placeholder('09xxxxxxxxx',exact=True).fill(mobile)
@@ -320,7 +320,7 @@ def check_recall_browser(log,url,manager,device,entry,folder,mobile):
         visible(page.get_by_label('IMEI',exact=False).first).to_have_value(device['imei'])
         visible(page.get_by_label('شماره سریال',exact=True)).to_have_value(device['serialNumber'])
         page.screenshot(path=str(folder/'recall-mobile.png'),animations='disabled')
-    log.check('Chromium displays separate masked receipt identities and prefills both after recall',lambda:browse(url,manager,390,check))
+    log.check('Chromium displays separate receipt identities and prefills both after recall',lambda:browse(url,manager,390,check))
 
 
 def check_grant_browser(log,url,manager,technician_name,folder):

@@ -1,9 +1,9 @@
 .tamiran-receipt.receipt-a4 {
   --receipt-rule: #a6a6a6;
   width: 210mm;
-  padding: 10mm 11mm 8mm;
+  padding: 10mm 11mm 6mm;
   color: #181a1a;
-  font-size: 10pt;
+  font-size: 9pt;
   line-height: 1.65;
   border-radius: 0;
   overflow-wrap: anywhere;
@@ -85,7 +85,6 @@
 .receipt-a4-device-views { display: flex; flex-direction: row-reverse; gap: 4mm; justify-content: center; padding-block: 1mm; }
 .receipt-a4-device-views > div { display: grid; justify-items: center; position: relative; color: #494949; font-size: 7.5pt; }
 .receipt-a4-device-views svg { width: 23mm; height: 30mm; stroke-width: 0.95; }
-.receipt-a4-device-back svg:nth-child(2) { position: absolute; inset-block-start: 6mm; inset-inline-start: 6mm; width: 5mm; height: 5mm; }
 
 .receipt-a4 .receipt-a4-acceptance { padding-block-start: 1.5mm; border-block-start: 1px solid var(--receipt-rule); break-inside: avoid; }
 .receipt-a4 .receipt-a4-acceptance > p { font-size: 8.8pt; margin-block-end: 2mm; }

@@ -1,3 +1,7 @@
+## ارتقای rc.19 به rc.20
+
+Health نسخهٔ مبنا باید 1.0.0-rc.19 و Schema 2.0.0-beta.8 را نشان دهد. از فایل‌ها و دیتابیس پشتیبان بگیرید و فایل‌های ZIP ارتقا را پس از کنترل CHECKSUMS.sha256 در والد public_html و private جایگزین کنید. این بسته Migration ندارد. پس از بازخوانی PHP، سه نسخه، build_verified و schema_compatible را در Health با Manifest تطبیق دهید.
+
 ## ارتقای تجمعی 1.0.0-rc.13 به 1.0.0-rc.19
 
 ۱. در `/api/health.php` مبدا `1.0.0-rc.13` و Schema `2.0.0-beta.7` را بررسی کنید. برای این مسیر از `tamiran-1.0.0-rc.19-update-from-rc.13.zip` استفاده کنید.

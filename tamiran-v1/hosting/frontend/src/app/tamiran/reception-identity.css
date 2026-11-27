@@ -174,3 +174,58 @@
 .catalog-settings {min-width:0;max-width:100%;width:100%}
 .catalog-settings .responsive-table-wrap {min-width:0;max-width:100%;overflow-x:auto}
 .reception-identity-field .input-with-icon input {padding-inline-start:42px!important}
+
+.reception-device-grid > .reception-identity-field {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.reception-identity-field > :is(p, small, .identity-availability-row, .identity-other-reason) {
+  grid-column: 1 / -1;
+}
+.identity-primary label {
+  font-weight: 650;
+}
+.reception-device-password {
+  grid-column: 1 / -1;
+}
+.reception-issue-options button,
+.reception-issue-row button,
+.reception-default-issue button {
+  min-height: 44px;
+}
+.reception-issue-row,
+.reception-default-issue {
+  display: grid;
+  align-items: end;
+  gap: 10px;
+  margin-block: 10px;
+  grid-template-columns: minmax(70px, auto) minmax(0, 1fr) auto;
+}
+.reception-default-issue {
+  grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+}
+.reception-issue-row > strong {
+  align-self: center;
+  overflow-wrap: anywhere;
+}
+.reception-default-issue > label:nth-child(2) {
+  align-self: center;
+}
+@media (max-width: 640px) {
+  .reception-device-grid > .reception-identity-field,
+  .reception-identity-field > .identity-availability-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reception-issue-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .reception-issue-row > strong,
+  .reception-default-issue > .field-block {
+    grid-column: 1 / -1;
+  }
+  .reception-default-issue {
+    grid-template-columns: repeat(3, auto);
+  }
+}

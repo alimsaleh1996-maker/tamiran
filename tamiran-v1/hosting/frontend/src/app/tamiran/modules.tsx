@@ -633,6 +633,16 @@ function ModuleHeader({
   );
 }
 
+type DefaultIssue = { id: string; label: string; enabled: boolean };
+const defaultReceptionIssues: DefaultIssue[] = ["LCD", "باتری", "شارژ", "روشن نمی‌شود", "صدا", "سایر"].map(
+  (label, index) => ({ id: `issue-${index}`, label, enabled: true }),
+);
+function receptionIssueOptions(value: unknown): DefaultIssue[] {
+  if (!Array.isArray(value)) return defaultReceptionIssues;
+  return value.filter((item): item is DefaultIssue => Boolean(item && typeof item.id === "string"
+    && typeof item.label === "string" && typeof item.enabled === "boolean"));
+}
+
 const defaultAppearanceStates = [
   "بدون ایراد ظاهری",
   "خط‌وخش",
@@ -800,7 +810,6 @@ function ReceptionPage({
   const [secondaryMobile, setSecondaryMobile] = useState("");
   const [preapprovedAmount, setPreapprovedAmount] = useState("");
   const [initialEstimate, setInitialEstimate] = useState("");
-  const [receiptNotes, setReceiptNotes] = useState("");
   const [promisedAt, setPromisedAt] = useState("");
   const [devicePassword, setDevicePassword] = useState("");
   const [dataHandling, setDataHandling] = useState<
@@ -820,15 +829,14 @@ function ReceptionPage({
     useState<PreviousCustomerDevice | null>(null);
   const [selectedCatalogItem, setSelectedCatalogItem] =
     useState<DeviceCatalogItem | null>(null);
-  const [declaredIssue, setDeclaredIssue] = useState("");
-  const [receiptIssueDetails, setReceiptIssueDetails] = useState<ReceiptIssueDetail[]>([]);
-  const receiptIssues = declaredIssue.split("\n").map(line => line.trim()).filter(Boolean);
-  const issueFields = (issue: string, index: number): ReceiptIssueDetail =>
-    receiptIssueDetails[index]?.issue === issue ? receiptIssueDetails[index] : { issue, kind: "", note: "" };
-  const updateIssueFields = (index: number, field: "kind" | "note", value: string) =>
-    setReceiptIssueDetails(receiptIssues.map((issue, position) => ({
-      ...issueFields(issue, position), ...(position === index ? { [field]: value } : {}),
-    })));
+  const [issueRows, setIssueRows] = useState<Array<ReceiptIssueDetail & { id: string }>>([]);
+  const receiptIssueDetails = React.useMemo(() => issueRows.map(({ issue, kind, note }) => ({
+    issue: issue || [kind, note.trim()].filter(Boolean).join(" — "),
+    kind: kind.trim(),
+    note: note.trim(),
+  })), [issueRows]);
+  const receiptIssues = receiptIssueDetails.map(({ issue }) => issue);
+  const declaredIssue = receiptIssues.join("\n");
   const [receptionNotes, setReceptionNotes] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
@@ -875,6 +883,7 @@ function ReceptionPage({
     >;
   };
   const terminology = formSettings.terminology?.[profileKey];
+  const issueOptions = receptionIssueOptions((shopSettings.service_forms as { defaultIssues?: unknown } | undefined)?.defaultIssues);
   const orderedLabels =
     formSettings.orders?.[profileKey] ??
     profile.fields.map((field) => field.label);
@@ -1018,12 +1027,18 @@ function ReceptionPage({
     setIdentifierUnavailableReason(String(draft.identifierUnavailableReason ?? ""));
     setIdentifierUnavailableNote(String(draft.identifierUnavailableNote ?? ""));
     setDeviceColor(String(draft.color ?? ""));
-    setDeclaredIssue(String(draft.declaredIssue ?? ""));
-    setReceiptIssueDetails(Array.isArray(draft.receiptIssueDetails) ? draft.receiptIssueDetails : []);
+    const savedIssues = Array.isArray(draft.receiptIssueDetails) ? draft.receiptIssueDetails : [];
+    setIssueRows(String(draft.declaredIssue ?? "").split("\n").map(line => line.trim()).filter(Boolean)
+      .map((issue, index) => {
+        const details = savedIssues[index];
+        const structured = details?.issue === issue && details.kind
+          && [details.kind, details.note].filter(Boolean).join(" — ") === issue;
+        return { id: `draft-${index}`, issue: structured ? "" : issue,
+          kind: details?.kind ?? "", note: details?.note ?? "" };
+      }));
     setReceptionNotes(String(draft.receptionNotes ?? ""));
     setPreapprovedAmount(String(draft.preapprovedAmount ?? ""));
     setInitialEstimate(String(draft.initialEstimate ?? ""));
-    setReceiptNotes(String(draft.receiptNotes ?? ""));
     setPromisedAt(String(draft.promisedAt ?? ""));
     if (["no_erasure", "coordinate_first", "erase_authorized"].includes(String(draft.dataHandling)))
       setDataHandling(draft.dataHandling as "no_erasure" | "coordinate_first" | "erase_authorized");
@@ -1068,7 +1083,6 @@ function ReceptionPage({
         receptionNotes,
         preapprovedAmount,
         initialEstimate,
-        receiptNotes,
         promisedAt,
         dataHandling,
       };
@@ -1129,7 +1143,6 @@ function ReceptionPage({
     receptionNotes,
     preapprovedAmount,
     initialEstimate,
-    receiptNotes,
     promisedAt,
     dataHandling,
     idempotencyKey,
@@ -1261,15 +1274,13 @@ function ReceptionPage({
     setSerialNumber("");
     setImei("");
     setImeiTouched(false);
-    setDeclaredIssue("");
-    setReceiptIssueDetails([]);
+    setIssueRows([]);
     setReceptionNotes("");
     setAccessories(["بدون لوازم"]);
     setAppearanceStates([]);
     setFormError("");
     setPreapprovedAmount("");
     setInitialEstimate("");
-    setReceiptNotes("");
     setPromisedAt("");
     setDevicePassword("");
     setDataHandling("");
@@ -1281,7 +1292,6 @@ function ReceptionPage({
     setDevicePassword("");
     setPreapprovedAmount("");
     setInitialEstimate("");
-    setReceiptNotes("");
     setPromisedAt("");
     setAssignedToUserId(null);
     setDataHandling("");
@@ -1290,8 +1300,7 @@ function ReceptionPage({
     setSelectedDeviceType(device.deviceType);
     setAccessories(["بدون لوازم"]);
     setAppearanceStates([]);
-    setDeclaredIssue("");
-    setReceiptIssueDetails([]);
+    setIssueRows([]);
     setReceptionNotes("");
     setIdentifier(device.identifier === device.imei || device.identifier === device.serialNumber ? "" : device.identifier);
     setSerialNumber(device.serialNumber ?? "");
@@ -1447,6 +1456,10 @@ function ReceptionPage({
       showFormError("اطلاعات مشتری، محصول و ایراد اعلامی را کامل کنید.");
       return;
     }
+    if (declaredIssue.length > 4000) {
+      showFormError("مجموع شرح ایرادها حداکثر ۴۰۰۰ نویسه است.");
+      return;
+    }
     if (!dataHandling) {
       showFormError("مجوز حذف اطلاعات دستگاه را انتخاب کنید.");
       return;
@@ -1513,7 +1526,7 @@ function ReceptionPage({
         color: deviceColor,
         declaredIssue: declaredIssue.trim(),
         declaredIssues: receiptIssues,
-        receiptIssueDetails: receiptIssueDetails.length ? receiptIssues.map(issueFields) : undefined,
+        receiptIssueDetails,
         accessories,
         appearanceStates,
         receptionNotes: receptionNotes.trim() || undefined,
@@ -1522,7 +1535,6 @@ function ReceptionPage({
         ...versionedDevice,
         preapprovedAmount: Number(preapprovedAmount || 0),
         initialEstimate: initialEstimate === "" ? undefined : Number(initialEstimate),
-        receiptNotes: receiptNotes.trim() || undefined,
         promisedAt: promisedAt ? `${promisedAt} 12:00:00` : undefined,
         devicePassword: devicePassword || undefined,
         customerConsent: {
@@ -1912,7 +1924,8 @@ function ReceptionPage({
                       تعریف سریع دستگاه جدید
                     </button>
                   </div>
-                  {configuredFields.map((field) =>
+                  {[...configuredFields.filter(field => field.label.includes("رنگ")),
+                    ...configuredFields.filter(field => !field.label.includes("رنگ"))].map((field) =>
                     field.label.includes("رنگ") ? (
                       <label className="field-block" key={field.label}>
                         <span>رنگ دستگاه <b>*</b></span>
@@ -1925,7 +1938,6 @@ function ReceptionPage({
                             <option value={color.name} key={color.id}>{color.name}</option>
                           ))}
                         </select>
-                        <small className="field-helper">فهرست رنگ‌ها از تنظیمات تعمیرگاه مدیریت می‌شود.</small>
                       </label>
                     ) : field.options ? (
                       <SelectField
@@ -1942,7 +1954,7 @@ function ReceptionPage({
                         {historicalIdentity && !identifierUnavailable && <p className="field-helper">
                           شناسهٔ ثبت‌شده در سابقه <bdi>{historicalIdentity}</bdi>
                         </p>}
-                        <label htmlFor="reception-device-identifier">
+                        <div className="identity-primary field-block"><label htmlFor="reception-device-identifier">
                           <span>{needsImei ? "IMEI" : terminology?.identifierLabel || field.label}</span>
                           {!identifierUnavailable && !historicalIdentity && <b aria-hidden="true">*</b>}
                         </label>
@@ -1965,11 +1977,11 @@ function ReceptionPage({
                             maxLength={needsImei ? 24 : field.maxLength ?? 180}
                           />
                         </div>
-                        {field.helper && <small className="field-helper">{field.helper}</small>}
-                        {needsImei && <label><span>شماره سریال</span>
+                        </div>
+                        {needsImei && <label className="field-block"><span>شماره سریال</span>
                           <input dir="ltr" maxLength={180} value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} />
                         </label>}
-                        {!needsImei && hasSerialField && <label><span>IMEI (در صورت وجود)</span>
+                        {!needsImei && hasSerialField && <label className="field-block"><span>IMEI (در صورت وجود)</span>
                           <input dir="ltr" inputMode="numeric" maxLength={24} value={imei} onChange={(event) => setImei(event.target.value)}
                             onBlur={() => setImeiTouched(true)} aria-invalid={imeiTouched && Boolean(imeiValidation)}
                             aria-describedby={imeiTouched && imeiValidation ? "reception-imei-error" : undefined} />
@@ -1979,8 +1991,7 @@ function ReceptionPage({
                           <label className="identity-missing-choice"><input type="checkbox" checked={identifierUnavailable} onChange={(e) => setIdentifierUnavailable(e.target.checked)}/><span>شناسه در دسترس نیست</span></label>
                           {identifierUnavailable && <label className="identity-reason"><span>علت در دسترس نبودن شناسه *</span><select value={identifierUnavailableReason} onChange={(e) => setIdentifierUnavailableReason(e.target.value)}><option value="">انتخاب علت</option><option value="unreadable">شناسه ناخوانا است</option><option value="missing_label">برچسب شناسه مفقود است</option><option value="powered_off">دستگاه خاموش است</option><option value="other">سایر موارد</option></select></label>}
                         </div>
-                        <small>اگر شناسه اکنون قابل خواندن نیست، علت را ثبت کنید. دستگاه تعمیرشده پیش از تحویل باید شناسه داشته باشد.</small>
-                        {identifierUnavailable && identifierUnavailableReason === "other" && <label><span>توضیح علت *</span><input value={identifierUnavailableNote} maxLength={500} onChange={(e) => setIdentifierUnavailableNote(e.target.value)}/></label>}
+                        {identifierUnavailable && identifierUnavailableReason === "other" && <label className="identity-other-reason"><span>توضیح علت *</span><input value={identifierUnavailableNote} maxLength={500} onChange={(e) => setIdentifierUnavailableNote(e.target.value)}/></label>}
                       </div>
                     ) : (
                       <Field
@@ -2005,7 +2016,7 @@ function ReceptionPage({
                       />
                     ),
                   )}
-                  <label className="field-block">
+                  <label className="field-block reception-device-password">
                     <span>رمز دستگاه <small>اختیاری</small></span>
                     <input type="text" autoComplete="off" dir="auto" maxLength={500}
                       value={devicePassword} onChange={(event) => setDevicePassword(event.target.value)} />
@@ -2077,32 +2088,36 @@ function ReceptionPage({
                   title="شرح پذیرش"
                   badge="مرحله پایانی"
                 />
-                <label className="field-block">
-                  <span>
-                    {terminology?.issueLabel ||
-                      `ایراد اعلامی ${terminology?.itemLabel || profile.itemLabel}`}{" "}
-                    <b>*</b>
-                  </span>
-                  <textarea
-                    rows={3}
-                    value={declaredIssue}
-                    onChange={(event) => setDeclaredIssue(event.target.value)}
-                    maxLength={4000}
-                    placeholder="هر ایراد اعلامی را در یک خط بنویسید."
-                  />
-                </label>
-                {(receiptTemplate.printSize ?? DEFAULT_RECEIPT_SIZE) === "A4" && receiptIssues.length > 0 && <details className="field-block form-row-gap">
-                  <summary>نوع ایراد و توضیح هر ردیف روی قبض <small>اختیاری</small></summary>
-                  {receiptIssues.map((issue, index) => <fieldset key={index} className="form-grid two-columns">
-                    <legend>{issue}</legend>
-                    <label className="field-block">نوع ایراد
-                      <input maxLength={80} value={issueFields(issue, index).kind} onChange={event => updateIssueFields(index, "kind", event.target.value)} />
-                    </label>
-                    <label className="field-block">توضیحات تکمیلی ایراد
-                      <input maxLength={240} value={issueFields(issue, index).note} onChange={event => updateIssueFields(index, "note", event.target.value)} />
-                    </label>
-                  </fieldset>)}
-                </details>}
+                <div className="field-block">
+                  <strong>نوع ایراد <b>*</b></strong>
+                  <div className="choice-chips reception-issue-options" role="group" aria-label="ایرادات پیش‌فرض">
+                    {issueOptions.filter(option => option.enabled && option.label.trim()).map(option => {
+                      const selected = issueRows.some(row => row.id === option.id || row.kind === option.label);
+                      return <button type="button" key={option.id}
+                        aria-pressed={selected} className={selected ? "selected" : ""}
+                        disabled={!selected && issueRows.length >= 20}
+                        onClick={() => {
+                          if (selected) return;
+                          setIssueRows(current => [...current, {id: option.id, kind: option.label, issue: "", note: ""}]);
+                        }}>{option.label}</button>;
+                    })}
+                  </div>
+                </div>
+                {issueRows.map(row => <div className="reception-issue-row" key={row.id}>
+                  <strong>{row.kind || row.issue}</strong>
+                  <label className="field-block">
+                    <span>توضیحات تکمیلی {row.kind || row.issue}</span>
+                    <input maxLength={240} value={row.note} onChange={event => {
+                      const note = event.target.value;
+                      setIssueRows(current => current.map(item => item.id === row.id ? { ...item, note } : item));
+                    }} />
+                  </label>
+                  <button type="button" className="outline-action"
+                    aria-label={`حذف ایراد ${row.kind || row.issue}`}
+                    onClick={() => setIssueRows(current => current.filter(item => item.id !== row.id))}>
+                    <X size={16} aria-hidden="true" /> حذف
+                  </button>
+                </div>)}
                 <label className="field-block form-row-gap internal-reception-note">
                   <span>
                     <LockKeyhole size={15} />
@@ -2118,11 +2133,6 @@ function ReceptionPage({
                     این متن فقط داخل پرونده و کارتابل تکنسین دیده می‌شود و روی
                     قبض یا پرتال مشتری نمایش داده نخواهد شد.
                   </small>
-                </label>
-                <label className="field-block form-row-gap">
-                  <span>توضیح روی قبض مشتری <small>اختیاری</small></span>
-                  <textarea rows={2} maxLength={1000} value={receiptNotes}
-                    onChange={event => setReceiptNotes(event.target.value)} />
                 </label>
                 <div className="form-grid three-columns reception-v2-terms">
                   <label className="field-block">
@@ -2860,9 +2870,6 @@ function SearchableCatalogSelect({
           </div>
         )}
       </div>
-      <small className="field-helper">
-        نوع محصول با همین انتخاب در پرونده ثبت می‌شود.
-      </small>
     </div>
   );
 }
@@ -6396,8 +6403,27 @@ function ServiceFormSettings({
       [profile]: [...(current[profile] ?? fieldRows[profile]), name],
     }));
   };
+  const [defaultIssues, setDefaultIssues] = useState(() => receptionIssueOptions(
+    (saved as { defaultIssues?: unknown } | undefined)?.defaultIssues,
+  ));
+  const [newIssue, setNewIssue] = useState("");
+  const moveIssue = (index: number, direction: -1 | 1) => {
+    setDefaultIssues(current => {
+      const next = [...current];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
   const saveForms = async () => {
-    const value = { orders, policies, terminology };
+    const issues = defaultIssues.map(issue => ({ ...issue, label: issue.label.trim() }));
+    if (issues.some(issue => !issue.label) || new Set(issues.map(issue => issue.label)).size !== issues.length
+      || !issues.some(issue => issue.enabled)) {
+      notify("نام ایرادها باید یکتا و کامل باشد و حداقل یک نوع فعال بماند.");
+      return;
+    }
+    const value = { orders, policies, terminology, defaultIssues: issues };
     try {
       if (directAdminApiEnabled) await saveShopSetting("service_forms", value);
       onSaved(value);
@@ -6578,6 +6604,39 @@ function ServiceFormSettings({
           اجازه چاپ یا نمایش در پرتال مشتری ندارند.
         </p>
       </div>
+      <section className="settings-form">
+        <h3>ایرادات پیش‌فرض</h3>
+        {defaultIssues.map((issue, index) => <div className="reception-default-issue" key={issue.id}>
+          <label className="field-block">نوع ایراد {index + 1}
+            <input maxLength={80} value={issue.label} onChange={event => {
+              const label = event.target.value;
+              setDefaultIssues(current => current.map(item => item.id === issue.id ? { ...item, label } : item));
+            }} />
+          </label>
+          <label><input type="checkbox" checked={issue.enabled} onChange={event => {
+            const enabled = event.target.checked;
+            setDefaultIssues(current => current.map(item => item.id === issue.id ? { ...item, enabled } : item));
+          }} /> فعال</label>
+          <button type="button" className="outline-action" aria-label={`انتقال ایراد ${index + 1} به بالا`}
+            disabled={index === 0} onClick={() => moveIssue(index, -1)}>↑</button>
+          <button type="button" className="outline-action" aria-label={`انتقال ایراد ${index + 1} به پایین`}
+            disabled={index === defaultIssues.length - 1} onClick={() => moveIssue(index, 1)}>↓</button>
+        </div>)}
+        <div className="reception-default-issue">
+          <label className="field-block">نوع ایراد جدید
+            <input maxLength={80} value={newIssue} onChange={event => setNewIssue(event.target.value)} />
+          </label>
+          <button type="button" className="outline-action" disabled={!newIssue.trim()} onClick={() => {
+            const label = newIssue.trim();
+            if (defaultIssues.some(issue => issue.label.trim() === label)) {
+              notify("این نوع ایراد قبلاً ثبت شده است.");
+              return;
+            }
+            setDefaultIssues(current => [...current, { id: crypto.randomUUID(), label, enabled: true }]);
+            setNewIssue("");
+          }}>افزودن نوع ایراد</button>
+        </div>
+      </section>
       <div className="settings-footer-actions">
         <button
           type="button"
