@@ -648,7 +648,13 @@ function workflow_v2_estimate_decide(PDO $pdo,array $scope,array $input): array
     try{
         $caseLock=v2_case($pdo,$scope,(int)$estimate['case_id'],true);if($caseLock['locked_at']!==null)throw new TamiranApiException('پرونده بسته است.',409);
         $latest=$pdo->prepare('SELECT id FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1');$latest->execute(['case'=>$estimate['case_id']]);if((int)$latest->fetchColumn()!==(int)$estimate['id'])throw new TamiranApiException('برآورد جدیدتری ثبت شده است.',409);
-        $lock=$pdo->prepare('SELECT status FROM repair_estimates WHERE id=:id FOR UPDATE');$lock->execute(['id'=>$estimate['id']]);$status=$lock->fetchColumn();if(!in_array($status,['sent','explanation_requested'],true))throw new TamiranApiException('این برآورد در وضعیت قابل تصمیم نیست.',409);
+        $lock=$pdo->prepare('SELECT status,(valid_until IS NULL OR valid_until>UTC_TIMESTAMP()) AS valid FROM repair_estimates WHERE id=:id FOR UPDATE');
+        $lock->execute(['id'=>$estimate['id']]);
+        $current=$lock->fetch();
+        $status=$current['status']??null;
+        if(empty($current['valid'])||!in_array($status,['sent','explanation_requested'],true)){
+            throw new TamiranApiException('این برآورد در وضعیت قابل تصمیم نیست یا اعتبار آن پایان یافته است.',409);
+        }
         $pdo->prepare('UPDATE repair_estimates SET status=:decision,decided_at=NOW() WHERE id=:id')->execute(['decision'=>$decision,'id'=>$estimate['id']]);
         $approvalPublic=tamiran_id();$pdo->prepare('INSERT INTO repair_estimate_approvals(public_id,estimate_id,decision,channel,customer_mobile,otp_request_id,recorded_by_user_id,decision_reason,evidence_json) VALUES(:public,:estimate,:decision,:channel,:mobile,:otp,:actor,:reason,:evidence)')
             ->execute(['public'=>$approvalPublic,'estimate'=>$estimate['id'],'decision'=>$decision,'channel'=>$channel,'mobile'=>$mobile,'otp'=>$input['otpRequestId']??null,'actor'=>$scope['actor']['id'],'reason'=>v2_text($input['reason']??'','علت تصمیم',1000,false),'evidence'=>v2_json($input['evidence']??[])]);

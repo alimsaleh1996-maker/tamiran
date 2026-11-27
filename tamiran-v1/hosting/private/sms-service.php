@@ -73,6 +73,25 @@ function tamiran_sms_provider_from_row(array $row): TamiranKavenegarProvider
     return new TamiranKavenegarProvider($key, $settings);
 }
 
+/** Resolve only the current, actionable estimate before sending a customer code. */
+function tamiran_sms_estimate_recipient(PDO $pdo,int $shop,int $branch,string $subject,?int $caseId=null):string
+{
+    $caseFilter=$caseId===null?'':' AND c.id=:case';
+    $query=$pdo->prepare("SELECT cu.mobile FROM repair_estimates e
+        JOIN repair_cases c ON c.id=e.case_id AND c.shop_id=e.shop_id
+        JOIN repair_case_workflows w ON w.case_id=c.id AND w.shop_id=c.shop_id AND w.branch_id=c.branch_id
+        JOIN repair_customers cu ON cu.id=c.customer_id AND cu.shop_id=e.shop_id
+        WHERE e.public_id=:subject AND e.shop_id=:shop AND c.branch_id=:branch AND w.locked_at IS NULL
+        AND e.status IN ('sent','explanation_requested') AND (e.valid_until IS NULL OR e.valid_until>UTC_TIMESTAMP())
+        $caseFilter AND NOT EXISTS(SELECT 1 FROM repair_estimates later WHERE later.case_id=e.case_id AND later.revision>e.revision)");
+    $params=['subject'=>$subject,'shop'=>$shop,'branch'=>$branch];
+    if ($caseId!==null) $params['case']=$caseId;
+    $query->execute($params);
+    $recipient=$query->fetchColumn();
+    if ($recipient===false) throw new TamiranApiException('برآورد جاری برای ارسال کد پیدا نشد.',404);
+    return tamiran_mobile((string)$recipient);
+}
+
 function tamiran_sms_otp_hash(int $shopId, string $purpose, string $subject, string $mobile, string $code): string
 {
     return hash_hmac('sha256', json_encode([$shopId, $purpose, $subject, $mobile, $code], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), tamiran_encryption_key());

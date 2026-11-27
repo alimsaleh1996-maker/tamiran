@@ -17,7 +17,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_BRANCH = "tamiran-v1/foundation"
-UPDATE_FROM = {"1.0.0-rc.14": "1.0.0-rc.13", "1.0.0-rc.15": "1.0.0-rc.14", "1.0.0-rc.16": "1.0.0-rc.15", "1.0.0-rc.17": "1.0.0-rc.16"}
+UPDATE_FROM = {"1.0.0-rc.14": "1.0.0-rc.13", "1.0.0-rc.15": "1.0.0-rc.14", "1.0.0-rc.16": "1.0.0-rc.15", "1.0.0-rc.17": "1.0.0-rc.16", "1.0.0-rc.18": "1.0.0-rc.17"}
 UPDATE_MIGRATIONS = {"1.0.0-rc.16": "private/database/migrations/2.0.0-beta.8-device-identifiers.sql"}
 MANIFEST = "private/build/manifest.json"
 PRIVATE = (

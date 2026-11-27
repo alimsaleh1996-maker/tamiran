@@ -41,3 +41,50 @@
 
 .manager-delay-guide { margin-block: 12px; }
 .manager-delay-empty { align-self: center; }
+
+.stock-operational .v2-table {
+  min-inline-size: 0;
+}
+
+.stock-operational .v2-table :is(td, th) {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
+.stock-operational .v2-table td small,
+.stock-operational .v2-table td::before {
+  font-size: 0.75rem;
+}
+
+.stock-operational .v2-table td > * {
+  min-inline-size: 0;
+}
+
+.stock-operational .v2-row-actions {
+  gap: 8px;
+}
+
+.stock-operational :is(.v2-row-actions button, .v2-table button, .v2-panel-title button) {
+  min-block-size: 44px;
+  font-size: 0.8125rem !important;
+  white-space: normal;
+}
+
+.stock-operational .operational-filters > label {
+  display: grid;
+  flex: 1 1 11rem;
+  gap: 6px;
+}
+
+.stock-operational .operational-filters :is(input, select) {
+  width: 100%;
+  min-inline-size: 0;
+  min-block-size: 44px;
+  padding-inline: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+}

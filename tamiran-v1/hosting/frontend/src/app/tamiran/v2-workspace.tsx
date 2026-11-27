@@ -309,7 +309,7 @@ export function V2Workspace({ page, profile, notify, onNavigate }: Props) {
       </div>
     );
   return (
-    <div className="v2-shell">
+    <div className={`v2-shell${section === "supply" || ["انبار قطعات", "تعهدات داغی"].includes(page) ? " stock-operational" : ""}`}>
       {!serviceCaseOpen && !(section === "workflow" && workflowCaseOpen) && <header className="v2-page-head">
         <div>
           <span className="v2-kicker">{profile.branch}</span>
@@ -909,7 +909,7 @@ function InventoryBoard({
                   <small>{item.requester_name} · {localDate(item.created_at)}</small>
                 </td>
                 <td data-label="کالا">
-                  {item.item_code} · {item.item_title}
+                  <bdi>{item.item_code}</bdi> · {item.item_title}
                 </td>
                 <td data-label="درخواست/تحویل">
                   {toman.format(item.quantity)} /{" "}

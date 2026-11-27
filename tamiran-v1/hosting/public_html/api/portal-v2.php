@@ -6,7 +6,7 @@ require_once tamiran_private_root().'/v2-core.php';
 require_once tamiran_private_root().'/sms-service.php';
 
 function portal_token_encode(string $bytes):string{return rtrim(strtr(base64_encode($bytes),'+/','-_'),'=');}
-function portal_find(PDO $pdo,string $token,bool $lock=false):array{$hash=hash('sha256',$token);$statement=$pdo->prepare('SELECT p.*,c.receipt_number,c.declared_issue,c.operation_report,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,w.process_status,w.workflow_code,cu.full_name AS customer_name,cu.mobile AS customer_mobile FROM repair_portal_tokens p INNER JOIN repair_cases c ON c.id=p.case_id INNER JOIN repair_case_workflows w ON w.case_id=c.id INNER JOIN repair_customers cu ON cu.id=c.customer_id WHERE p.token_hash=:hash AND p.revoked_at IS NULL AND p.expires_at>=NOW() LIMIT 1'.($lock?' FOR UPDATE':''));$statement->execute(['hash'=>$hash]);$row=$statement->fetch();if(!is_array($row))throw new TamiranApiException('لینک پرونده نامعتبر یا منقضی است.',404);return$row;}
+function portal_find(PDO $pdo,string $token,bool $lock=false):array{$hash=hash('sha256',$token);$statement=$pdo->prepare('SELECT p.*,c.branch_id AS case_branch_id,w.locked_at,c.receipt_number,c.declared_issue,c.operation_report,c.device_type_snapshot,c.brand_snapshot,c.model_snapshot,w.process_status,w.workflow_code,cu.full_name AS customer_name,cu.mobile AS customer_mobile FROM repair_portal_tokens p INNER JOIN repair_cases c ON c.id=p.case_id INNER JOIN repair_case_workflows w ON w.case_id=c.id INNER JOIN repair_customers cu ON cu.id=c.customer_id WHERE p.token_hash=:hash AND p.revoked_at IS NULL AND p.expires_at>=NOW() LIMIT 1'.($lock?' FOR UPDATE':''));$statement->execute(['hash'=>$hash]);$row=$statement->fetch();if(!is_array($row))throw new TamiranApiException('لینک پرونده نامعتبر یا منقضی است.',404);return$row;}
 function portal_public_payload(PDO $pdo,array $portal):array{$estimate=$pdo->prepare("SELECT public_id,estimate_number,status,diagnostic_fee,subtotal_amount,discount_amount,tax_amount,total_amount,valid_until,customer_note,sent_at,decided_at FROM repair_estimates WHERE case_id=:case AND status NOT IN ('draft','superseded') ORDER BY revision DESC LIMIT 1");$estimate->execute(['case'=>$portal['case_id']]);$invoice=$pdo->prepare("SELECT i.public_id,i.invoice_number,i.status,i.total_amount,i.paid_amount,i.refunded_amount,(i.total_amount-(i.paid_amount-i.refunded_amount)) AS balance,i.issued_at FROM repair_invoices i WHERE i.case_id=:case AND i.status<>'draft' LIMIT 1");$invoice->execute(['case'=>$portal['case_id']]);$warranty=$pdo->prepare('SELECT wa.public_id,wa.starts_at,wa.expires_at,wa.conditions_text,ii.title FROM repair_warranties wa INNER JOIN repair_deliveries d ON d.id=wa.delivery_id INNER JOIN repair_invoice_items ii ON ii.id=wa.invoice_item_id WHERE d.case_id=:case ORDER BY wa.expires_at');$warranty->execute(['case'=>$portal['case_id']]);$messages=$pdo->prepare("SELECT direction,body,created_at,answered_at FROM repair_portal_messages WHERE case_id=:case AND (direction='customer_to_shop' OR status IN ('answered','closed')) ORDER BY created_at DESC LIMIT 100");$messages->execute(['case'=>$portal['case_id']]);return['receiptNumber'=>$portal['receipt_number'],'customerName'=>$portal['customer_name'],'deviceTitle'=>trim($portal['device_type_snapshot'].' '.$portal['brand_snapshot'].' '.$portal['model_snapshot']),'declaredIssue'=>$portal['declared_issue'],'status'=>$portal['process_status'],'workflowCode'=>$portal['workflow_code'],'operationReport'=>$portal['operation_report']??'','estimate'=>$estimate->fetch()?:null,'invoice'=>$invoice->fetch()?:null,'warranties'=>$warranty->fetchAll(),'messages'=>$messages->fetchAll(),'linkExpiresAt'=>$portal['expires_at']];}
 
 function portal_access_case(PDO $pdo,string $receipt,string $mobile):array
@@ -105,22 +105,61 @@ tamiran_api(static function():array{
     }
     $token=(string)($input['token']??'');if(strlen($token)<32)throw new TamiranApiException('لینک معتبر نیست.',404);tamiran_public_rate_limit('portal-action|'.hash('sha256',$token),30,3600,900);$portal=portal_find($pdo,$token,true);
     if($action==='message'){$body=trim((string)($input['body']??''));if($body===''||mb_strlen($body)>4000)throw new TamiranApiException('متن پیام معتبر نیست.');$public=tamiran_id();$pdo->prepare("INSERT INTO repair_portal_messages(public_id,shop_id,case_id,direction,body,status) VALUES(:public,:shop,:case,'customer_to_shop',:body,'new')")->execute(['public'=>$public,'shop'=>$portal['shop_id'],'case'=>$portal['case_id'],'body'=>$body]);$pdo->prepare("INSERT INTO repair_portal_actions(public_id,portal_token_id,action_type,subject_public_id,payload_json,ip_address,user_agent) VALUES(:public,:token,'message_sent',:subject,:payload,:ip,:agent)")->execute(['public'=>tamiran_id(),'token'=>$portal['id'],'subject'=>$public,'payload'=>'{}','ip'=>tamiran_client_ip(),'agent'=>substr((string)($_SERVER['HTTP_USER_AGENT']??''),0,500)]);return['sent'=>true];}
-    if($action==='otp_request'){$purpose=(string)($input['purpose']??'portal_action');if(!in_array($purpose,['estimate','portal_action'],true))throw new TamiranApiException('هدف OTP معتبر نیست.');$subject=v2_text($input['subjectPublicId']??'','موضوع',80);$providerStatement=$pdo->prepare('SELECT * FROM tamiran_sms_providers WHERE shop_id=:shop AND is_active=1 ORDER BY id LIMIT 1');$providerStatement->execute(['shop'=>$portal['shop_id']]);$providerRow=$providerStatement->fetch();if(!is_array($providerRow))throw new TamiranApiException('سرویس پیامک فعال نیست.',409);$settings=json_decode((string)$providerRow['settings_json'],true)?:[];$template=(string)($settings['otpTemplate']??'');if($template==='')throw new TamiranApiException('قالب OTP تنظیم نشده است.',409);$code=(string)random_int(100000,999999);$requestPublic=tamiran_id();$mobile=tamiran_mobile($portal['customer_mobile']);$pdo->prepare('INSERT INTO tamiran_sms_otps(public_id,shop_id,purpose,subject_public_id,mobile,code_hash,expires_at) VALUES(:public,:shop,:purpose,:subject,:mobile,:hash,DATE_ADD(NOW(),INTERVAL 3 MINUTE))')->execute(['public'=>$requestPublic,'shop'=>$portal['shop_id'],'purpose'=>$purpose,'subject'=>$subject,'mobile'=>$mobile,'hash'=>tamiran_sms_otp_hash((int)$portal['shop_id'],$purpose,$subject,$mobile,$code)]);$provider=tamiran_sms_provider_from_row($providerRow);$provider->lookup($mobile,$template,[$code]);return['requested'=>true,'requestId'=>$requestPublic,'expiresInSeconds'=>180];}
+    if($action==='otp_request'){
+        $purpose=(string)($input['purpose']??'portal_action');
+        if(!in_array($purpose,['estimate','portal_action'],true))throw new TamiranApiException('هدف OTP معتبر نیست.');
+        $subject=v2_text($input['subjectPublicId']??'','موضوع',80);
+        $shop=(int)$portal['shop_id'];
+        $mobile=tamiran_mobile($portal['customer_mobile']);
+        if($purpose==='estimate'){
+            if(operations_policy($pdo,$shop)['approval']==='phone')throw new TamiranApiException('تأیید پیامکی غیرفعال است.',409);
+            $mobile=tamiran_sms_estimate_recipient($pdo,$shop,(int)$portal['case_branch_id'],$subject,(int)$portal['case_id']);
+        }
+        $providerStatement=$pdo->prepare('SELECT * FROM tamiran_sms_providers WHERE shop_id=:shop AND is_active=1 ORDER BY id LIMIT 1');
+        $providerStatement->execute(['shop'=>$shop]);
+        $providerRow=$providerStatement->fetch();
+        if(!is_array($providerRow))throw new TamiranApiException('سرویس پیامک فعال نیست.',409);
+        $settings=json_decode((string)$providerRow['settings_json'],true)?:[];
+        $template=(string)($settings['otpTemplate']??'');
+        if($template==='')throw new TamiranApiException('قالب OTP تنظیم نشده است.',409);
+        $code=(string)random_int(100000,999999);
+        $requestPublic=tamiran_id();
+        $pdo->prepare('INSERT INTO tamiran_sms_otps(public_id,shop_id,purpose,subject_public_id,mobile,code_hash,expires_at)
+            VALUES(:public,:shop,:purpose,:subject,:mobile,:hash,DATE_ADD(NOW(),INTERVAL 3 MINUTE))')->execute([
+            'public'=>$requestPublic,'shop'=>$shop,'purpose'=>$purpose,'subject'=>$subject,'mobile'=>$mobile,
+            'hash'=>tamiran_sms_otp_hash($shop,$purpose,$subject,$mobile,$code),
+        ]);
+        try {
+            tamiran_sms_provider_from_row($providerRow)->lookup($mobile,$template,[$code]);
+        } catch(Throwable $error) {
+            $pdo->prepare('UPDATE tamiran_sms_otps SET attempts=max_attempts WHERE public_id=:public')->execute(['public'=>$requestPublic]);
+            throw $error;
+        }
+        return['requested'=>true,'requestId'=>$requestPublic,'expiresInSeconds'=>180];
+    }
     if($action==='estimate_decide'){
         $estimatePublic=v2_text($input['estimatePublicId']??'','برآورد',80);
         $decision=(string)($input['decision']??'');
         if(!in_array($decision,['approved','rejected','explanation_requested'],true))throw new TamiranApiException('تصمیم معتبر نیست.');
+        $shop=(int)$portal['shop_id'];
+        if(operations_policy($pdo,$shop)['approval']==='phone')throw new TamiranApiException('تأیید پیامکی غیرفعال است.',409);
+        if(!tamiran_sms_verify_otp($pdo,$shop,'estimate',$estimatePublic,tamiran_mobile($portal['customer_mobile']),
+            (string)($input['otpRequestId']??''),(string)($input['otpCode']??''))){
+            throw new TamiranApiException('OTP معتبر نیست.',403);
+        }
         $pdo->beginTransaction();
         try {
-            if(!tamiran_sms_verify_otp($pdo,(int)$portal['shop_id'],'estimate',$estimatePublic,tamiran_mobile($portal['customer_mobile']),(string)($input['otpRequestId']??''),(string)($input['otpCode']??''))){
-                // No business state has changed yet; retain failed attempts.
-                $pdo->commit();
-                throw new TamiranApiException('OTP معتبر نیست.',403);
+            $portal=portal_find($pdo,$token,true);
+            if($portal['locked_at']!==null||operations_policy($pdo,$shop)['approval']==='phone'){
+                throw new TamiranApiException('تأیید پیامکی برای این پرونده در دسترس نیست.',409);
             }
-            $estimate=$pdo->prepare("SELECT id,status FROM repair_estimates WHERE public_id=:public AND shop_id=:shop AND case_id=:case AND status IN ('sent','explanation_requested') FOR UPDATE");
-            $estimate->execute(['public'=>$estimatePublic,'shop'=>$portal['shop_id'],'case'=>$portal['case_id']]);
+            $estimate=$pdo->prepare("SELECT id,public_id,status,(valid_until IS NULL OR valid_until>UTC_TIMESTAMP()) AS valid
+                FROM repair_estimates WHERE shop_id=:shop AND case_id=:case ORDER BY revision DESC,id DESC LIMIT 1 FOR UPDATE");
+            $estimate->execute(['shop'=>$shop,'case'=>$portal['case_id']]);
             $row=$estimate->fetch();
-            if(!is_array($row))throw new TamiranApiException('برآورد قابل تصمیم نیست.',409);
+            if(!is_array($row)||$row['public_id']!==$estimatePublic||!$row['valid']||!in_array($row['status'],['sent','explanation_requested'],true)){
+                throw new TamiranApiException('برآورد قابل تصمیم نیست.',409);
+            }
             $pdo->prepare('UPDATE repair_estimates SET status=:decision,decided_at=NOW() WHERE id=:id')->execute(['decision'=>$decision,'id'=>$row['id']]);
             $pdo->prepare("INSERT INTO repair_estimate_approvals(public_id,estimate_id,decision,channel,customer_mobile,otp_request_id,recorded_by_user_id,decision_reason,evidence_json) VALUES(:public,:estimate,:decision,'secure_portal',:mobile,:otp,NULL,:reason,:evidence)")->execute(['public'=>tamiran_id(),'estimate'=>$row['id'],'decision'=>$decision,'mobile'=>$portal['customer_mobile'],'otp'=>$input['otpRequestId'],'reason'=>v2_text($input['reason']??'','علت',1000,false),'evidence'=>'{}']);
             $pdo->prepare('INSERT INTO repair_portal_actions(public_id,portal_token_id,action_type,subject_public_id,otp_request_id,payload_json,ip_address,user_agent) VALUES(:public,:token,:action,:subject,:otp,:payload,:ip,:agent)')->execute(['public'=>tamiran_id(),'token'=>$portal['id'],'action'=>$decision==='approved'?'estimate_approved':($decision==='rejected'?'estimate_rejected':'explanation_requested'),'subject'=>$estimatePublic,'otp'=>$input['otpRequestId'],'payload'=>json_encode(['reason'=>$input['reason']??null],JSON_UNESCAPED_UNICODE),'ip'=>tamiran_client_ip(),'agent'=>substr((string)($_SERVER['HTTP_USER_AGENT']??''),0,500)]);
