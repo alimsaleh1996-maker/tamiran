@@ -3,8 +3,9 @@ import { saveShopSetting } from "./directadmin-api";
 import type { WorkspaceProfile } from "./access";
 import { ExternalPurchasePanel } from "./external-purchase-panel";
 import { MoneyInput } from "./money-input";
-import { formatPersianDate, todayGregorianIso } from "./persian-date";
+import { addGregorianDays, formatPersianDate, todayGregorianIso } from "./persian-date";
 import { PersianDatePicker } from "./persian-date-picker";
+import { repairStages } from "./workflow-stages";
 import { loadManagerPulse, type ManagerPulseData, loadManagerPerformance, loadManagerMetricCases, repairPaymentMethods, type RepairPaymentMethod, type ManagerMetricCase, loadOperationsFollowups, loadV2Workflow, workflowV2Action, type ManagerPerformance, type OperationsFollowup, type OperationsPolicy, type V2Case, type V2User } from "./v2-api";
 
 const followTitles = {
@@ -284,13 +285,18 @@ export function OperationsFollowups({ open, initialFilter = "all" }: { open: (it
   </section>;
 }
 
+const formatReportDeadline = (utc: string) => new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+  timeZone: "Asia/Tehran", dateStyle: "short", timeStyle: "short", hourCycle: "h23",
+}).format(new Date(utc.replace(" ", "T") + "Z"));
+
 export function OperationsPerformance({ open }: { open: (item: V2Case) => void }) {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 24 * hours).toISOString().slice(0, 10));
+  const [from, setFrom] = useState(() => addGregorianDays(todayGregorianIso(), -30));
   const [to, setTo] = useState(todayGregorianIso);
   const [rows, setRows] = useState<ManagerPerformance[]>();
   const [selected, setSelected] = useState("");
   const [search, setSearch] = useState("");
-  const [range, setRange] = useState({ from, to });
+  const [range, setRange] = useState({ from, to, asOf: "" });
+  const [withoutOwner, setWithoutOwner] = useState<Pick<ManagerPerformance, "delayObserved" | "operationalLate">>();
   const [metric, setMetric] = useState<{ user: number; key: string; variant: string; label: string }>();
   const [details, setDetails] = useState<ManagerMetricCase[]>([]);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
@@ -308,8 +314,10 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
     setBusy(true);
     setError("");
     try {
-      setRows((await loadManagerPerformance(from, to)).rows);
-      setRange({ from, to });
+      const report = await loadManagerPerformance(from, to);
+      setRows(report.rows);
+      setWithoutOwner(report.withoutOwner);
+      setRange({ from, to, asOf: report.asOf });
       setMetric(undefined);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "گزارش بارگذاری نشد.");
@@ -324,7 +332,7 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
     setNextOffset(null);
     setDetailLoading(true);
     setDetailError("");
-    loadManagerMetricCases(range.from, range.to, metric.user, metric.key, metric.variant).then(result => {
+    loadManagerMetricCases(range.from, range.to, metric.user, metric.key, metric.variant, 0, range.asOf).then(result => {
       if (mounted) { setDetails(result.rows); setNextOffset(result.nextOffset); }
     }).catch(failure => {
       if (mounted) setDetailError(failure instanceof Error ? failure.message : "ریز پرونده‌ها بارگذاری نشد.");
@@ -336,7 +344,7 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
     setDetailLoading(true);
     setDetailError("");
     try {
-      const result = await loadManagerMetricCases(range.from, range.to, metric.user, metric.key, metric.variant, nextOffset);
+      const result = await loadManagerMetricCases(range.from, range.to, metric.user, metric.key, metric.variant, nextOffset, range.asOf);
       setDetails(current => [...current, ...result.rows]);
       setNextOffset(result.nextOffset);
     } catch (failure) {
@@ -345,7 +353,7 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
   }
   function detailButton(user: number, key: string, label: string, value: number | string, variant = "") {
     const active = metric?.user === user && metric.key === key && metric.variant === variant;
-    return <button type="button" className="manager-metric-link" aria-expanded={active} disabled={detailLoading}
+    return <button type="button" className="manager-metric-link" aria-expanded={active} disabled={detailLoading || busy}
       onClick={() => setMetric(active ? undefined : { user, key, label, variant })}>{label} · {typeof value === "number" ? fa(value) : value}</button>;
   }
   async function openCompleted(id: number) {
@@ -357,6 +365,23 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
       setError(failure instanceof Error ? failure.message : "پرونده باز نشد.");
     }
   }
+  function detailPanel() {
+    if (!metric) return null;
+    return <section className="tech-task" aria-label={`ریز شاخص ${metric.label}`}>
+      <h5>{metric.label}</h5>
+      {detailLoading && <p role="status">در حال بارگذاری پرونده‌ها…</p>}
+      {detailError && <p role="alert">{detailError}</p>}
+      {!detailLoading && !detailError && !details.length && <p>پرونده‌ای در این شاخص ثبت نشده است.</p>}
+      <ul className="manager-workload-list">{details.map(item => <li key={item.id}>
+        <button type="button" onClick={() => void openCompleted(item.id)}><bdi>{item.receiptNumber}</bdi>
+          <span>{item.deviceTitle}{item.samples > 1 ? ` · ${fa(item.samples)} رویداد` : ""}</span>
+          {item.dueAt && <small>موعد {formatReportDeadline(item.dueAt)} · {item.attributable ? "قابل انتساب" : "عملیاتی"}
+            {item.stage && ` · ${repairStages.find(stage => stage.statuses.includes(item.stage ?? ""))?.title ?? "مرحلهٔ دیگر"}`}</small>}
+        </button>
+      </li>)}</ul>
+      {nextOffset !== null && <button type="button" disabled={detailLoading} onClick={() => void moreDetails()}>پرونده‌های بیشتر</button>}
+    </section>;
+  }
   return <section className="manager-performance">
     <h3>عملکرد تکنسین‌ها</h3>
     <form onSubmit={(event) => { event.preventDefault(); void load(); }}>
@@ -364,10 +389,20 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
         <div><span>از تاریخ</span><PersianDatePicker ariaLabel="تاریخ آغاز گزارش" value={from} onChange={setFrom} /></div>
         <div><span>تا تاریخ</span><PersianDatePicker ariaLabel="تاریخ پایان گزارش" value={to} onChange={setTo} /></div>
       </div>
-      <button type="submit" disabled={busy || !from || !to}>دریافت گزارش</button>
+      <button type="submit" disabled={busy || detailLoading || !from || !to}>دریافت گزارش</button>
     </form>
     {error && <p role="alert" className="tech-error">{error}</p>}
     {rows && <>
+      <details className="manager-delay-guide">
+        <summary>مبنای محاسبهٔ پرونده‌های دارای تأخیر</summary>
+        <p>بازه بر اساس روز موعد به وقت ایران است. اگر پرونده در لحظهٔ موعد هنوز در چرخهٔ عملیاتی باشد، یک بار شمارش می‌شود و به مسئول ثبت‌شده در همان لحظه نمایش داده می‌شود.</p>
+        <p>تأخیر فقط با دریافت تأییدشده در مرحلهٔ فنی و با سابقهٔ کافی قابل انتساب است. پرونده‌ای که تا موعد سابقهٔ انتظار مشتری یا قطعه دارد، در شمار تأخیر قابل انتساب قرار نمی‌گیرد.</p>
+        <p>موعد جایگزین‌شده پیش از سررسید و پروندهٔ فاقد تاریخچهٔ لازم از محاسبه کنار گذاشته می‌شوند.</p>
+      </details>
+      {!!withoutOwner?.operationalLate && <div className="manager-switch">
+        {detailButton(0, "operationalLate", "تأخیر عملیاتی بدون مسئول ثبت‌شده", withoutOwner.operationalLate)}
+        {metric?.user === 0 && detailPanel()}
+      </div>}
       {!visible.length && <p role="status">تکنسینی با این فیلتر یافت نشد.</p>}
       <label>جست‌وجوی تکنسین<input value={search} onChange={(event) => { setSearch(event.target.value); setSelected(""); }} /></label>
       <label>تکنسین<select value={selected} onChange={(event) => setSelected(event.target.value)}>
@@ -392,6 +427,10 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
             {detailButton(row.id, "qcFailures", "مردودی کنترل کیفیت", row.qcRuns ? `${fa(Math.round(100 * row.qcFailures / row.qcRuns))}٪ (${fa(row.qcFailures)} از ${fa(row.qcRuns)})` : "داده کافی نیست")}
             {detailButton(row.id, "deadline", "پرونده‌های دارای موعد اولیه", row.withInitialDue)}
             {detailButton(row.id, "onTime", "رعایت موعد اولیه", row.onTime)}
+            {row.delayObserved > 0 ? <>
+              {detailButton(row.id, "operationalLate", "پرونده‌های دارای تأخیر عملیاتی", row.operationalLate)}
+              {detailButton(row.id, "attributableLate", "تأخیر قابل انتساب به تکنسین", row.attributableLate)}
+            </> : <span className="manager-delay-empty">تأخیر پرونده‌ها · داده کافی نیست</span>}
             {row.unrepaired > row.technicalFailures && detailButton(row.id, "nonTechnical", "پایان بدون تعمیر با علت غیرفنی یا نامشخص", row.unrepaired - row.technicalFailures)}
             {Object.entries(row.stageTimes).map(([key, seconds]) => <span key={key}>
               {detailButton(row.id, ["purchase", "transfer"].includes(key) ? key : "stageTime",
@@ -406,18 +445,8 @@ export function OperationsPerformance({ open }: { open: (item: V2Case) => void }
             <ul className="manager-trend">{Object.entries(row.trend).sort(([first], [second]) => first.localeCompare(second)).map(([day, total]) =>
               <li key={day}>{detailButton(row.id, "completed", formatPersianDate(day), total, day)}<meter min={0} max={Math.max(1, ...Object.values(row.trend))} value={total} /></li>)}</ul>
           </section>}
-          {metric?.user === row.id && <section className="tech-task" aria-label={`ریز پرونده‌های ${metric.label}`}>
-            <h5>{metric.label}</h5>
-            {detailLoading && <p role="status">در حال بارگذاری پرونده‌ها…</p>}
-            {detailError && <p role="alert">{detailError}</p>}
-            {!detailLoading && !detailError && !details.length && <p>پرونده‌ای در این شاخص ثبت نشده است.</p>}
-            <ul className="manager-workload-list">{details.map(item => <li key={item.id}>
-              <button type="button" onClick={() => void openCompleted(item.id)}><bdi>{item.receiptNumber}</bdi>
-                <span>{item.deviceTitle}{item.samples > 1 ? ` · ${fa(item.samples)} رویداد` : ""}</span>
-              </button>
-            </li>)}</ul>
-            {nextOffset !== null && <button type="button" disabled={detailLoading} onClick={() => void moreDetails()}>پرونده‌های بیشتر</button>}
-          </section>}
+          {metric?.user === row.id && detailPanel()}
+
         </li>;
       })}</ul>
     </>}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WorkspaceProfile } from "./access";
 import { TechnicalCaseWorkspace } from "./technical-case-workspace";
-import { PersianDatePicker } from "./persian-date-picker";
+import { RepairDeadlinePicker, repairDeadline } from "./repair-deadline-picker";
 import { MoneyInput, formatToman } from "./money-input";
 import { UserRoundCheck, ArrowLeftRight } from "lucide-react";
 import {
@@ -718,10 +718,16 @@ export function OperationsCaseWorkspace({
               <option value="urgent">فوری</option>
               <option value="critical">بسیار فوری</option>
             </select></label>
-            <div><span>تغییر تاریخ موعد</span><PersianDatePicker ariaLabel="تاریخ موعد برآوردی" value={dueDate} onChange={setDueDate} /></div>
-            {dueDate && <label>ساعت موعد به وقت ایران<input dir="ltr" type="time" value={dueTime} onChange={(event) => setDueTime(event.target.value)} /></label>}
+            <RepairDeadlinePicker dateLabel="تاریخ موعد برآوردی" date={dueDate} time={dueTime}
+              onChange={(date, time) => { setDueDate(date); setDueTime(time); }} />
             <button type="button" disabled={busy || !reason.trim() || (!!dueDate && !dueTime)} onClick={() => {
-              const promisedAt = dueDate ? new Date(`${dueDate}T${dueTime}:00+03:30`).toISOString().slice(0, 19).replace("T", " ") : null;
+              let promisedAt: string | null;
+              try {
+                promisedAt = repairDeadline(dueDate, dueTime);
+              } catch (failure) {
+                if (failure instanceof Error) setError(failure.message);
+                return;
+              }
               const payload = { action: "manager_update_case", caseId: selected.id, priority, promisedAt, reason, lockVersion: selected.lockVersion };
               void stageRun(() => workflowV2Action({ ...payload, idempotencyKey: requestKeyFor(payload) }), "اولویت و موعد پرونده ثبت شد.");
             }}>ثبت اولویت و موعد</button>

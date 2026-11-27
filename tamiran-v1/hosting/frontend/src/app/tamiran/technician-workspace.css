@@ -673,10 +673,12 @@
   border-radius: 8px;
 }
 .technical-desk .tech-diagnosis-choices label:has(input:checked),
-.technical-desk .tech-due button[aria-pressed="true"] { background: #e7f2ed; border-color: #236557; }
+.tech-task .tech-due button[aria-pressed="true"] { background: #e7f2ed; border-color: #236557; }
 .technical-desk .tech-diagnosis-choices input { flex: 0 0 auto; width: 18px; height: 18px; min-height: 0; }
 .tech-task fieldset.tech-due { padding: 10px; border: 1px solid #cadfd7; border-radius: 8px; }
 .tech-due > div { margin-block: 8px; }
+.tech-due { min-inline-size: 0; }
+.tech-due .tech-handover-actions button { min-height: 44px; }
 .tech-approval-summary dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 10px; margin-inline: 0; }
 .tech-approval-summary dd { font-weight: 650; margin: 0; }
 .tech-catalog-results { padding: 0; margin: 0; list-style: none; display: grid; gap: 6px; }

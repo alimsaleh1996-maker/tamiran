@@ -139,6 +139,8 @@ function manager_operations_report(PDO $pdo, array $scope, mixed $from, mixed $t
 {
     if ($scope['role']!=='repair_manager') throw new TamiranApiException('گزارش عملکرد فقط برای مدیر تعمیرگاه است.',403);
     $params=manager_report_dates($scope,$from,$to);
+    $asOf=manager_report_as_of($detail['asOf']??null);
+    $params['asOf']=$asOf;
     $sources=manager_report_sources();
     if ($detail!==null) return manager_report_cases($pdo,$params,$sources,$detail);
     $who=$pdo->prepare("SELECT u.id,u.display_name FROM tamiran_users u JOIN tamiran_user_branches b
@@ -146,17 +148,29 @@ function manager_operations_report(PDO $pdo, array $scope, mixed $from, mixed $t
         AND b.branch_role_code IN ('technician','repair_manager') ORDER BY u.display_name");
     $who->execute(['shop'=>$scope['shop_id'],'branch'=>$scope['branch_id']]);
     $report=[];
+    $technicianRow=static fn(int $id,string $name):array=>['id'=>$id,'name'=>$name,'active'=>0,'delivered'=>0,
+        'assigned'=>0,'repaired'=>0,'unrepaired'=>0,'technicalFailures'=>0,'trend'=>[],'completedCases'=>[],'qcRuns'=>0,
+        'qcFailures'=>0,'transferReasons'=>[],'stageTimes'=>[],'withInitialDue'=>0,'onTime'=>0,
+        'delayObserved'=>0,'operationalLate'=>0,'attributableLate'=>0];
     while ($u=$who->fetch()) {
-        $report[$u['id']]=['id'=>(int)$u['id'],'name'=>$u['display_name'],'active'=>0,'delivered'=>0,
-            'assigned'=>0,'repaired'=>0,'unrepaired'=>0,'technicalFailures'=>0,'trend'=>[],'completedCases'=>[],'qcRuns'=>0,'qcFailures'=>0,'transferReasons'=>[],'stageTimes'=>[],'withInitialDue'=>0,'onTime'=>0];
+        $report[$u['id']]=$technicianRow((int)$u['id'],$u['display_name']);
     }
-    foreach (['active','assigned','delivered','qcRuns','completed','stageTime','transfer','purchase','deadline'] as $metric) {
+    $withoutOwner=['delayObserved'=>0,'operationalLate'=>0];
+    foreach (['delayObserved','active','assigned','delivered','qcRuns','completed','stageTime','transfer','purchase','deadline'] as $metric) {
         [$sql,$timed]=$sources[$metric];
         $query=$pdo->prepare($sql);
-        $query->execute(manager_report_params($params,$timed));
+        $query->execute(manager_report_params($params,$timed,$metric));
         $totals=[];
         while ($row=$query->fetch()) {
-            $id=$row['user_id'];
+            $id=(int)$row['user_id'];
+            if ($metric==='delayObserved' && !isset($report[$id])) {
+                if ($row['owner_name']!==null) {
+                    $report[$id]=$technicianRow($id,$row['owner_name']);
+                } elseif ($id===0) {
+                    $withoutOwner['delayObserved']++;
+                    $withoutOwner['operationalLate']+=(int)$row['is_late'];
+                }
+            }
             if (!isset($report[$id])) continue;
             switch ($metric) {
                 case 'completed':
@@ -172,6 +186,11 @@ function manager_operations_report(PDO $pdo, array $scope, mixed $from, mixed $t
                 case 'qcRuns':
                     $report[$id]['qcRuns']++;
                     $report[$id]['qcFailures']+=(int)$row['sample_value'];
+                    break;
+                case 'delayObserved':
+                    $report[$id]['delayObserved']++;
+                    $report[$id]['operationalLate']+=(int)$row['is_late'];
+                    $report[$id]['attributableLate']+=(int)$row['is_attributable'];
                     break;
                 case 'deadline':
                     $report[$id]['withInitialDue']++;
@@ -202,7 +221,7 @@ function manager_operations_report(PDO $pdo, array $scope, mixed $from, mixed $t
             array_keys($row['transferReasons']),array_values($row['transferReasons']));
     }
     unset($row);
-    return ['from'=>$from,'to'=>$to,'rows'=>array_values($report)];
+    return ['from'=>$from,'to'=>$to,'asOf'=>$asOf,'rows'=>array_values($report),'withoutOwner'=>$withoutOwner];
 }
 
 function manager_report_dates(array $scope,mixed $from,mixed $to):array
@@ -220,9 +239,83 @@ function manager_report_dates(array $scope,mixed $from,mixed $to):array
         'to'=>$end->modify('+1 day')->setTimezone($utc)->format('Y-m-d H:i:s')];
 }
 
-function manager_report_params(array $params,bool $timed):array
+function manager_report_as_of(mixed $value):string
 {
-    return $timed?$params:array_intersect_key($params,['shop'=>true,'branch'=>true]);
+    $now=gmdate('Y-m-d H:i:s');
+    if ($value===null) return $now;
+    $value=v2_text($value,'زمان گزارش',19);
+    $parsed=DateTimeImmutable::createFromFormat('!Y-m-d H:i:s',$value,new DateTimeZone('UTC'));
+    if (!$parsed || $parsed->format('Y-m-d H:i:s')!==$value || $value>$now) {
+        throw new TamiranApiException('زمان گزارش معتبر نیست.');
+    }
+    return $value;
+}
+
+function manager_report_params(array $params,bool $timed,string $source):array
+{
+    if (!$timed) return array_intersect_key($params,['shop'=>true,'branch'=>true]);
+    if ($source!=='delayObserved') unset($params['asOf']);
+    return $params;
+}
+
+/** Observe the deadline that was in force at its due time, and the stage and owner recorded then. */
+function manager_report_delay_sql():string
+{
+    return "WITH report_bounds AS (
+        SELECT CAST(:from AS DATETIME) AS range_from,CAST(:to AS DATETIME) AS range_to,CAST(:asOf AS DATETIME) AS as_of
+    ), report_workflows AS (
+        SELECT w.id,w.case_id,c.public_id,w.shop_id,w.branch_id,c.product_profile_snapshot
+        FROM repair_case_workflows w JOIN repair_cases c ON c.id=w.case_id AND c.shop_id=w.shop_id AND c.branch_id=w.branch_id
+        CROSS JOIN report_bounds b
+        WHERE w.shop_id=:shop AND w.branch_id=:branch AND c.created_at<b.range_to
+    ), promises AS (
+        SELECT w.id AS workflow_id,e.started_at AS recorded_at,e.id AS event_id,0 AS event_source,
+            JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.promisedAt')) AS due
+        FROM report_workflows w JOIN repair_case_stage_events e ON e.workflow_id=w.id AND e.from_status IS NULL
+        UNION ALL
+        SELECT w.id,a.created_at,a.id,1,
+            CASE a.action_code WHEN 'manager_priority' THEN JSON_UNQUOTE(JSON_EXTRACT(a.after_json,'$.payload.promisedAt'))
+                ELSE JSON_UNQUOTE(JSON_EXTRACT(a.after_json,'$.promisedAt')) END
+        FROM report_workflows w JOIN tamiran_audit_log a
+            ON a.shop_id=w.shop_id AND a.branch_id=w.branch_id AND a.entity_public_id=w.public_id
+            AND a.entity_type='repair_case' AND a.action_code IN ('case.promise.update','manager_priority')
+    ), promise_periods AS (
+        SELECT workflow_id,recorded_at,CAST(due AS DATETIME) AS due_at,
+            LEAD(recorded_at) OVER (PARTITION BY workflow_id ORDER BY recorded_at,event_source,event_id) AS next_change
+        FROM promises CROSS JOIN report_bounds b WHERE due IS NOT NULL AND due<>'null' AND recorded_at<=b.as_of
+    ), observed AS (
+        SELECT w.case_id,w.shop_id,p.due_at,s.to_status AS stage,
+            COALESCE(a.technician_user_id,solo.actor_user_id,0) AS user_id,
+            s.to_status NOT IN ('closed','cancelled','delivered','ready_for_delivery','returned_unrepaired') AS is_late,
+            (s.to_status IN ('diagnosing','estimate_pending','repairing','qc_rework')
+                AND (a.accepted_at<=p.due_at OR solo.id IS NOT NULL)
+                AND NOT EXISTS(SELECT 1 FROM repair_case_stage_events wait
+                    WHERE wait.workflow_id=w.id AND wait.to_status IN ('awaiting_customer_approval','awaiting_parts')
+                    AND wait.started_at<=p.due_at AND (wait.ended_at IS NULL OR wait.ended_at>wait.started_at))) AS is_attributable
+        FROM promise_periods p JOIN report_workflows w ON w.id=p.workflow_id
+        JOIN repair_case_stage_events s ON s.id=(
+            SELECT stage.id FROM repair_case_stage_events stage WHERE stage.workflow_id=w.id
+                AND stage.started_at<=p.due_at AND (stage.ended_at IS NULL OR stage.ended_at>p.due_at)
+            ORDER BY stage.started_at DESC,stage.id DESC LIMIT 1)
+        LEFT JOIN repair_case_assignments a ON a.id=(
+            SELECT assignment.id FROM repair_case_assignments assignment WHERE assignment.workflow_id=w.id
+                AND assignment.assignment_type='primary' AND assignment.started_at<=p.due_at
+                AND (assignment.ended_at IS NULL OR assignment.ended_at>p.due_at)
+            ORDER BY assignment.started_at DESC,assignment.id DESC LIMIT 1)
+        LEFT JOIN repair_case_events solo ON solo.id=(
+            SELECT receipt.id FROM repair_case_events receipt WHERE receipt.case_id=w.case_id
+                AND w.product_profile_snapshot='solo' AND a.id IS NULL AND receipt.event_type='technical_receipt'
+                AND receipt.created_at<=p.due_at ORDER BY receipt.created_at DESC,receipt.id DESC LIMIT 1)
+        CROSS JOIN report_bounds b
+        WHERE p.due_at>=b.range_from AND p.due_at<b.range_to AND p.due_at<b.as_of
+            AND p.recorded_at<=p.due_at AND (p.next_change IS NULL OR p.next_change>p.due_at)
+    ), ranked AS (
+        SELECT observed.*,ROW_NUMBER() OVER (PARTITION BY case_id ORDER BY is_late DESC,due_at) AS case_rank
+        FROM observed
+    )
+    SELECT r.case_id,r.user_id,r.due_at,r.stage,r.is_late,COALESCE(r.is_attributable,0) AS is_attributable,
+        u.display_name AS owner_name
+    FROM ranked r LEFT JOIN tamiran_users u ON u.id=r.user_id AND u.shop_id=r.shop_id WHERE r.case_rank=1";
 }
 
 function manager_report_sources():array
@@ -252,6 +345,7 @@ function manager_report_sources():array
         'completed'=>["SELECT w.case_id,$technician AS user_id,$result AS result,$reason AS reason,
             DATE(DATE_ADD(e.created_at,INTERVAL 210 MINUTE)) AS local_day,c.receipt_number
             $finishes AND $result IN ('repaired','not_repaired') ORDER BY e.created_at DESC,e.id DESC",true],
+        'delayObserved'=>[manager_report_delay_sql(),true],
         'deadline'=>["SELECT w.case_id,$technician AS user_id,e.created_at<=$initialDue AS sample_value
             $finishes AND $initialDue IS NOT NULL",true],
         'stageTime'=>["SELECT w.case_id,COALESCE((SELECT a.technician_user_id FROM repair_case_assignments a WHERE a.workflow_id=w.id
@@ -280,7 +374,7 @@ function manager_report_sources():array
 function manager_report_cases(PDO $pdo,array $params,array $sources,array $detail):array
 {
     $metric=(string)($detail['metric']??'');
-    $user=filter_var($detail['technician']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+    $user=filter_var($detail['technician']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>0]]);
     $offset=filter_var($detail['offset']??0,FILTER_VALIDATE_INT,['options'=>['min_range'=>0,'max_range'=>1000000]]);
     $variant=v2_text($detail['variant']??'','جزئیات شاخص',180,false);
     [$source,$where]=match($metric) {
@@ -290,22 +384,27 @@ function manager_report_cases(PDO $pdo,array $params,array $sources,array $detai
         'nonTechnical'=>['completed',"s.result='not_repaired' AND COALESCE(s.reason,'')<>'technical_failure'"],
         'qcFailures'=>['qcRuns','s.sample_value=1'],
         'onTime'=>['deadline','s.sample_value=1'],
+        'operationalLate'=>['delayObserved','s.is_late=1'],
+        'attributableLate'=>['delayObserved','s.is_late=1 AND s.is_attributable=1'],
         default=>[$metric,'1=1'],
     };
-    if ($user===false||$offset===false||!isset($sources[$source])) throw new TamiranApiException('شاخص یا صفحه گزارش معتبر نیست.');
+    if ($user===false||($user===0&&$metric!=='operationalLate')||$offset===false||!isset($sources[$source])) throw new TamiranApiException('شاخص یا صفحه گزارش معتبر نیست.');
     [$sql,$timed]=$sources[$source];
-    $params=manager_report_params($params,$timed)+['user'=>$user];
+    $params=manager_report_params($params,$timed,$source)+['user'=>$user];
     if ($variant!==null&&in_array($source,['stageTime','transfer','completed'],true)) {
         $where.=$source==='completed'?' AND s.local_day=:variant':' AND s.sample_label=:variant';
         $params['variant']=$variant;
     }
-    $q=$pdo->prepare("SELECT s.case_id,c.receipt_number,CONCAT_WS(' ',c.brand_snapshot,c.model_snapshot) AS device,COUNT(*) AS samples
+    $delayColumns=$source==='delayObserved'?',MAX(s.due_at) AS due_at,MAX(s.stage) AS stage,MAX(s.is_attributable) AS is_attributable':'';
+    $q=$pdo->prepare("SELECT s.case_id,c.receipt_number,CONCAT_WS(' ',c.brand_snapshot,c.model_snapshot) AS device,COUNT(*) AS samples $delayColumns
         FROM ($sql) s JOIN repair_cases c ON c.id=s.case_id WHERE s.user_id=:user AND $where
         GROUP BY s.case_id,c.receipt_number,c.brand_snapshot,c.model_snapshot ORDER BY s.case_id DESC LIMIT 51 OFFSET $offset");
     $q->execute($params);
     $rows=$q->fetchAll();$more=count($rows)>50;
     return ['rows'=>array_map(static fn($row)=>['id'=>(int)$row['case_id'],'receiptNumber'=>$row['receipt_number'],'deviceTitle'=>$row['device'],
-        'samples'=>(int)$row['samples']],array_slice($rows,0,50)),'nextOffset'=>$more?$offset+50:null];
+        'samples'=>(int)$row['samples']]+($source==='delayObserved'?[
+            'dueAt'=>$row['due_at'],'stage'=>$row['stage'],'attributable'=>(bool)$row['is_attributable'],
+        ]:[]),array_slice($rows,0,50)),'nextOffset'=>$more?$offset+50:null];
 }
 
 function manager_update_case(PDO $pdo,array $scope,array $input):array

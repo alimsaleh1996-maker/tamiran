@@ -1,6 +1,6 @@
-import { formatPersianDate, todayGregorianIso } from "./persian-date";
+import { formatPersianDate } from "./persian-date";
 import { Smartphone, X } from "lucide-react";
-import { PersianDatePicker } from "./persian-date-picker";
+import { RepairDeadlinePicker, repairDeadline } from "./repair-deadline-picker";
 import { ExternalPurchasePanel } from "./external-purchase-panel";
 import { useEffect, useRef, useState } from "react";
 import { MoneyInput, formatToman } from "./money-input";
@@ -58,12 +58,6 @@ const diagnosisOptions = [
   ["not_reproduced", "ایراد مشاهده نشد"],
   ["undetermined", "نیاز به بررسی بیشتر"],
 ];
-const normalizeClock = (value: string) => value.replace(/[۰-۹٠-٩]/g, digit => String(digit.charCodeAt(0) - (digit >= "۰" ? 0x6f0 : 0x660)));
-function tehranDayAhead(days: number) {
-  const day = new Date(`${todayGregorianIso()}T12:00:00Z`);
-  day.setUTCDate(day.getUTCDate() + days);
-  return day.toISOString().slice(0, 10);
-}
 const costLabels = {
   needs_estimate: "هنوز هزینه‌ای اعلام نشده است.",
   waiting_customer: "منتظر تأیید هزینه توسط مشتری",
@@ -548,14 +542,8 @@ export function TechnicalCaseWorkspace({
     let next: TechnicalScreen = "estimate";
     return run("diagnosis", async () => {
       const canEstimate = !assessment || assessment === "confirmed";
-      let promisedAt: string | undefined;
-      if (stageDriven && canEstimate && draft.diagnosisDueDate) {
-        const time = normalizeClock(draft.diagnosisDueTime);
-        if (!/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(time)) throw new Error("ساعت را به شکل ۲۴ ساعته وارد کنید.");
-        const promise = new Date(`${draft.diagnosisDueDate}T${time}:00+03:30`);
-        if (!Number.isFinite(promise.getTime()) || promise.getTime() <= Date.now()) throw new Error("زمان تقریبی اتمام باید بعد از زمان فعلی باشد.");
-        promisedAt = promise.toISOString().slice(0, 19).replace("T", " ");
-      }
+      const promisedAt = stageDriven && canEstimate
+        ? repairDeadline(draft.diagnosisDueDate, draft.diagnosisDueTime, true) : null;
       const fresh = (await loadV2Workflow(caseId)).cases[0];
       if (fresh.status === "diagnosing" || fresh.status === "qc_rework") {
         const payload = {
@@ -1124,25 +1112,9 @@ export function TechnicalCaseWorkspace({
                 </>}
                 {stageDriven && diagnosisCanEstimate && <>
                   {estimateInputs}
-                  <fieldset className="tech-due">
-                    <legend>زمان تقریبی اتمام تعمیر</legend>
-                    <div className="tech-handover-actions">
-                      {["امروز", "فردا", "پس‌فردا"].map((label, index) => <button type="button" key={label} aria-pressed={draft.diagnosisDueDate === tehranDayAhead(index)}
-                        onClick={() => change({ diagnosisDueDate: tehranDayAhead(index) })}>{label}</button>)}
-                      {draft.diagnosisDueDate && <button type="button" onClick={() => change({ diagnosisDueDate: "", diagnosisDueTime: "" })}>پاک‌کردن موعد</button>}
-                    </div>
-                    <div className="tech-form-grid">
-                      <div><PersianDatePicker ariaLabel="انتخاب تاریخ دیگر" value={draft.diagnosisDueDate} onChange={(diagnosisDueDate) => change({ diagnosisDueDate })} /></div>
-                      {draft.diagnosisDueDate && <label>ساعت به وقت ایران
-                        <input required inputMode="numeric" dir="ltr" maxLength={5} aria-label={`ساعت ${formatPersianDate(draft.diagnosisDueDate)}`}
-                          value={draft.diagnosisDueTime} onChange={(event) => change({ diagnosisDueTime: normalizeClock(event.target.value).replace(/[0-9]/g, digit => String.fromCharCode(1776 + Number(digit))) })} />
-                      </label>}
-                    </div>
-                    {draft.diagnosisDueDate && <div className="tech-handover-actions" aria-label="انتخاب سریع ساعت">
-                      {["۱۰:۰۰", "۱۲:۰۰", "۱۵:۰۰", "۱۸:۰۰"].map(time => <button key={time} type="button"
-                        aria-pressed={draft.diagnosisDueTime === time} onClick={() => change({ diagnosisDueTime: time })}>{time}</button>)}
-                    </div>}
-                  </fieldset>
+                  <RepairDeadlinePicker dateLabel="انتخاب تاریخ دیگر" date={draft.diagnosisDueDate}
+                    time={draft.diagnosisDueTime} futureOnly
+                    onChange={(diagnosisDueDate, diagnosisDueTime) => change({ diagnosisDueDate, diagnosisDueTime })} />
                 </>}
                 <div className={stageDriven ? "tech-v7-action-bar" : undefined}>
                   {stageDriven && <button type="button" onClick={() => go("work", "diagnosis")}>گزارش‌های پرونده</button>}

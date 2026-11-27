@@ -38,3 +38,6 @@
 .operational-filters label { min-width:0; max-width:100%; }
 .operational-filters select, .operational-pagination button { min-height:44px; }
 .operational-pagination { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-block:12px; }
+
+.manager-delay-guide { margin-block: 12px; }
+.manager-delay-empty { align-self: center; }

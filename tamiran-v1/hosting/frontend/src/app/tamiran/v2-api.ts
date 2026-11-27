@@ -641,20 +641,23 @@ export type ManagerPerformance = {
   completedCases: Array<{ id: number; receiptNumber: string; result: "repaired" | "unrepaired" }>;
   withInitialDue: number;
   onTime: number;
+  delayObserved: number;
+  operationalLate: number;
+  attributableLate: number;
   stageTimes: Record<string, number>;
   qcRuns: number;
   qcFailures: number;
   transferReasons: Array<{ label: string; count: number }>;
 };
 export const loadManagerPerformance = (from: string, to: string) =>
-  directAdminRequest<{ rows: ManagerPerformance[] }>(
+  directAdminRequest<{ rows: ManagerPerformance[]; asOf: string; withoutOwner: Pick<ManagerPerformance, "delayObserved" | "operationalLate"> }>(
     `/api/workflow-v2.php?${new URLSearchParams({ managerReport: "1", from, to })}`,
   );
 
-export type ManagerMetricCase = { id: number; receiptNumber: string; deviceTitle: string; samples: number };
-export const loadManagerMetricCases = (from: string, to: string, technician: number, metric: string, variant: string, offset = 0) =>
+export type ManagerMetricCase = { id: number; receiptNumber: string; deviceTitle: string; samples: number; dueAt?: string; stage?: string; attributable?: boolean };
+export const loadManagerMetricCases = (from: string, to: string, technician: number, metric: string, variant: string, offset = 0, asOf?: string) =>
   directAdminRequest<{ rows: ManagerMetricCase[]; nextOffset: number | null }>(
-    `/api/workflow-v2.php?${new URLSearchParams({ managerReport: "1", from, to, technician: String(technician), metric, variant, offset: String(offset) })}`
+    `/api/workflow-v2.php?${new URLSearchParams({ managerReport: "1", from, to, technician: String(technician), metric, variant, offset: String(offset), ...(asOf ? { asOf } : {}) })}`
   );
 export type OperationsFollowupReason = "customer" | "parts" | "pickup" | "receipt" | "late";
 export type OperationsFollowup = {
