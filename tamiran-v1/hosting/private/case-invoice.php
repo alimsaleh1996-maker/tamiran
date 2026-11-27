@@ -25,6 +25,8 @@ function case_invoice_saved(PDO $pdo,int $caseId):?array
 
 function case_invoice_authorized_amount(PDO $pdo,array $case):int
 {
+    $customerLimit=technician_customer_approval_limit($pdo,(int)$case['case_id']);
+    if ($customerLimit!==null) return $customerLimit;
     $estimate=$pdo->prepare('SELECT status,total_amount,valid_until FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1');
     $estimate->execute(['case'=>(int)$case['case_id']]);
     $approval=$estimate->fetch();

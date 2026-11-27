@@ -585,7 +585,8 @@ function workflow_v2_estimate(PDO $pdo,array $scope,array $input): array
             $tax=(int)round(($base-$discount)*$taxRate/100);$line=$base-$discount+$tax;
             $subtotal+=$base;$discountTotal+=$discount;$taxTotal+=$tax;$normalized[]=[$type,$item['referenceId']??null,$title,$quantity,$unit,$discount,$taxRate,$tax,$line];
         }
-        $diagnostic=technician_money($input['diagnosticFee']??0);$total=$subtotal-$discountTotal+$taxTotal+$diagnostic;$requiresCustomerApproval=$total>(int)$row['preapproved_amount'];$status=$requiresCustomerApproval?'draft':'approved';
+        $diagnostic=technician_money($input['diagnosticFee']??0);$total=$subtotal-$discountTotal+$taxTotal+$diagnostic;$approvalLimit=technician_customer_approval_limit($pdo,$caseId)??(int)$row['preapproved_amount'];
+        $requiresCustomerApproval=$total>$approvalLimit;$status=$requiresCustomerApproval?'draft':'approved';
         if ($financeReapproval&&$total<=case_invoice_authorized_amount($pdo,$row)) {
             throw new TamiranApiException('مبلغ جدید در محدوده مجوز فعلی است.',409);
         }

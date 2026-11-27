@@ -140,6 +140,18 @@ function technician_billable_parts(PDO $pdo,int $caseId): array
     }
     return $parts;
 }
+function technician_customer_approval_limit(PDO $pdo, int $caseId): ?int
+{
+    $statement = $pdo->prepare("SELECT e.total_amount,(e.valid_until IS NULL OR e.valid_until>=UTC_TIMESTAMP()) AS valid
+        FROM repair_estimates e
+        WHERE e.case_id=:case AND e.status='approved'
+        AND EXISTS (SELECT 1 FROM repair_estimate_approvals a WHERE a.estimate_id=e.id AND a.decision='approved')
+        ORDER BY e.revision DESC,e.id DESC LIMIT 1");
+    $statement->execute(['case'=>$caseId]);
+    $approval = $statement->fetch();
+    return is_array($approval) ? ($approval['valid'] ? (int)$approval['total_amount'] : 0) : null;
+}
+
 function technician_cost_state(PDO $pdo,array $case): array
 {
     $s=$pdo->prepare('SELECT * FROM repair_estimates WHERE case_id=:case ORDER BY revision DESC,id DESC LIMIT 1');$s->execute(['case'=>$case['case_id']]);$e=$s->fetch();
@@ -148,8 +160,8 @@ function technician_cost_state(PDO $pdo,array $case): array
     $s=$pdo->prepare("SELECT COALESCE(SUM(GREATEST(0,r.quantity-r.consumed_quantity-r.returned_quantity)*i.sale_price),0) FROM repair_part_requests r JOIN repair_inventory_items i ON i.id=r.item_id WHERE r.case_id=:case AND r.status NOT IN ('consumed','returned','rejected','cancelled')");$s->execute(['case'=>$case['case_id']]);$actual+=(int)$s->fetchColumn();
     $nonpart=0;$quotedParts=0;
     if(is_array($e)){$s=$pdo->prepare('SELECT item_type,line_total FROM repair_estimate_items WHERE estimate_id=:estimate');$s->execute(['estimate'=>$e['id']]);foreach($s->fetchAll() as $line){if($line['item_type']==='part')$quotedParts+=(int)$line['line_total'];else $nonpart+=(int)$line['line_total'];}$nonpart+=(int)$e['diagnostic_fee'];}
-    $total=$nonpart+max($actual,$quotedParts);$cap=(int)$case['preapproved_amount'];
-    $valid=is_array($e) && !in_array($e['status'],['rejected','explanation_requested','superseded'],true) && (empty($e['valid_until'])||strtotime($e['valid_until'])>=time()) && ($total<=$cap || ($e['status']==='approved'&&$total<=(int)$e['total_amount']));
+    $total=$nonpart+max($actual,$quotedParts);$customerLimit=technician_customer_approval_limit($pdo,(int)$case['case_id']);$cap=$customerLimit??(int)$case['preapproved_amount'];
+    $valid=is_array($e) && !in_array($e['status'],['rejected','explanation_requested','superseded'],true) && (empty($e['valid_until'])||strtotime($e['valid_until'])>=time()) && ($total<=$cap || ($customerLimit===null&&$e['status']==='approved'&&$total<=(int)$e['total_amount']));
     $state=!is_array($e)?'needs_estimate':($e['status']==='rejected'?'rejected':($valid?'approved':(($total>(int)$e['total_amount']||$e['status']==='explanation_requested')?'needs_revision':'waiting_customer')));
     return ['state'=>$state,'authorized'=>$valid,'totalAmount'=>$total,'partsAmount'=>$actual,'quotedPartsAmount'=>$quotedParts,'capAmount'=>$cap,'estimatePublicId'=>is_array($e)?$e['public_id']:null];
 }
