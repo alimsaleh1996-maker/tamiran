@@ -1,5 +1,5 @@
 import { appearanceDescription } from "./appearance-locations";
-import { intakeMethodTitles, type IntakeMethod } from "./intake-finance";
+import { receiptAdvanceMethods } from "./intake-finance";
 import { useEffect, useState } from "react";
 import { ReceiptA4 } from "./receipt-a4";
 import receiptA4Css from "./receipt-a4.css?inline";
@@ -129,6 +129,7 @@ export function CompactReceipt(p: CompactReceiptProps) {
         : p.dataHandling === "no_erasure"
           ? "تعمیر بدون حذف اطلاعات"
           : "ثبت نشده";
+  const advanceMethods = receiptAdvanceMethods(p.details?.advanceMethod);
   const conditions = p.details?.terms?.trim() ? p.details.terms.split(/\n+/).map(line => line.trim()).filter(Boolean)
     : p.conditions?.length
     ? [...p.conditions]
@@ -220,11 +221,14 @@ export function CompactReceipt(p: CompactReceiptProps) {
             <dd>{handling}</dd>
             <dt>موعد برآوردی</dt>
             <dd>{dateText(p.promisedAt)}</dd>
+            {p.details?.initialEstimate != null && <>
+              <dt>برآورد اولیه تعمیر</dt>
+              <dd>{formatRials(p.details.initialEstimate)} ریال</dd>
+            </>}
             {p.details && p.details.advance > 0 && <>
               <dt>پیش‌دریافت</dt>
               <dd>{formatRials(p.details.advance)} ریال
-                {p.details.advanceMethod && <> · {p.details.advanceMethod.split(",")
-                  .map(method=>intakeMethodTitles[method as IntakeMethod] ?? (method === "online" ? "آنلاین" : method === "credit" ? "اعتباری" : "")).filter(Boolean).join("، ")}</>}
+                {advanceMethods && <> · {advanceMethods}</>}
               </dd>
             </>}
             {p.previousReceipt && (

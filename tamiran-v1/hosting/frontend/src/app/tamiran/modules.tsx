@@ -2015,7 +2015,12 @@ function ReceptionPage({
                       field.label.includes("سریال") ||
                       field.label === "پلاک" ||
                       field.label === "شناسه" ? (
-                      <div className="field-block reception-identity-field" key={field.label}>
+                      <div className="reception-identity-field" key={field.label}>
+                        {!needsImei && hasSerialField && <label className="field-block"><span>IMEI (در صورت وجود)</span>
+                          <input dir="ltr" inputMode="numeric" maxLength={24} value={imei} onChange={(event) => setImei(event.target.value)}
+                            onBlur={() => setImeiTouched(true)} aria-invalid={imeiTouched && Boolean(imeiValidation)}
+                            aria-describedby={imeiTouched && imeiValidation ? "reception-imei-error" : undefined} />
+                        </label>}
                         <div className="identity-primary field-block"><label htmlFor="reception-device-identifier">
                           <span>{needsImei ? "IMEI" : terminology?.identifierLabel || field.label}</span>
                           {!identifierUnavailable && <b aria-hidden="true">*</b>}
@@ -2042,11 +2047,6 @@ function ReceptionPage({
                         </div>
                         {needsImei && <label className="field-block"><span>شماره سریال</span>
                           <input dir="ltr" maxLength={180} value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} />
-                        </label>}
-                        {!needsImei && hasSerialField && <label className="field-block"><span>IMEI (در صورت وجود)</span>
-                          <input dir="ltr" inputMode="numeric" maxLength={24} value={imei} onChange={(event) => setImei(event.target.value)}
-                            onBlur={() => setImeiTouched(true)} aria-invalid={imeiTouched && Boolean(imeiValidation)}
-                            aria-describedby={imeiTouched && imeiValidation ? "reception-imei-error" : undefined} />
                         </label>}
                         {imeiTouched && imeiValidation && <small id="reception-imei-error" className="identity-error" role="alert">{imeiValidation}</small>}
                         <div className="identity-availability-row">
@@ -2196,18 +2196,18 @@ function ReceptionPage({
                     قبض یا پرتال مشتری نمایش داده نخواهد شد.
                   </small>
                 </label>
-                <div className="form-grid three-columns reception-v2-terms">
+                <div className="form-grid reception-v2-terms">
                   <label className="field-block">
                     <span>برآورد اولیه تعمیر (ریال) <small>اختیاری</small></span>
                     <MoneyInput value={initialEstimate} onChange={setInitialEstimate} />
                   </label>
                   <div className="field-block intake-advance-summary">
                     <span>پیش‌دریافت</span>
-                    {intakeAdvance ? <>
+                    {intakeAdvance ? <div className="intake-advance-value">
                       <strong>{formatIntakeRials(intakeAdvance.amount)} ریال · {intakeMethodTitles[intakeAdvance.method]}</strong>
                       <button type="button" className="text-action" onClick={() => setIntakeAdvanceOpen(true)}>ویرایش</button>
                       <button type="button" className="text-action" onClick={() => setIntakeAdvance(null)}>حذف</button>
-                    </> : <button type="button" className="outline-action" disabled={!locations.length}
+                    </div> : <button type="button" className="outline-action"
                       onClick={() => setIntakeAdvanceOpen(true)}>ثبت دریافت</button>}
                   </div>
                   <div className="field-block">

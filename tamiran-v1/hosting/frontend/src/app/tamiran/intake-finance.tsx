@@ -5,6 +5,10 @@ import { formatRials } from "./money";
 
 export type IntakeMethod = "cash" | "card" | "bank_transfer";
 export const intakeMethodTitles: Record<IntakeMethod, string> = {cash: "نقدی", card: "کارت‌خوان", bank_transfer: "واریزی"};
+export function receiptAdvanceMethods(value?: string | null) {
+  const titles: Record<string, string> = {...intakeMethodTitles, online: "آنلاین", credit: "اعتباری"};
+  return value?.split(",").map(method => titles[method]).filter(Boolean).join("، ") ?? "";
+}
 const locationTitles: Record<IntakeMethod, string> = {cash: "صندوق", card: "پایانه", bank_transfer: "حساب بانکی"};
 const methods = ["card", "cash", "bank_transfer"] as const;
 export type IntakeLocation = {
@@ -42,6 +46,7 @@ export function IntakeAdvanceEditor({ locations, value, onConfirm, onCancel }: {
     if (!amount || !options.some(location => location.id === locationId)) return;
     onConfirm({amount, method, locationId, tracking: method !== "cash" ? tracking.trim() : undefined});
   }}>
+    {locations.length === 0 && <p role="status">محل دریافت فعالی برای شعبه و دسترسی فعلی شما در دسترس نیست. از مدیر تعمیرگاه بخواهید تنظیمات مالی و مجوز ثبت دریافت را بررسی کند.</p>}
     <label className="field-block">مبلغ دریافتی (ریال)<IntakeRialInput value={amount} onChange={setAmount} /></label>
     <fieldset className="intake-methods"><legend>روش دریافت وجه</legend>
       {methods.map(item => {
@@ -54,7 +59,7 @@ export function IntakeAdvanceEditor({ locations, value, onConfirm, onCancel }: {
       })}
     </fieldset>
     <label className="field-block">{locationTitles[method]}
-      <select value={locationId} onChange={event => setSelected(event.target.value)}>
+      <select disabled={options.length === 0} value={locationId} onChange={event => setSelected(event.target.value)}>
         <option value="">انتخاب {locationTitles[method]}</option>
         {options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
       </select>

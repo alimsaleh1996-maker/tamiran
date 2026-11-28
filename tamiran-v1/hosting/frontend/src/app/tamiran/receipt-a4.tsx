@@ -1,5 +1,5 @@
 import { appearanceDescription } from "./appearance-locations";
-import { intakeMethodTitles, type IntakeMethod } from "./intake-finance";
+import { receiptAdvanceMethods } from "./intake-finance";
 import type { CompactReceiptProps } from "./compact-receipt";
 import { formatRials } from "./money";
 import { queueTimestamp } from "./queue-search";
@@ -45,6 +45,9 @@ export function ReceiptA4({ receipt, tracking, handling, conditions }: {
   const shopName = workspace?.shopName || "تعمیران";
   const device = [catalogItem?.brand, catalogItem?.model].filter(Boolean).join(" ") || "—";
   const phoneDevice = /موبایل|گوشی|تبلت|mobile|phone|tablet/i.test(receipt.deviceType ?? "");
+  const estimate = details?.initialEstimate;
+  const advance = details?.advance ?? 0;
+  const advanceMethods = receiptAdvanceMethods(details?.advanceMethod);
   const issues = details?.declaredIssues.length ? details.declaredIssues : [receipt.declaredIssue || "—"];
   return <article className="tamiran-receipt receipt-a4" data-print-size="A4" aria-label="قبض پذیرش تعمیرات">
     <header className="receipt-a4-header">
@@ -81,26 +84,26 @@ export function ReceiptA4({ receipt, tracking, handling, conditions }: {
           <div><dt>شناسه دستگاه</dt><dd><bdi dir="ltr">{receipt.identifier || "—"}</bdi></dd></div>}
       </dl>
     </section>
-    <section aria-label="اطلاعات مالی پذیرش">
+    {(estimate != null || advance > 0) && <section aria-label="اطلاعات مالی پذیرش">
       <div className="receipt-a4-section-head"><h3>اطلاعات مالی پذیرش</h3><span>مبالغ به ریال</span></div>
       <dl className="receipt-a4-cells receipt-a4-money">
-        <div><dt>برآورد اولیه تعمیر</dt><dd>{details?.initialEstimate == null ? "—" : formatRials(details.initialEstimate)}</dd></div>
-        {details && details.advance > 0 && <div><dt>پیش‌دریافت</dt><dd>{formatRials(details.advance)}
-          {details.advanceMethod && <> · {details.advanceMethod.split(",").map(method=>intakeMethodTitles[method as IntakeMethod] ?? (method === "online" ? "آنلاین" : method === "credit" ? "اعتباری" : "")).filter(Boolean).join("، ")}</>}</dd></div>}
+        {estimate != null && <div><dt>برآورد اولیه تعمیر</dt><dd>{formatRials(estimate)}</dd></div>}
+        {advance > 0 && <div className="receipt-a4-advance"><dt>پیش‌دریافت</dt><dd>{formatRials(advance)}
+          {advanceMethods && <> · {advanceMethods}</>}</dd></div>}
       </dl>
-      <p className="receipt-a4-note">مبالغ پذیرش برآورد اولیه‌اند و مبلغ نهایی در فاکتور تعمیرات درج می‌شود.</p>
-    </section>
+      {estimate != null && <p className="receipt-a4-note">برآورد اولیه است و مبلغ نهایی در فاکتور تعمیرات درج می‌شود.</p>}
+    </section>}
     <section aria-label="ایرادات دستگاه">
       <h3>ایرادات دستگاه طبق اظهارات مشتری</h3>
-      <table className="receipt-a4-issues">
+      <table className="receipt-a4-issues" dir="rtl">
         <thead><tr><th scope="col">ردیف</th><th scope="col">نوع ایراد</th>
-          <th scope="col">شرح ایراد</th><th scope="col">توضیحات تکمیلی</th></tr></thead>
+          <th scope="col">شرح ایراد</th></tr></thead>
         <tbody>{issues.map((issue, index) => {
           const extra = details?.issueDetails?.[index];
           const structured = extra?.kind && [extra.kind, extra.note].filter(Boolean).join(" — ") === issue;
           return <tr key={index}>
             <td>{digits.format(index + 1)}</td><td>{extra?.kind || "—"}</td>
-            <td>{structured ? "—" : issue}</td><td>{extra?.note || "—"}</td>
+            <td>{structured ? (extra.note || "—") : [issue, extra?.note && !issue.includes(extra.note) ? extra.note : ""].filter(Boolean).join("\n")}</td>
           </tr>;
         })}</tbody>
       </table>
